@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CurrículoIA — Analisador inteligente de currículos</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/styles.css">
+</head>
+<body>
+
+<!-- ════════════════════════════════
+     SCREEN: AUTH
+════════════════════════════════ -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-wrap">
+
+    <!-- hero lateral -->
+    <div class="auth-hero">
+      <div class="auth-hero-logo">currículo<span>IA</span></div>
+      <div>
+        <h2>Seu currículo, <em>otimizado</em> para a vaga certa.</h2>
+        <p class="auth-hero-sub">Análise inteligente e reestruturação personalizada, sem inventar nada.</p>
+      </div>
+      <div class="auth-hero-pills">
+        <div class="auth-pill"><i class="ti ti-sparkles"></i> Análise com IA em segundos</div>
+        <div class="auth-pill"><i class="ti ti-target"></i> Adequado à vaga específica</div>
+        <div class="auth-pill"><i class="ti ti-shield-check"></i> Só reescreve, nunca inventa</div>
+        <div class="auth-pill"><i class="ti ti-history"></i> Histórico de análises salvo</div>
+      </div>
+    </div>
+
+    <!-- formulário -->
+    <div class="auth-form-side">
+      <div class="auth-logo-mobile">currículo<span style="font-weight:500;">IA</span></div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login')">Entrar</button>
+        <button class="auth-tab" onclick="switchAuthTab('register')">Criar conta</button>
+      </div>
+
+      <!-- login -->
+      <div id="login-form">
+        <div class="form-group">
+          <label>E-mail</label>
+          <input type="email" id="login-email" placeholder="seu@email.com" />
+        </div>
+        <div class="form-group">
+          <label>Senha</label>
+          <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()" />
+        </div>
+        <button class="btn-primary" onclick="doLogin()">Entrar na conta</button>
+        <p class="auth-switch">Não tem conta? <span onclick="switchAuthTab('register')">Crie grátis</span></p>
+      </div>
+
+      <!-- cadastro -->
+      <div id="register-form" style="display:none;">
+        <div class="form-group">
+          <label>Nome completo</label>
+          <input type="text" id="reg-name" placeholder="João Silva" />
+        </div>
+        <div class="form-group">
+          <label>E-mail</label>
+          <input type="email" id="reg-email" placeholder="seu@email.com" />
+        </div>
+        <div class="form-group">
+          <label>Senha</label>
+          <input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter') doRegister()" />
+        </div>
+        <button class="btn-primary" onclick="doRegister()">Criar conta grátis</button>
+        <p class="auth-switch">Já tem conta? <span onclick="switchAuthTab('login')">Entrar</span></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════
+     SCREEN: DASHBOARD
+════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+  <div class="dashboard">
+
+    <!-- sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-logo">currículo<span>IA</span></div>
+
+      <button class="nav-item active" id="nav-analyze" onclick="switchNav('analyze')">
+        <i class="ti ti-sparkles"></i> Nova análise
+      </button>
+      <button class="nav-item" id="nav-history" onclick="switchNav('history')">
+        <i class="ti ti-history"></i> Histórico
+      </button>
+
+      <div class="sidebar-bottom">
+        <div class="user-chip">
+          <div class="user-avatar" id="user-initials">?</div>
+          <div>
+            <div class="user-name" id="user-display-name">—</div>
+            <div class="user-email" id="user-display-email">—</div>
+          </div>
+        </div>
+        <button class="nav-item" style="margin-top:8px;" onclick="doLogout()">
+          <i class="ti ti-logout"></i> Sair
+        </button>
+      </div>
+    </div>
+
+    <!-- conteúdo principal -->
+    <div class="main-content">
+
+      <!-- ── PAGE: NOVA ANÁLISE ── -->
+      <div id="page-analyze">
+
+        <!-- formulário de entrada -->
+        <div id="analyze-form-view">
+          <div class="page-header">
+            <h1>Nova análise</h1>
+            <p>Preencha a vaga e o currículo — a IA analisa e reestrutura tudo.</p>
+          </div>
+
+          <div class="analysis-form-card">
+            <h3><i class="ti ti-briefcase"></i> Vaga de interesse</h3>
+            <span class="section-label">Título da vaga</span>
+            <input type="text" class="form-input" id="job-title" placeholder="Ex: Desenvolvedor Frontend Sênior" />
+            <span class="section-label">Descrição da vaga</span>
+            <textarea class="textarea-field" id="job-desc" rows="6"
+              placeholder="Cole aqui a descrição completa: responsabilidades, requisitos obrigatórios, diferenciais, cultura da empresa..."></textarea>
+          </div>
+
+          <div class="analysis-form-card">
+            <h3><i class="ti ti-file-text"></i> Seu currículo</h3>
+            <span class="section-label">Texto do currículo</span>
+            <textarea class="textarea-field" id="resume-text" rows="10"
+              placeholder="Cole aqui o conteúdo completo do seu currículo:&#10;&#10;• Dados pessoais&#10;• Resumo profissional&#10;• Experiências&#10;• Formação&#10;• Habilidades&#10;• Cursos e certificações&#10;• Projetos"></textarea>
+          </div>
+
+          <button class="analyze-btn" id="analyze-btn" onclick="startAnalysis()">
+            <i class="ti ti-sparkles"></i> Analisar com IA
+          </button>
+        </div>
+
+        <!-- tela de loading -->
+        <div id="analyze-loading-view" style="display:none;">
+          <div class="loading-card">
+            <div class="spinner"></div>
+            <h3>Analisando seu currículo...</h3>
+            <p>Aguarde, a IA está trabalhando</p>
+            <div class="loading-steps">
+              <div class="loading-step" id="step1"><i class="ti ti-clock"></i> Lendo a vaga de trabalho</div>
+              <div class="loading-step" id="step2"><i class="ti ti-clock"></i> Analisando o currículo</div>
+              <div class="loading-step" id="step3"><i class="ti ti-clock"></i> Identificando melhorias</div>
+              <div class="loading-step" id="step4"><i class="ti ti-clock"></i> Reestruturando currículo</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- resultados -->
+        <div id="analyze-results-view" style="display:none;">
+          <button class="new-analysis-btn" onclick="resetAnalysis()">
+            <i class="ti ti-arrow-left"></i> Nova análise
+          </button>
+
+          <div class="page-header">
+            <h1>Resultado da análise</h1>
+            <p id="result-job-title-display"></p>
+          </div>
+
+          <div class="results-grid">
+            <div class="score-card">
+              <div class="score-circle good" id="score-circle-1">—</div>
+              <div>
+                <div class="score-label">Compatibilidade</div>
+                <div class="score-title" id="score-label-1">—</div>
+              </div>
+            </div>
+            <div class="score-card">
+              <div class="score-circle good" id="score-circle-2">—</div>
+              <div>
+                <div class="score-label">Pontos fortes</div>
+                <div class="score-title" id="score-label-2">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-section">
+            <div class="tabs-row">
+              <button class="tab-btn active" onclick="switchTab(this,'tab-analysis')">Avaliação geral</button>
+              <button class="tab-btn" onclick="switchTab(this,'tab-improvements')">O que melhorar</button>
+              <button class="tab-btn" onclick="switchTab(this,'tab-rewrite')">Currículo reestruturado</button>
+            </div>
+
+            <div id="tab-analysis" class="tab-content active">
+              <div class="tab-section-title"><i class="ti ti-chart-bar"></i> Avaliação geral</div>
+              <div class="result-text" id="result-analysis">Aguardando análise...</div>
+            </div>
+
+            <div id="tab-improvements" class="tab-content">
+              <div class="tab-section-title"><i class="ti ti-bulb"></i> Pontos de melhoria</div>
+              <div class="result-text" id="result-improvements">Aguardando análise...</div>
+            </div>
+
+            <div id="tab-rewrite" class="tab-content">
+              <div class="result-actions">
+                <div class="tab-section-title" style="margin-bottom:0;"><i class="ti ti-file-check"></i> Currículo reestruturado</div>
+                <button class="copy-btn" onclick="copyRewrite()"><i class="ti ti-copy"></i> Copiar texto</button>
+              </div>
+              <div class="alert-info">
+                <i class="ti ti-shield-check"></i>
+                <span>Apenas reorganizamos e deixamos mais claro o que você já possui. Nenhuma informação foi inventada ou adicionada.</span>
+              </div>
+              <div class="result-text" id="result-rewrite">Aguardando análise...</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /page-analyze -->
+
+
+      <!-- ── PAGE: HISTÓRICO ── -->
+      <div id="page-history" style="display:none;">
+        <div class="page-header">
+          <h1>Histórico de análises</h1>
+          <p>Clique em qualquer análise para ver o resultado completo.</p>
+        </div>
+        <div id="history-list"></div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /dashboard -->
+</div><!-- /screen-dashboard -->
+
+
+<script src="./js/app.js"></script>
+</html>

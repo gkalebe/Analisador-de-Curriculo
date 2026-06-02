@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CurrículoIA — Analisador inteligente de currículos</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --card: #ffffff;
+    --border: rgba(0,0,0,0.1);
+    --text: #1a1a18;
+    --muted: #6b6b67;
+    --accent: #1D9E75;
+    --accent-light: #E1F5EE;
+    --accent-dark: #085041;
+    --radius: 14px;
+    --font-display: 'Fraunces', serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --card: #242422;
+      --border: rgba(255,255,255,0.1);
+      --text: #f0efe8;
+      --muted: #999992;
+    }
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .screen { display: none; animation: fadeIn 0.3s ease; }
+  .screen.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── AUTH ─── */
+  .auth-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 100vh;
+  }
+  @media (max-width: 720px) {
+    .auth-wrap { grid-template-columns: 1fr; }
+    .auth-hero { display: none; }
+  }
+
+  .auth-hero {
+    background: #04342C;
+    padding: 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+  .auth-hero-logo {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: #9FE1CB;
+    font-weight: 300;
+    letter-spacing: -0.5px;
+  }
+  .auth-hero-logo span { color: #E1F5EE; font-weight: 500; }
+  .auth-hero h2 {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 300;
+    color: #E1F5EE;
+    line-height: 1.3;
+    font-style: italic;
+  }
+  .auth-hero h2 em { font-style: normal; color: #5DCAA5; }
+  .auth-hero-sub { color: #5DCAA5; font-size: 13px; margin-top: 10px; line-height: 1.6; }
+  .auth-hero-pills { display: flex; flex-direction: column; gap: 10px; }
+  .auth-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.07);
+    border: 0.5px solid rgba(255,255,255,0.12);
+    border-radius: 50px;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #9FE1CB;
+  }
+  .auth-pill i { color: #5DCAA5; font-size: 16px; }
+
+  .auth-form-side {
+    background: var(--card);
+    padding: 4rem 3rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    max-width: 480px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .auth-logo-mobile {
+    display: none;
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--accent);
+    font-weight: 300;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 720px) { .auth-logo-mobile { display: block; } }
+
+  .auth-tabs {
+    display: flex;
+    margin-bottom: 2rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .auth-tab {
+    padding: 10px 20px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+  }
+  .auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .form-group input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus { border-color: var(--accent); }
+
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    margin-top: 8px;
+  }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-primary:active { transform: scale(0.98); }
+
+  .auth-switch {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 14px;
+  }
+  .auth-switch span {
+    color: var(--accent);
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  /* ─── DASHBOARD ─── */
+  .dashboard {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    min-height: 100vh;
+  }
+  @media (max-width: 900px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .sidebar { display: flex; flex-direction: row; flex-wrap: wrap; padding: 1rem; gap: 4px; }
+    .sidebar-logo { width: 100%; margin-bottom: 0.5rem; }
+    .sidebar-bottom { display: none; }
+  }
+
+  .sidebar {
+    background: #04342C;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+  .sidebar-logo {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: #9FE1CB;
+    font-weight: 300;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 0.5px solid rgba(255,255,255,0.1);
+  }
+  .sidebar-logo span { color: #E1F5EE; font-weight: 500; }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #9FE1CB;
+    transition: all 0.15s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font-body);
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.07); color: #E1F5EE; }
+  .nav-item.active { background: rgba(29,158,117,0.25); color: #5DCAA5; }
+  .nav-item i { font-size: 16px; width: 18px; }
+
+  .sidebar-bottom { margin-top: auto; }
+  .user-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 10px;
+  }
+  .user-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #1D9E75;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .user-name { font-size: 13px; color: #9FE1CB; font-weight: 500; }
+  .user-email { font-size: 11px; color: #5DCAA5; }
+
+  .main-content {
+    background: var(--bg);
+    padding: 2rem;
+    overflow-y: auto;
+  }
+
+  .page-header { margin-bottom: 1.5rem; }
+  .page-header h1 {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 300;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .page-header p { font-size: 14px; color: var(--muted); margin-top: 4px; }
+
+  /* ─── FORM CARDS ─── */
+  .analysis-form-card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .analysis-form-card h3 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .analysis-form-card h3 i { color: var(--accent); }
+
+  .section-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 12px;
+  }
+  .form-input:focus { border-color: var(--accent); }
+
+  .textarea-field {
+    width: 100%;
+    padding: 12px 14px;
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .textarea-field:focus { border-color: var(--accent); }
+
+  .analyze-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 1rem;
+  }
+  .analyze-btn:hover { background: var(--accent-dark); }
+  .analyze-btn:active { transform: scale(0.98); }
+  .analyze-btn:disabled { background: #9FE1CB; cursor: not-allowed; }
+
+  /* ─── LOADING ─── */
+  .loading-card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3rem 2rem;
+    text-align: center;
+    max-width: 480px;
+    margin: 2rem auto;
+  }
+  .spinner {
+    width: 44px; height: 44px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 1.5rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-card h3 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
+  .loading-card p { font-size: 13px; color: var(--muted); }
+  .loading-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 1.5rem;
+    text-align: left;
+    max-width: 280px;
+    margin-inline: auto;
+  }
+  .loading-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    transition: color 0.3s;
+  }
+  .loading-step.done { color: var(--accent); }
+  .loading-step i { font-size: 14px; width: 16px; }
+
+  /* ─── RESULTS ─── */
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  @media (max-width: 600px) { .results-grid { grid-template-columns: 1fr; } }
+
+  .score-card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .score-circle {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .score-circle.good   { background: #E1F5EE; color: #085041; }
+  .score-circle.medium { background: #FAEEDA; color: #633806; }
+  .score-circle.low    { background: #FCEBEB; color: #501313; }
+
+  .score-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .score-title { font-size: 14px; font-weight: 500; }
+
+  .result-section {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .tabs-row {
+    display: flex;
+    margin-bottom: 1.5rem;
+    border-bottom: 0.5px solid var(--border);
+    overflow-x: auto;
+  }
+  .tab-btn {
+    padding: 10px 18px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .tab-section-title {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+  }
+  .tab-section-title i { color: var(--accent); font-size: 18px; }
+
+  .result-text {
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+
+  .result-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .copy-btn {
+    padding: 8px 16px;
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    font-family: var(--font-body);
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .alert-info {
+    background: var(--accent-light);
+    border: 0.5px solid #9FE1CB;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #085041;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .alert-info i { flex-shrink: 0; margin-top: 1px; }
+
+  .new-analysis-btn {
+    padding: 10px 20px;
+    background: transparent;
+    border: 0.5px solid var(--accent);
+    color: var(--accent);
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 1.5rem;
+  }
+  .new-analysis-btn:hover { background: var(--accent-light); }
+
+  /* ─── HISTORY ─── */
+  .history-card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    gap: 1rem;
+  }
+  .history-card:hover { border-color: var(--accent); }
+  .history-card h4 { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .history-card p { font-size: 12px; color: var(--muted); }
+  .history-badge {
+    padding: 4px 12px;
+    border-radius: 50px;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--muted);
+  }
+  .empty-state i { font-size: 40px; display: block; margin-bottom: 1rem; opacity: 0.4; }
+  .empty-state p { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════
+     SCREEN: AUTH
+════════════════════════════════ -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-wrap">
+
+    <!-- hero lateral -->
+    <div class="auth-hero">
+      <div class="auth-hero-logo">currículo<span>IA</span></div>
+      <div>
+        <h2>Seu currículo, <em>otimizado</em> para a vaga certa.</h2>
+        <p class="auth-hero-sub">Análise inteligente e reestruturação personalizada, sem inventar nada.</p>
+      </div>
+      <div class="auth-hero-pills">
+        <div class="auth-pill"><i class="ti ti-sparkles"></i> Análise com IA em segundos</div>
+        <div class="auth-pill"><i class="ti ti-target"></i> Adequado à vaga específica</div>
+        <div class="auth-pill"><i class="ti ti-shield-check"></i> Só reescreve, nunca inventa</div>
+        <div class="auth-pill"><i class="ti ti-history"></i> Histórico de análises salvo</div>
+      </div>
+    </div>
+
+    <!-- formulário -->
+    <div class="auth-form-side">
+      <div class="auth-logo-mobile">currículo<span style="font-weight:500;">IA</span></div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login')">Entrar</button>
+        <button class="auth-tab" onclick="switchAuthTab('register')">Criar conta</button>
+      </div>
+
+      <!-- login -->
+      <div id="login-form">
+        <div class="form-group">
+          <label>E-mail</label>
+          <input type="email" id="login-email" placeholder="seu@email.com" />
+        </div>
+        <div class="form-group">
+          <label>Senha</label>
+          <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter') doLogin()" />
+        </div>
+        <button class="btn-primary" onclick="doLogin()">Entrar na conta</button>
+        <p class="auth-switch">Não tem conta? <span onclick="switchAuthTab('register')">Crie grátis</span></p>
+      </div>
+
+      <!-- cadastro -->
+      <div id="register-form" style="display:none;">
+        <div class="form-group">
+          <label>Nome completo</label>
+          <input type="text" id="reg-name" placeholder="João Silva" />
+        </div>
+        <div class="form-group">
+          <label>E-mail</label>
+          <input type="email" id="reg-email" placeholder="seu@email.com" />
+        </div>
+        <div class="form-group">
+          <label>Senha</label>
+          <input type="password" id="reg-pass" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter') doRegister()" />
+        </div>
+        <button class="btn-primary" onclick="doRegister()">Criar conta grátis</button>
+        <p class="auth-switch">Já tem conta? <span onclick="switchAuthTab('login')">Entrar</span></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════
+     SCREEN: DASHBOARD
+════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+  <div class="dashboard">
+
+    <!-- sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-logo">currículo<span>IA</span></div>
+
+      <button class="nav-item active" id="nav-analyze" onclick="switchNav('analyze')">
+        <i class="ti ti-sparkles"></i> Nova análise
+      </button>
+      <button class="nav-item" id="nav-history" onclick="switchNav('history')">
+        <i class="ti ti-history"></i> Histórico
+      </button>
+
+      <div class="sidebar-bottom">
+        <div class="user-chip">
+          <div class="user-avatar" id="user-initials">?</div>
+          <div>
+            <div class="user-name" id="user-display-name">—</div>
+            <div class="user-email" id="user-display-email">—</div>
+          </div>
+        </div>
+        <button class="nav-item" style="margin-top:8px;" onclick="doLogout()">
+          <i class="ti ti-logout"></i> Sair
+        </button>
+      </div>
+    </div>
+
+    <!-- conteúdo principal -->
+    <div class="main-content">
+
+      <!-- ── PAGE: NOVA ANÁLISE ── -->
+      <div id="page-analyze">
+
+        <!-- formulário de entrada -->
+        <div id="analyze-form-view">
+          <div class="page-header">
+            <h1>Nova análise</h1>
+            <p>Preencha a vaga e o currículo — a IA analisa e reestrutura tudo.</p>
+          </div>
+
+          <div class="analysis-form-card">
+            <h3><i class="ti ti-briefcase"></i> Vaga de interesse</h3>
+            <span class="section-label">Título da vaga</span>
+            <input type="text" class="form-input" id="job-title" placeholder="Ex: Desenvolvedor Frontend Sênior" />
+            <span class="section-label">Descrição da vaga</span>
+            <textarea class="textarea-field" id="job-desc" rows="6"
+              placeholder="Cole aqui a descrição completa: responsabilidades, requisitos obrigatórios, diferenciais, cultura da empresa..."></textarea>
+          </div>
+
+          <div class="analysis-form-card">
+            <h3><i class="ti ti-file-text"></i> Seu currículo</h3>
+            <span class="section-label">Texto do currículo</span>
+            <textarea class="textarea-field" id="resume-text" rows="10"
+              placeholder="Cole aqui o conteúdo completo do seu currículo:&#10;&#10;• Dados pessoais&#10;• Resumo profissional&#10;• Experiências&#10;• Formação&#10;• Habilidades&#10;• Cursos e certificações&#10;• Projetos"></textarea>
+          </div>
+
+          <button class="analyze-btn" id="analyze-btn" onclick="startAnalysis()">
+            <i class="ti ti-sparkles"></i> Analisar com IA
+          </button>
+        </div>
+
+        <!-- tela de loading -->
+        <div id="analyze-loading-view" style="display:none;">
+          <div class="loading-card">
+            <div class="spinner"></div>
+            <h3>Analisando seu currículo...</h3>
+            <p>Aguarde, a IA está trabalhando</p>
+            <div class="loading-steps">
+              <div class="loading-step" id="step1"><i class="ti ti-clock"></i> Lendo a vaga de trabalho</div>
+              <div class="loading-step" id="step2"><i class="ti ti-clock"></i> Analisando o currículo</div>
+              <div class="loading-step" id="step3"><i class="ti ti-clock"></i> Identificando melhorias</div>
+              <div class="loading-step" id="step4"><i class="ti ti-clock"></i> Reestruturando currículo</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- resultados -->
+        <div id="analyze-results-view" style="display:none;">
+          <button class="new-analysis-btn" onclick="resetAnalysis()">
+            <i class="ti ti-arrow-left"></i> Nova análise
+          </button>
+
+          <div class="page-header">
+            <h1>Resultado da análise</h1>
+            <p id="result-job-title-display"></p>
+          </div>
+
+          <div class="results-grid">
+            <div class="score-card">
+              <div class="score-circle good" id="score-circle-1">—</div>
+              <div>
+                <div class="score-label">Compatibilidade</div>
+                <div class="score-title" id="score-label-1">—</div>
+              </div>
+            </div>
+            <div class="score-card">
+              <div class="score-circle good" id="score-circle-2">—</div>
+              <div>
+                <div class="score-label">Pontos fortes</div>
+                <div class="score-title" id="score-label-2">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-section">
+            <div class="tabs-row">
+              <button class="tab-btn active" onclick="switchTab(this,'tab-analysis')">Avaliação geral</button>
+              <button class="tab-btn" onclick="switchTab(this,'tab-improvements')">O que melhorar</button>
+              <button class="tab-btn" onclick="switchTab(this,'tab-rewrite')">Currículo reestruturado</button>
+            </div>
+
+            <div id="tab-analysis" class="tab-content active">
+              <div class="tab-section-title"><i class="ti ti-chart-bar"></i> Avaliação geral</div>
+              <div class="result-text" id="result-analysis">Aguardando análise...</div>
+            </div>
+
+            <div id="tab-improvements" class="tab-content">
+              <div class="tab-section-title"><i class="ti ti-bulb"></i> Pontos de melhoria</div>
+              <div class="result-text" id="result-improvements">Aguardando análise...</div>
+            </div>
+
+            <div id="tab-rewrite" class="tab-content">
+              <div class="result-actions">
+                <div class="tab-section-title" style="margin-bottom:0;"><i class="ti ti-file-check"></i> Currículo reestruturado</div>
+                <button class="copy-btn" onclick="copyRewrite()"><i class="ti ti-copy"></i> Copiar texto</button>
+              </div>
+              <div class="alert-info">
+                <i class="ti ti-shield-check"></i>
+                <span>Apenas reorganizamos e deixamos mais claro o que você já possui. Nenhuma informação foi inventada ou adicionada.</span>
+              </div>
+              <div class="result-text" id="result-rewrite">Aguardando análise...</div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /page-analyze -->
+
+
+      <!-- ── PAGE: HISTÓRICO ── -->
+      <div id="page-history" style="display:none;">
+        <div class="page-header">
+          <h1>Histórico de análises</h1>
+          <p>Clique em qualquer análise para ver o resultado completo.</p>
+        </div>
+        <div id="history-list"></div>
+      </div>
+
+    </div><!-- /main-content -->
+  </div><!-- /dashboard -->
+</div><!-- /screen-dashboard -->
+
+
+<script>
+/* ════════════════════════════════════════
+   STATE
+════════════════════════════════════════ */
+let currentUser = null;
+let analysisHistory = [];
+
+/* ════════════════════════════════════════
+   AUTH
+════════════════════════════════════════ */
+function switchAuthTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t, i) => {
+    t.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1));
+  });
+  document.getElementById('login-form').style.display    = tab === 'login'    ? 'block' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+}
+
+function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  if (!email || !pass) { alert('Preencha e-mail e senha.'); return; }
+
+  const users = JSON.parse(localStorage.getItem('curriculo_users') || '[]');
+  const user  = users.find(u => u.email === email && u.pass === pass);
+  if (!user) { alert('E-mail ou senha incorretos.'); return; }
+  loginUser(user);
+}
+
+function doRegister() {
+  const name  = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass  = document.getElementById('reg-pass').value;
+  if (!name || !email || !pass)  { alert('Preencha todos os campos.'); return; }
+  if (pass.length < 6)           { alert('Senha deve ter ao menos 6 caracteres.'); return; }
+
+  const users = JSON.parse(localStorage.getItem('curriculo_users') || '[]');
+  if (users.find(u => u.email === email)) { alert('E-mail já cadastrado.'); return; }
+
+  const user = { name, email, pass };
+  users.push(user);
+  localStorage.setItem('curriculo_users', JSON.stringify(users));
+  loginUser(user);
+}
+
+function loginUser(user) {
+  currentUser = user;
+  localStorage.setItem('curriculo_session', JSON.stringify(user));
+
+  document.getElementById('user-display-name').textContent  = user.name;
+  document.getElementById('user-display-email').textContent = user.email;
+  document.getElementById('user-initials').textContent =
+    user.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+  analysisHistory = JSON.parse(localStorage.getItem('curriculo_history_' + user.email) || '[]');
+  showScreen('screen-dashboard');
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('curriculo_session');
+  showScreen('screen-auth');
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ════════════════════════════════════════
+   NAVIGATION
+════════════════════════════════════════ */
+function switchNav(page) {
+  document.querySelectorAll('.nav-item[id^="nav-"]').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-' + page).classList.add('active');
+  document.getElementById('page-analyze').style.display = page === 'analyze' ? 'block' : 'none';
+  document.getElementById('page-history').style.display = page === 'history' ? 'block' : 'none';
+  if (page === 'history') renderHistory();
+}
+
+/* ════════════════════════════════════════
+   TABS (resultado)
+════════════════════════════════════════ */
+function switchTab(btn, tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+/* ════════════════════════════════════════
+   ANÁLISE COM IA
+════════════════════════════════════════ */
+async function startAnalysis() {
+  const jobTitle   = document.getElementById('job-title').value.trim();
+  const jobDesc    = document.getElementById('job-desc').value.trim();
+  const resumeText = document.getElementById('resume-text').value.trim();
+
+  if (!jobTitle)   { alert('Informe o título da vaga.'); return; }
+  if (!jobDesc)    { alert('Cole a descrição da vaga.'); return; }
+  if (!resumeText) { alert('Cole o texto do seu currículo.'); return; }
+
+  // mostrar loading
+  document.getElementById('analyze-form-view').style.display    = 'none';
+  document.getElementById('analyze-loading-view').style.display = 'block';
+
+  // animar etapas
+  const stepsEl = ['step1','step2','step3','step4'];
+  let si = 0;
+  const stepTimer = setInterval(() => {
+    if (si < stepsEl.length) {
+      const el = document.getElementById(stepsEl[si]);
+      el.classList.add('done');
+      el.querySelector('i').className = 'ti ti-check';
+      si++;
+    }
+  }, 1400);
+
+  const prompt = `Você é um especialista sênior em recrutamento e análise de currículos. Analise o currículo abaixo considerando a vaga indicada.
+
+Responda APENAS com um objeto JSON válido (sem markdown, sem backticks, sem texto fora do JSON) com as seguintes chaves:
+
+{
+  "compatibility_score": número inteiro de 0 a 100,
+  "compatibility_label": texto curto como "Alta compatibilidade", "Compatibilidade média" ou "Baixa compatibilidade",
+  "strengths_count": número de pontos fortes identificados,
+  "analysis": "Avaliação geral em 3 a 5 parágrafos: perfil do candidato, o que o destaca para a vaga, riscos ou lacunas, e uma conclusão sobre as chances.",
+  "improvements": "Lista numerada de 4 a 6 pontos específicos e práticos: habilidades que faltam e como desenvolvê-las, palavras-chave da vaga que deveriam aparecer no currículo, experiências que poderiam ser descritas com mais clareza, etc.",
+  "rewrite": "Currículo COMPLETO reestruturado. Use SOMENTE as informações do currículo original — nunca invente dados. Reorganize a ordem das seções para priorizar o que é mais relevante para ESTA vaga. Use linguagem mais clara, objetiva e com impacto. Inclua naturalmente palavras-chave da vaga onde fizerem sentido real. Formate com cabeçalhos em MAIÚSCULAS e bullets onde apropriado."
+}
+
+=== VAGA ===
+Título: ${jobTitle}
+
+${jobDesc}
+
+=== CURRÍCULO ===
+${resumeText}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    clearInterval(stepTimer);
+    stepsEl.forEach(s => {
+      const el = document.getElementById(s);
+      el.classList.add('done');
+      el.querySelector('i').className = 'ti ti-check';
+    });
+
+    const data = await response.json();
+    let text = (data.content || []).map(b => b.text || '').join('').trim();
+    text = text.replace(/^```json\s*/,'').replace(/```\s*$/,'').trim();
+
+    const result = JSON.parse(text);
+    const entry  = { ...result, jobTitle, timestamp: new Date().toLocaleString('pt-BR') };
+
+    saveToHistory(entry);
+    renderResults(entry);
+
+    setTimeout(() => {
+      document.getElementById('analyze-loading-view').style.display = 'none';
+      document.getElementById('analyze-results-view').style.display = 'block';
+    }, 500);
+
+  } catch (err) {
+    clearInterval(stepTimer);
+    document.getElementById('analyze-loading-view').style.display = 'none';
+    document.getElementById('analyze-form-view').style.display    = 'block';
+    alert('Erro ao processar a análise. Verifique os campos e tente novamente.\n\nDetalhe: ' + err.message);
+    console.error(err);
+  }
+}
+
+function renderResults(r) {
+  document.getElementById('result-job-title-display').textContent = 'Vaga: ' + r.jobTitle + ' · ' + r.timestamp;
+
+  // score de compatibilidade
+  const score = parseInt(r.compatibility_score) || 0;
+  const c1    = document.getElementById('score-circle-1');
+  c1.textContent = score + '%';
+  c1.className   = 'score-circle ' + (score >= 70 ? 'good' : score >= 40 ? 'medium' : 'low');
+  document.getElementById('score-label-1').textContent = r.compatibility_label || '—';
+
+  // pontos fortes
+  const c2 = document.getElementById('score-circle-2');
+  c2.textContent = r.strengths_count || '—';
+  c2.className   = 'score-circle good';
+  document.getElementById('score-label-2').textContent = 'pontos identificados';
+
+  // textos
+  document.getElementById('result-analysis').textContent    = r.analysis    || '—';
+  document.getElementById('result-improvements').textContent = r.improvements || '—';
+  document.getElementById('result-rewrite').textContent      = r.rewrite     || '—';
+
+  // resetar para a primeira aba
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i === 0));
+  document.querySelectorAll('.tab-content').forEach((c,i) => c.classList.toggle('active', i === 0));
+}
+
+function resetAnalysis() {
+  document.getElementById('analyze-results-view').style.display = 'none';
+  document.getElementById('analyze-form-view').style.display    = 'block';
+  ['step1','step2','step3','step4'].forEach(s => {
+    const el = document.getElementById(s);
+    el.classList.remove('done');
+    el.querySelector('i').className = 'ti ti-clock';
+  });
+}
+
+function copyRewrite() {
+  const text = document.getElementById('result-rewrite').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('#tab-rewrite .copy-btn');
+    btn.innerHTML = '<i class="ti ti-check"></i> Copiado!';
+    setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> Copiar texto'; }, 2500);
+  }).catch(() => alert('Não foi possível copiar. Selecione e copie manualmente.'));
+}
+
+/* ════════════════════════════════════════
+   HISTÓRICO
+════════════════════════════════════════ */
+function saveToHistory(entry) {
+  if (!currentUser) return;
+  analysisHistory.unshift(entry);
+  if (analysisHistory.length > 30) analysisHistory = analysisHistory.slice(0, 30);
+  localStorage.setItem('curriculo_history_' + currentUser.email, JSON.stringify(analysisHistory));
+}
+
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!analysisHistory.length) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <i class="ti ti-file-off"></i>
+        <p>Nenhuma análise ainda.<br>Faça sua primeira análise!</p>
+      </div>`;
+    return;
+  }
+  list.innerHTML = analysisHistory.map((item, i) => {
+    const score = parseInt(item.compatibility_score) || 0;
+    const cls   = score >= 70 ? 'good' : score >= 40 ? 'medium' : 'low';
+    const colors = {
+      good:   { bg: '#E1F5EE', color: '#085041' },
+      medium: { bg: '#FAEEDA', color: '#633806' },
+      low:    { bg: '#FCEBEB', color: '#501313' }
+    };
+    const c = colors[cls];
+    return `
+      <div class="history-card" onclick="loadHistoryItem(${i})">
+        <div>
+          <h4>${item.jobTitle}</h4>
+          <p>${item.timestamp}</p>
+        </div>
+        <div class="history-badge" style="background:${c.bg}; color:${c.color};">${score}% compat.</div>
+      </div>`;
+  }).join('');
+}
+
+function loadHistoryItem(i) {
+  const entry = analysisHistory[i];
+  switchNav('analyze');
+  document.getElementById('analyze-form-view').style.display    = 'none';
+  document.getElementById('analyze-loading-view').style.display = 'none';
+  renderResults(entry);
+  document.getElementById('analyze-results-view').style.display = 'block';
+}
+
+/* ════════════════════════════════════════
+   INICIALIZAÇÃO — restaurar sessão
+════════════════════════════════════════ */
+(function init() {
+  const session = localStorage.getItem('curriculo_session');
+  if (session) {
+    try { loginUser(JSON.parse(session)); } catch(e) { localStorage.removeItem('curriculo_session'); }
+  }
+})();
+</script>
+</body>
+</html>
