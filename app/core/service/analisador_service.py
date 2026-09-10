@@ -14,3 +14,21 @@ class AnalisadorService:
         self.analise_repository = AnaliseRepository(db)
         self.curriculo_parser = CurriculoParser()
         self.ai_service_adapter = AIServiceAdapter()
+
+    def processar_upload_curriculo(self, conteudo: bytes, nome_arquivo: str, extensao: str, id_usuario) -> dict:
+        # Extrai o texto
+        texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
+        
+        # Cria registro de curriculo
+        from app.core.persistencia.models import Curriculo
+        novo_curriculo = Curriculo(
+            nome_arquivo=nome_arquivo,
+            id_usuario=id_usuario,
+            status_processamento="processando"
+        )
+        self.curriculo_repository.criar(novo_curriculo)
+        
+        return {
+            "id_curriculo": str(novo_curriculo.id_curriculo),
+            "texto_extraido_tamanho": len(texto_extraido)
+        }
