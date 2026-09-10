@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upload de Currículo - Analisador ATS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .drag-active {
+            border-color: #0ea5e9 !important;
+            background-color: #f0f9ff !important;
+            transform: scale(1.02);
+        }
+        
+        #dropzone {
+            transition: all 0.2s ease;
+        }
+
+        /* Spinner animation */
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border-left-color: #0ea5e9;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 text-slate-800 min-h-screen font-sans selection:bg-brand-500 selection:text-white">
+    
+    <nav class="w-full p-6 absolute top-0 flex items-center justify-between z-10">
+        <div class="font-bold text-xl tracking-tight text-slate-900 flex items-center gap-2">
+            <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            Analisador ATS
+        </div>
+    </nav>
+
+    <main class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+        <!-- Background Elements -->
+        <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-brand-100 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-2000"></div>
+
+        <div class="glass-panel w-full max-w-2xl rounded-3xl shadow-xl p-10 z-10 relative">
+            
+            <div class="text-center mb-10">
+                <h1 class="text-3xl font-bold text-slate-900 mb-3 tracking-tight">Otimize seu Currículo</h1>
+                <p class="text-slate-500 text-lg">Faça o upload do seu currículo em PDF ou DOCX para começarmos a análise avançada.</p>
+            </div>
+
+            <!-- Formulário / Dropzone -->
+            <form id="uploadForm" action="/analises/upload" method="POST" enctype="multipart/form-data">
+                <div 
+                    id="dropzone"
+                    class="border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center cursor-pointer hover:bg-slate-50 hover:border-brand-400 group"
+                    onclick="document.getElementById('fileInput').click()"
+                >
+                    <input type="file" id="fileInput" name="file" accept=".pdf,.docx" class="hidden" onchange="handleFileSelect(event)" />
+                    
+                    <div id="dropzoneContent" class="pointer-events-none">
+                        <div class="w-20 h-20 bg-brand-50 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:bg-brand-100 transition-colors">
+                            <svg class="w-10 h-10 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-semibold text-slate-700 mb-1">Clique para selecionar</h3>
+                        <p class="text-slate-400 text-sm">ou arraste e solte seu arquivo aqui (PDF, DOCX)</p>
+                    </div>
+
+                    <!-- File Selected Preview -->
+                    <div id="filePreview" class="hidden pointer-events-none flex flex-col items-center justify-center">
+                        <svg class="w-16 h-16 text-emerald-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <h3 id="fileName" class="text-lg font-semibold text-slate-800 break-all px-4"></h3>
+                        <p id="fileSize" class="text-slate-500 text-sm mt-1"></p>
+                        <p class="text-brand-500 text-sm font-medium mt-4">Clique novamente para trocar</p>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="errorMessage" class="hidden mt-4 text-center text-red-500 font-medium text-sm bg-red-50 p-3 rounded-lg border border-red-100"></div>
+
+                <!-- Submit Area -->
+                <div class="mt-8 text-center flex flex-col items-center">
+                    <button type="submit" id="submitBtn" class="bg-brand-600 hover:bg-brand-700 text-white font-semibold py-4 px-10 rounded-full shadow-lg shadow-brand-500/30 transition-all transform hover:-translate-y-1 opacity-50 cursor-not-allowed flex items-center justify-center gap-3 w-full sm:w-auto" disabled>
+                        <span>Iniciar Análise</span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                    </button>
+                    
+                    <div id="loadingState" class="hidden mt-4 text-brand-600 font-medium flex items-center gap-2">
+                        <div class="spinner"></div> Processando o seu currículo...
+                    </div>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const dropzoneContent = document.getElementById('dropzoneContent');
+        const filePreview = document.getElementById('filePreview');
+        const fileNameDisplay = document.getElementById('fileName');
+        const fileSizeDisplay = document.getElementById('fileSize');
+        const submitBtn = document.getElementById('submitBtn');
+        const form = document.getElementById('uploadForm');
+        const loadingState = document.getElementById('loadingState');
+        const errorMessage = document.getElementById('errorMessage');
+
+        const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => dropzone.classList.add('drag-active'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, () => dropzone.classList.remove('drag-active'), false);
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length) {
+                fileInput.files = files;
+                updateUIForFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(e) {
+            if (e.target.files.length) {
+                updateUIForFile(e.target.files[0]);
+            }
+        }
+
+        function updateUIForFile(file) {
+            errorMessage.classList.add('hidden');
+            
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (ext !== 'pdf' && ext !== 'docx') {
+                showError("Formato não suportado. Use apenas arquivos PDF ou DOCX.");
+                resetUploadState();
+                return;
+            }
+
+            if (file.size > MAX_SIZE) {
+                showError("O arquivo excede o limite de 5MB.");
+                resetUploadState();
+                return;
+            }
+
+            dropzoneContent.classList.add('hidden');
+            filePreview.classList.remove('hidden');
+            
+            fileNameDisplay.textContent = file.name;
+            fileSizeDisplay.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+            
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        
+        function showError(msg) {
+            errorMessage.textContent = msg;
+            errorMessage.classList.remove('hidden');
+        }
+        
+        function resetUploadState() {
+            fileInput.value = '';
+            dropzoneContent.classList.remove('hidden');
+            filePreview.classList.add('hidden');
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        form.addEventListener('submit', (e) => {
+            if(!fileInput.files.length) {
+                e.preventDefault();
+                return;
+            }
+            submitBtn.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+            dropzone.classList.add('opacity-50', 'pointer-events-none');
+        });
+    </script>
+</body>
+</html>

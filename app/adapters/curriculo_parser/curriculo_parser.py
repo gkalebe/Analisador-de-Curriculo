@@ -1,3 +1,7 @@
+import io
+import fitz
+import docx
+
 class FormatoNaoSuportadoError(Exception):
     pass
 
@@ -14,7 +18,15 @@ class CurriculoParser:
         return self._extrair_texto_docx(conteudo)
 
     def _extrair_texto_pdf(self, conteudo: bytes) -> str:
-        raise NotImplementedError
+        doc = fitz.open("pdf", conteudo)
+        texto_completo = []
+        for pagina in doc:
+            texto_completo.append(pagina.get_text())
+        return "\n".join(texto_completo)
 
     def _extrair_texto_docx(self, conteudo: bytes) -> str:
-        raise NotImplementedError
+        doc = docx.Document(io.BytesIO(conteudo))
+        texto_completo = []
+        for paragrafo in doc.paragraphs:
+            texto_completo.append(paragrafo.text)
+        return "\n".join(texto_completo)
