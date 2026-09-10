@@ -9,7 +9,7 @@ Sprint 0: participação no kickoff técnico coletivo (repositório, estrutura d
 | US-001 | Cadastrar conta de usuário | 5 | `web/auth`, `core/service/auth_service`, `core/persistencia/usuario_repository` | — |
 | US-002 | Realizar login com e-mail e senha | 3 | `web/auth`, `core/service/auth_service` | US-001 |
 
-Entregue US-001 nos primeiros 2-3 dias: Gabriel Kalebe, Gustavo e Allan dependem dela para destravar US-003, US-004, US-005 e US-017.
+Entregue US-001 nos primeiros 2-3 dias: Gabriel Kalebe, Gustavo e Allan dependem dela para destravar US-003, US-004 e US-017 (e US-002, que por sua vez destrava US-004 e a US-005 do Vitor).
 
 ## Sprint 2 (Semanas 3-4)
 

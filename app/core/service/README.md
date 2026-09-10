@@ -9,7 +9,7 @@ Os construtores já estão montados na Sprint 0 (o "fio" entre service, reposito
 | Arquivo | US | Sprint | Dev | Depende de |
 |---|---|---|---|---|
 | `auth_service.py` | US-001, US-002, US-003, US-017 | 1 | Kevin, Gabriel Kalebe, Allan | `usuario_repository` |
-| `analisador_service.py` | US-004 a US-007, US-019 | 1-2 | Gustavo Souto Pereira, Allan, Kevin, Gabriel Kalebe, Carlos | `curriculo_repository`, `vaga_repository`, `analise_repository`, `curriculo_parser`, `ai_service_adapter` |
+| `analisador_service.py` | US-004 a US-007, US-019 | 1-2 | Gustavo Souto Pereira, Vitor Bittencourt dos Santos, Kevin, Gabriel Kalebe, Carlos | `curriculo_repository`, `vaga_repository`, `analise_repository`, `curriculo_parser`, `ai_service_adapter` |
 | `diagnostico_service.py` | US-008, US-009 | 2 | Gabriel Kalebe, Allan | `analise_repository`, `ai_service_adapter` |
 | `simulador_service.py` | US-010, US-011 | 3 | Kevin, Gabriel Kalebe | `vaga_repository`, `ai_service_adapter` |
 | `template_service.py` | US-012, US-013 | 3 | Allan, Carlos | `curriculo_repository` |

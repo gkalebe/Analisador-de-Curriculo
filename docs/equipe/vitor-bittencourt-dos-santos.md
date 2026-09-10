@@ -1,17 +1,20 @@
 # Vitor Bittencourt dos Santos
 
-Integrante a ser incorporado ao time em breve — ainda sem Sprint 0 nem US atribuída no Plano de Ação. Esta página existe para já deixar claro o ponto de entrada assim que você entrar.
+Entrou direto na Sprint 1, assumindo a US-005 que era do Allan (nenhuma mudança no restante do plano dele — ele segue normalmente com US-017 nesta sprint e o que já estava previsto a partir da Sprint 2).
 
-## Ponto de entrada sugerido
+## Sprint 1 (Semanas 1-2)
 
-O Plano de Ação foi desenhado para comportar sua entrada sem retrabalho: os módulos e o backlog já preveem onde você se encaixa, de preferência na **Sprint 3 ou 4**, assumindo um módulo completo (ex.: Painel + Biblioteca) em vez de dividir um arquivo já em andamento com outra pessoa — assim você não fica dependente de refatorar o que já estiver pronto.
+| US | Título | Pontos | Módulo | Depende de |
+|---|---|---|---|---|
+| US-005 | Colar descrição textual de uma vaga | 3 | `web/analise` | US-002 (Kevin) |
 
-Sugestão do Plano de Ação (Seção 3.7): ao entrar, assumir a extensão da **Sprint 4** — testes de carga (RNF-001: resposta em até 30s; RNF-007: 100 usuários simultâneos), hardening e documentação — e, no ciclo pós-MVP, os itens que hoje ficam fora do escopo das 19 US originais (ex.: novos perfis de usuário, idiomas, certificações — citados na Seção 6.5 do Documento de Arquitetura como extensões futuras do modelo de dados).
+Como US-005 depende de US-002 (login), alinhe com o Kevin a previsão de entrega antes de começar — enquanto isso, dá pra já ler `app/web/README.md` e `app/core/service/README.md` pra entender a Clean Architecture simplificada do projeto (rota → service → repositório) e ver o que a Sprint 0 já deixou pronto no `analise_router.py`/`analisador_service.py`.
+
+## A partir da Sprint 2
+
+Ainda não fixado no Plano de Ação. Quando chegar a Sprint 2, alinhe com o Tech Lead/Scrum Master se você continua reforçando o módulo de análise (`web/analise`, `analisador_service`) ou assume um módulo novo — o plano original sugeria Sprint 3/4 com um módulo completo (ex.: Painel + Biblioteca) e, no ciclo pós-MVP, os itens fora do escopo das 19 US (novos perfis de usuário, idiomas, certificações — Seção 6.5 do Documento de Arquitetura).
 
 ## Antes de começar
 
-1. Confirme com o Tech Lead/Scrum Master, no início da sprint em que você entrar, qual módulo específico será seu (o Plano de Ação não fixa uma US individual para você ainda, só a área).
-2. Leia o README da camada correspondente ao módulo que assumir (`app/web/README.md`, `app/core/service/README.md`, `app/core/persistencia/README.md` ou `app/adapters/README.md`) para ver o que já está pronto e o que falta.
-3. Siga a Seção 1.4 do Plano de Ação: uma US = uma branch (`feature/US-XXX-slug`) = um dono, rebase diário em cima de `develop`, PR pequeno e frequente.
-
-Assim que sua US/sprint de entrada for definida, atualize este arquivo com a tabela de US, pontos, módulo e dependências, no mesmo formato usado para o resto do time.
+1. Siga a Seção 1.4 do Plano de Ação: uma US = uma branch (`feature/US-005-colar-descricao-vaga`) = um dono, rebase diário em cima de `develop`, PR pequeno e frequente.
+2. Confira os critérios de aceite (DADO/QUANDO/ENTÃO) de US-005: Levantamento de Requisitos v1.1, Seção 6.2.

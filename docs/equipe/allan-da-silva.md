@@ -6,8 +6,9 @@ Sprint 0: participação no kickoff técnico coletivo (repositório, estrutura d
 
 | US | Título | Pontos | Módulo | Depende de |
 |---|---|---|---|---|
-| US-005 | Colar descrição textual de uma vaga | 3 | `web/analise` | US-002 (Kevin) |
 | US-017 | Excluir conta e dados (LGPD) | 5 | `core/service/auth_service`, `core/persistencia` | US-001 (Kevin) |
+
+US-005 (Colar descrição textual de uma vaga) saiu da sua lista: passou para Vitor Bittencourt dos Santos, que entrou direto na Sprint 1. Nenhuma outra mudança no resto do seu plano.
 
 ## Sprint 2 (Semanas 3-4)
 
