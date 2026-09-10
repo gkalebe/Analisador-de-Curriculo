@@ -9,7 +9,7 @@ Regra da Clean Architecture simplificada: esta camada conhece o `core`, mas o `c
 | Arquivo | Módulo | US | Sprint | Dev |
 |---|---|---|---|---|
 | `auth_router.py` | Autenticação | US-001, US-002, US-003, US-017 | 1 | Kevin, Gabriel Kalebe, Allan |
-| `analise_router.py` | Análise | US-004, US-005, US-006, US-007, US-019 | 1-2 | Gustavo Souto Pereira, Vitor Bittencourt dos Santos, Kevin, Gabriel Kalebe, Carlos |
+| `analise_router.py` | Análise | US-004, US-005, US-006, US-007, US-019 | 1-2 | Gustavo Souto Pereira, Allan, Kevin, Gabriel Kalebe, Carlos |
 | `diagnostico_router.py` | Diagnóstico | US-008, US-009 | 2 | Gabriel Kalebe, Allan |
 | `simulador_router.py` | Simulador | US-010, US-011 | 3 | Kevin, Gabriel Kalebe |
 | `templates_router.py` | Templates ATS | US-012, US-013 | 3 | Allan, Carlos |

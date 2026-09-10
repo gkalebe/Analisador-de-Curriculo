@@ -1,5 +1,6 @@
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.persistencia.models import Usuario
@@ -13,13 +14,15 @@ class UsuarioRepository:
         raise NotImplementedError
 
     def buscar_por_id(self, id_usuario: uuid.UUID) -> Usuario | None:
-        raise NotImplementedError
+        return self.db.get(Usuario, id_usuario)
 
     def buscar_por_email(self, email: str) -> Usuario | None:
-        raise NotImplementedError
+        return self.db.execute(select(Usuario).where(Usuario.email == email)).scalar_one_or_none()
 
     def atualizar(self, usuario: Usuario) -> Usuario:
-        raise NotImplementedError
+        self.db.commit()
+        self.db.refresh(usuario)
+        return usuario
 
     def excluir(self, usuario: Usuario) -> None:
         raise NotImplementedError
