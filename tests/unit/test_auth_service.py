@@ -12,6 +12,7 @@ from app.core.service.auth_service import (
     CredenciaisInvalidasError,
     EmailJaCadastradoError,
     TokenRecuperacaoInvalidoError,
+    TokenExclusaoInvalidoError,
     pwd_context,
 )
 
@@ -27,6 +28,7 @@ class UsuarioRepositorioFalso:
         self.usuarios = usuarios
         self.atualizados: list[Usuario] = []
         self.criados: list[Usuario] = []
+        self.excluidos: list[Usuario] = []
 
     def buscar_por_email(self, email: str) -> Usuario | None:
         return next((usuario for usuario in self.usuarios.values() if usuario.email == email), None)
@@ -43,6 +45,10 @@ class UsuarioRepositorioFalso:
         self.usuarios[usuario.id_usuario] = usuario
         self.criados.append(usuario)
         return usuario
+
+    def excluir(self, usuario: Usuario) -> None:
+        self.excluidos.append(usuario)
+        self.usuarios.pop(usuario.id_usuario, None)
 
 
 class EmailAdapterFalso:
@@ -221,3 +227,44 @@ def test_redefinir_senha_recusa_token_expirado():
 
     with pytest.raises(TokenRecuperacaoInvalidoError):
         service.redefinir_senha(token, "nova-senha-123")
+
+
+def test_solicitar_exclusao_registra_primeira_etapa_com_prazo():
+    service, usuario = _criar_service_com_usuario()
+
+    service.solicitar_exclusao_conta(usuario.id_usuario)
+
+    assert usuario.exclusao_solicitada_em is not None
+    assert service.usuario_repository.atualizados == [usuario]
+
+
+def test_cancelar_exclusao_antes_da_segunda_etapa_mantem_conta_ativa():
+    service, usuario = _criar_service_com_usuario()
+    service.solicitar_exclusao_conta(usuario.id_usuario)
+
+    service.cancelar_exclusao_conta(usuario.id_usuario)
+
+    assert usuario.exclusao_solicitada_em is None
+    assert service.usuario_repository.buscar_por_id(usuario.id_usuario) is usuario
+    assert service.usuario_repository.excluidos == []
+
+
+def test_confirmar_exclusao_remove_conta_na_segunda_etapa():
+    service, usuario = _criar_service_com_usuario()
+    service.solicitar_exclusao_conta(usuario.id_usuario)
+
+    service.confirmar_exclusao_conta(usuario.id_usuario)
+
+    assert service.usuario_repository.excluidos == [usuario]
+    assert service.usuario_repository.buscar_por_id(usuario.id_usuario) is None
+
+
+def test_confirmar_exclusao_recusa_solicitacao_expirada():
+    service, usuario = _criar_service_com_usuario()
+    usuario.exclusao_solicitada_em = datetime.now(timezone.utc) - timedelta(hours=49)
+
+    with pytest.raises(TokenExclusaoInvalidoError):
+        service.confirmar_exclusao_conta(usuario.id_usuario)
+
+    assert usuario.exclusao_solicitada_em is None
+    assert service.usuario_repository.excluidos == []

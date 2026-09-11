@@ -1,6 +1,6 @@
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -74,3 +74,8 @@ class LoginResponse(BaseModel):
 
 class MensagemResponse(BaseModel):
     mensagem: str
+
+
+class StatusExclusaoResponse(BaseModel):
+    solicitada: bool
+    expira_em: datetime | None = None

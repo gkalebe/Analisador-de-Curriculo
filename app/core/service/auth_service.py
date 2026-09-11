@@ -80,6 +80,42 @@ class AuthService:
         token = jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
         return usuario, token
 
+    def solicitar_exclusao_conta(self, id_usuario: uuid.UUID) -> Usuario:
+        usuario = self.usuario_repository.buscar_por_id(id_usuario)
+        if usuario is None:
+            raise UsuarioNaoEncontradoError
+
+        if usuario.exclusao_solicitada_em is None:
+            usuario.exclusao_solicitada_em = datetime.now(timezone.utc)
+            self.usuario_repository.atualizar(usuario)
+        return usuario
+
+    def cancelar_exclusao_conta(self, id_usuario: uuid.UUID) -> Usuario:
+        usuario = self.usuario_repository.buscar_por_id(id_usuario)
+        if usuario is None:
+            raise UsuarioNaoEncontradoError
+
+        usuario.exclusao_solicitada_em = None
+        self.usuario_repository.atualizar(usuario)
+        return usuario
+
+    def confirmar_exclusao_conta(self, id_usuario: uuid.UUID) -> None:
+        usuario = self.usuario_repository.buscar_por_id(id_usuario)
+        if usuario is None:
+            raise UsuarioNaoEncontradoError
+        if usuario.exclusao_solicitada_em is None:
+            raise TokenExclusaoInvalidoError
+
+        solicitada_em = usuario.exclusao_solicitada_em
+        if solicitada_em.tzinfo is None:
+            solicitada_em = solicitada_em.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - solicitada_em > timedelta(hours=PRAZO_EXCLUSAO_HORAS):
+            usuario.exclusao_solicitada_em = None
+            self.usuario_repository.atualizar(usuario)
+            raise TokenExclusaoInvalidoError
+
+        self.usuario_repository.excluir(usuario)
+
     def solicitar_recuperacao_senha(self, email: str) -> str | None:
         usuario = self.usuario_repository.buscar_por_email(email)
         if usuario is None:
