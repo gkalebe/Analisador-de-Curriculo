@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+ 
+{% block title %}Nova análise · currículoIA{% endblock %}
+ 
+{% block content %}
+<div class="flex-1 px-10 py-8">
+  <h1 class="text-2xl font-semibold text-gray-900">Nova análise</h1>
+  <p class="mt-1 text-gray-500">
+    Preencha a vaga e o currículo - a IA analisa e reestrutura tudo.
+  </p>
+ 
+  <form id="form-nova-analise"
+        action="{{ url_for('criar_analise') if url_for is defined else '#' }}"
+        method="POST"
+        novalidate
+        class="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+ 
+    <div class="mb-5 flex items-center gap-2 text-gray-900">
+      <i class="lucide-briefcase text-lg"></i>
+      <h2 class="text-base font-medium">Vaga de interesse</h2>
+    </div>
+ 
+    <!-- Título da vaga -->
+    <div class="mb-4">
+      <label for="titulo_vaga" class="mb-1 block text-xs font-medium text-gray-600">
+        Título da vaga:
+      </label>
+      <input
+        id="titulo_vaga"
+        name="titulo_vaga"
+        type="text"
+        placeholder="Ex: Desenvolvedor Frontend Sênior"
+        class="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-800 placeholder-gray-400 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+      />
+    </div>
+ 
+    <!-- Descrição da vaga — US-005 -->
+    <div class="mb-4">
+      <div class="mb-1 flex items-center justify-between">
+        <label for="descricao_vaga" class="block text-xs font-medium text-gray-600">
+          Descrição da vaga:
+        </label>
+        <span id="contador-caracteres" class="text-xs text-gray-400">
+          0 / 5.000
+        </span>
+      </div>
+      <textarea
+        id="descricao_vaga"
+        name="descricao_vaga"
+        rows="4"
+        maxlength="5100"
+        placeholder="Cole aqui a descrição completa: responsabilidades, requisitos obrigatórios, diferenciais, cultura da empresa..."
+        class="w-full resize-none rounded-md border border-gray-300 px-3 py-2 text-gray-800 placeholder-gray-400 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+      ></textarea>
+    </div>
+ 
+    <!-- Alerta de limite excedido / validação -->
+    <div id="alerta-descricao"
+         role="alert"
+         class="mb-4 hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+    </div>
+ 
+    <!-- Escolha do currículo -->
+    <div class="mb-5">
+      <label for="curriculo_id" class="mb-1 block text-xs font-medium text-gray-600">
+        Escolha seu currículo:
+      </label>
+      <select
+        id="curriculo_id"
+        name="curriculo_id"
+        class="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-500 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+      >
+        <option value="" selected disabled>Selecione</option>
+        {% for curriculo in curriculos %}
+        <option value="{{ curriculo.id }}">{{ curriculo.nome }}</option>
+        {% else %}
+        <option value="" disabled>Nenhum currículo cadastrado</option>
+        {% endfor %}
+      </select>
+    </div>
+ 
+    <!-- Importar currículo -->
+    <button
+      type="button"
+      id="btn-importar-curriculo"
+      class="flex items-center gap-2 rounded-md bg-emerald-800 px-4 py-2 text-white hover:bg-emerald-900"
+    >
+      <i class="lucide-upload text-base"></i>
+      Importar currículo
+    </button>
+ 
+    <!-- Botão iniciar análise (fora do card, largura total) -->
+    <button
+      type="submit"
+      id="btn-iniciar-analise"
+      class="mt-6 w-full rounded-md bg-emerald-600 py-3 text-center font-medium text-white transition-colors hover:bg-emerald-700"
+    >
+      Iniciar Análise
+    </button>
+  </form>
+</div>
+{% endblock %}
+ 
+{% block scripts %}
+<script>
+  (function () {
+    const LIMITE_CARACTERES = 5000;
+ 
+    const form = document.getElementById("form-nova-analise");
+    const textarea = document.getElementById("descricao_vaga");
+    const contador = document.getElementById("contador-caracteres");
+    const alerta = document.getElementById("alerta-descricao");
+    const selectCurriculo = document.getElementById("curriculo_id");
+ 
+    function mostrarAlerta(mensagem) {
+      alerta.textContent = mensagem;
+      alerta.classList.remove("hidden");
+    }
+ 
+    function esconderAlerta() {
+      alerta.textContent = "";
+      alerta.classList.add("hidden");
+    }
+ 
+    function atualizarContador() {
+      const total = textarea.value.length;
+      const acimaDoLimite = total > LIMITE_CARACTERES;
+ 
+      contador.textContent = total.toLocaleString("pt-BR") + " / " + LIMITE_CARACTERES.toLocaleString("pt-BR");
+ 
+      contador.classList.remove("text-gray-400", "text-amber-600", "text-red-600");
+      textarea.classList.remove("border-red-400", "focus:border-red-500", "focus:ring-red-500");
+      textarea.classList.add("border-gray-300", "focus:border-emerald-600", "focus:ring-emerald-600");
+ 
+      if (acimaDoLimite) {
+        contador.classList.add("text-red-600", "font-medium");
+        textarea.classList.remove("border-gray-300", "focus:border-emerald-600", "focus:ring-emerald-600");
+        textarea.classList.add("border-red-400", "focus:border-red-500", "focus:ring-red-500");
+        mostrarAlerta(
+          "O texto ultrapassa o limite de " + LIMITE_CARACTERES.toLocaleString("pt-BR") +
+          " caracteres. Reduza o conteúdo para continuar."
+        );
+      } else if (LIMITE_CARACTERES - total <= 300) {
+        contador.classList.add("text-amber-600", "font-medium");
+        esconderAlerta();
+      } else {
+        contador.classList.add("text-gray-400");
+        esconderAlerta();
+      }
+    }
+ 
+    textarea.addEventListener("input", atualizarContador);
+ 
+    form.addEventListener("submit", function (evento) {
+      const texto = textarea.value;
+ 
+      if (texto.trim().length === 0) {
+        evento.preventDefault();
+        mostrarAlerta("Cole a descrição da vaga antes de iniciar a análise.");
+        textarea.focus();
+        return;
+      }
+ 
+      if (texto.length > LIMITE_CARACTERES) {
+        evento.preventDefault();
+        mostrarAlerta(
+          "Não é possível iniciar a análise: o texto excede o limite de " +
+          LIMITE_CARACTERES.toLocaleString("pt-BR") + " caracteres."
+        );
+        textarea.focus();
+        return;
+      }
+ 
+      if (!selectCurriculo.value) {
+        evento.preventDefault();
+        mostrarAlerta("Selecione um currículo para continuar.");
+        return;
+      }
+ 
+      // Passou nas validações do lado do cliente.
+      // A validação de segurança (RN-003, limite de 5.000 chars) deve
+      // ser repetida no backend antes de persistir a sessão de análise.
+      esconderAlerta();
+    });
+ 
+    document.getElementById("btn-importar-curriculo").addEventListener("click", function () {
+      // TODO: abrir modal/input de upload de currículo (fluxo separado, US-004)
+      alert("Funcionalidade de importação de currículo ainda não implementada.");
+    });
+  })();
+</script>
+{% endblock %}
