@@ -16,7 +16,7 @@ US-005 (Colar descrição textual de uma vaga) saiu da sua lista: passou para Vi
 |---|---|---|---|
 | US-009 | Obter sugestões de reescrita de trechos fracos | 8 | `core/service/diagnostico_service` |
 
-Depende da entrega de US-008 (Gabriel Kalebe).
+Já criada e atribuída a você no board: issue #11 (back) e #28 (front). Depende da entrega de US-008 (Gabriel Kalebe), que por sua vez depende de US-006 (Carlos) — Carlos está pausado nesta sprint por decisão do Tech Lead, então as duas issues ficam em Backlog (não Ready) até a esteira destravar. Pode adiantar leitura/design enquanto isso, mas não há bloqueio para você resolver sozinho.
 
 ## Sprint 3 (Semanas 5-6)
 
