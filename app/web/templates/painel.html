@@ -4,22 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Painel — Analisador de Currículos</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body class="bg-gray-50 text-gray-900">
-    <main class="min-h-screen flex items-center justify-center p-4">
-        <div class="w-full max-w-md bg-white rounded-xl shadow p-8 space-y-4 text-center">
-            <h1 class="text-2xl font-bold">Bem-vindo(a), <span id="nome-usuario">—</span></h1>
-            <p class="text-gray-600 text-sm">
+<body>
+    <div class="placeholder-wrap">
+        <div class="placeholder-card">
+            <h1>Bem-vindo(a), <span id="nome-usuario">—</span></h1>
+            <p>
                 Este é o painel principal. As funcionalidades completas do painel (histórico e evolução das análises)
                 são da US-016, ainda não implementada — esta tela existe para validar o redirecionamento pós-login da US-002.
             </p>
-            <button id="botao-sair"
-                class="bg-gray-100 text-gray-700 rounded-md py-2 px-4 font-medium hover:bg-gray-200">
-                Sair
-            </button>
+            <button id="botao-sair" class="btn-secondary">Sair</button>
         </div>
-    </main>
+    </div>
 
     <script>
         const token = localStorage.getItem('access_token');
