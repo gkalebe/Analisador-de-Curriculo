@@ -32,3 +32,18 @@ def health_check() -> dict[str, str]:
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context={})
+
+
+@app.get("/cadastro")
+def pagina_cadastro(request: Request):
+    return templates.TemplateResponse(request=request, name="cadastro.html", context={})
+
+
+@app.get("/login")
+def pagina_login(request: Request):
+    return templates.TemplateResponse(request=request, name="login.html", context={})
+
+
+@app.get("/painel")
+def pagina_painel(request: Request):
+    return templates.TemplateResponse(request=request, name="painel.html", context={})
