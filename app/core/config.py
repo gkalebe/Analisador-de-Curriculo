@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     max_upload_size_mb: int = 5
     max_vaga_description_chars: int = 5000
+    frontend_login_url: str = "http://localhost:8000/login"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
 
 
 @lru_cache
