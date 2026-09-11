@@ -3,107 +3,169 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cadastrar Vaga — Analisador de Currículos</title>
+    <title>Cadastrar Vaga — currículoIA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Roboto", sans-serif; }
+        .font-brand { font-family: "Inter", sans-serif; }
+    </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
-    <main class="min-h-screen py-10 px-4">
-        <div class="max-w-2xl mx-auto space-y-6">
+<body class="bg-[#f3f3f3] text-gray-900">
+    <div class="min-h-screen flex flex-col md:flex-row">
+        <!-- Sidebar -->
+        <aside class="bg-[#06331d] text-white w-full md:w-64 shrink-0 flex flex-col gap-8 p-6">
+            <div class="border-b border-[#8e8e8e] pb-6 font-brand text-[28px]">
+                currículo<span class="font-normal">IA</span>
+            </div>
+
+            <nav class="flex flex-col gap-3">
+                <span class="flex items-center gap-3 rounded-lg border border-white/30 bg-white/5 px-3 py-3 shadow-inner font-brand text-lg">
+                    <i class="ti ti-search"></i> Nova análise
+                </span>
+                <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-history"></i> Histórico
+                </a>
+                <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-file-text"></i> Currículo
+                </a>
+                <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-robot"></i> ChatBOT
+                </a>
+            </nav>
+
+            <div class="mt-auto flex flex-col gap-3">
+                {% if email %}
+                <div class="flex items-center gap-3 rounded-lg px-3 py-3">
+                    <span class="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#1e5e3f] font-brand text-lg">
+                        {{ email[0]|upper }}
+                    </span>
+                    <div class="leading-tight">
+                        <p class="font-brand font-semibold">{{ email.split('@')[0] }}</p>
+                        <p class="text-sm text-white/80">{{ email }}</p>
+                    </div>
+                </div>
+                {% endif %}
+                <a href="/analises/vagas/nova" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-logout"></i> Sair
+                </a>
+            </div>
+        </aside>
+
+        <!-- Conteúdo principal -->
+        <main class="flex-1 p-6 space-y-4">
             <div>
-                <h1 class="text-3xl font-bold">Cadastrar vaga</h1>
-                <p class="text-gray-600 mt-1">
-                    Preencha as informações da vaga para salvá-la na sua conta e reutilizá-la depois, sem precisar colar tudo de novo.
+                <h1 class="font-brand text-[32px] font-bold text-black">Nova análise</h1>
+                <p class="mt-1 text-lg font-semibold text-[#727272]">
+                    Cadastre a vaga de interesse para reaproveitar depois na análise — sem precisar colar tudo de novo.
                 </p>
             </div>
 
             {% if erro %}
-            <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3">
+            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
                 {{ erro }}
             </div>
             {% endif %}
 
             {% if sucesso %}
-            <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3">
+            <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">
                 {{ sucesso }}
             </div>
             {% endif %}
 
-            <form method="get" action="/analises/vagas/nova" class="bg-white border border-gray-200 rounded-lg p-4 flex gap-2">
+            <form method="get" action="/analises/vagas/nova" class="flex gap-2 rounded-lg border-[0.5px] border-black bg-white p-4">
                 <input
                     type="email"
                     name="email"
                     value="{{ email }}"
                     placeholder="Seu e-mail cadastrado"
                     required
-                    class="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    class="flex-1 rounded border border-[#dfdfe0] px-3 py-2 text-sm text-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
                 />
-                <button type="submit" class="rounded-md bg-gray-800 text-white px-4 py-2 hover:bg-gray-700">
+                <button type="submit" class="rounded bg-[#1e5e3f] px-4 py-2 font-bold text-white hover:bg-[#174a32]">
                     Entrar
                 </button>
             </form>
-            <p class="text-xs text-gray-400 -mt-4">
+            <p class="-mt-2 text-xs text-gray-400">
                 Identificação temporária por e-mail, até a tela de login (US-002) estar pronta.
             </p>
 
-            <form method="post" action="/analises/vagas" id="form-vaga" class="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
-                <input type="hidden" name="email" value="{{ email }}" />
-
-                <div>
-                    <label class="block text-sm font-medium mb-1" for="titulo">Título da vaga (opcional)</label>
-                    <input
-                        type="text"
-                        id="titulo"
-                        name="titulo"
-                        maxlength="200"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                    />
+            <div class="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-6">
+                <div class="flex items-center gap-3">
+                    <i class="ti ti-briefcase text-[28px]"></i>
+                    <h2 class="font-brand text-[28px] text-black">Vaga de interesse</h2>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium mb-1" for="descricao">Descrição da vaga</label>
-                    <textarea
-                        id="descricao"
-                        name="descricao"
-                        rows="8"
-                        required
-                        maxlength="{{ limite_descricao }}"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                        oninput="document.getElementById('contador-descricao').textContent = this.value.length"
-                    ></textarea>
-                    <p class="text-xs text-gray-400 mt-1">
-                        <span id="contador-descricao">0</span>/{{ limite_descricao }} caracteres
-                    </p>
-                </div>
+                <form method="post" action="/analises/vagas" id="form-vaga" class="space-y-4">
+                    <input type="hidden" name="email" value="{{ email }}" />
 
-                <div>
-                    <label class="block text-sm font-medium mb-1" for="requisitos">Requisitos (opcional)</label>
-                    <textarea
-                        id="requisitos"
-                        name="requisitos"
-                        rows="4"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                    ></textarea>
-                </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-[#595859]" for="titulo">Título da vaga:</label>
+                        <input
+                            type="text"
+                            id="titulo"
+                            name="titulo"
+                            maxlength="200"
+                            placeholder="Ex: Desenvolvedor Frontend Sênior"
+                            class="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm placeholder-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                        />
+                        <p class="mt-1 text-xs text-gray-400">Opcional.</p>
+                    </div>
 
-                <div>
-                    <label class="block text-sm font-medium mb-1" for="area">Área (opcional)</label>
-                    <input
-                        type="text"
-                        id="area"
-                        name="area"
-                        maxlength="100"
-                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                    />
-                </div>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-[#595859]" for="descricao">Descrição da vaga:</label>
+                        <textarea
+                            id="descricao"
+                            name="descricao"
+                            rows="6"
+                            required
+                            maxlength="{{ limite_descricao }}"
+                            placeholder="Cole aqui a descrição completa: responsabilidades, requisitos obrigatórios, diferenciais, cultura da empresa..."
+                            class="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm placeholder-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                            oninput="document.getElementById('contador-descricao').textContent = this.value.length"
+                        ></textarea>
+                        <p class="mt-1 text-xs text-gray-400">
+                            <span id="contador-descricao">0</span>/{{ limite_descricao }} caracteres
+                        </p>
+                    </div>
 
-                <button type="submit" class="w-full rounded-md bg-gray-900 text-white px-4 py-2 hover:bg-gray-800">
-                    Salvar vaga
-                </button>
-            </form>
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-[#595859]" for="requisitos">Requisitos:</label>
+                        <textarea
+                            id="requisitos"
+                            name="requisitos"
+                            rows="3"
+                            class="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm placeholder-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                        ></textarea>
+                        <p class="mt-1 text-xs text-gray-400">Opcional.</p>
+                    </div>
+
+                    <div>
+                        <label class="mb-1 block text-sm font-medium text-[#595859]" for="area">Área:</label>
+                        <input
+                            type="text"
+                            id="area"
+                            name="area"
+                            maxlength="100"
+                            class="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm placeholder-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                        />
+                        <p class="mt-1 text-xs text-gray-400">Opcional.</p>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-3 font-bold text-white hover:bg-[#174a32]"
+                    >
+                        <i class="ti ti-device-floppy"></i> Salvar vaga
+                    </button>
+                </form>
+            </div>
 
             {% if vagas_salvas %}
             <div class="space-y-2">
-                <h2 class="text-lg font-semibold">Suas vagas salvas</h2>
+                <h2 class="font-brand text-lg font-semibold">Suas vagas salvas</h2>
                 <p class="text-sm text-gray-500">Clique em uma vaga para reaproveitar as informações no formulário acima.</p>
                 <ul class="space-y-2">
                     {% for vaga in vagas_salvas %}
@@ -115,11 +177,11 @@
                             data-descricao="{{ vaga.descricao }}"
                             data-requisitos="{{ vaga.requisitos or '' }}"
                             data-area="{{ vaga.area or '' }}"
-                            class="w-full text-left bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-400"
+                            class="w-full rounded-lg border-[0.5px] border-black bg-white p-4 text-left hover:border-[#1e5e3f]"
                         >
                             <p class="font-medium">{{ vaga.titulo or "(Sem título)" }}</p>
                             <p class="text-sm text-gray-500">{{ vaga.area or "Área não informada" }}</p>
-                            <p class="text-sm text-gray-600 mt-1 line-clamp-2">{{ vaga.descricao[:160] }}{% if vaga.descricao|length > 160 %}…{% endif %}</p>
+                            <p class="mt-1 text-sm text-gray-600 line-clamp-2">{{ vaga.descricao[:160] }}{% if vaga.descricao|length > 160 %}…{% endif %}</p>
                         </button>
                     </li>
                     {% endfor %}
@@ -128,8 +190,8 @@
             {% elif email %}
             <p class="text-sm text-gray-500">Você ainda não tem nenhuma vaga salva.</p>
             {% endif %}
-        </div>
-    </main>
+        </main>
+    </div>
 
     <script>
         function reutilizarVaga(botao) {
