@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, Request, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-import uuid
 
 from app.core.database import get_db
 from app.core.service.analisador_service import AnalisadorService
