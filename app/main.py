@@ -36,12 +36,12 @@ def home(request: Request):
 
 @app.get("/cadastro")
 def pagina_cadastro(request: Request):
-    return templates.TemplateResponse(request=request, name="cadastro.html", context={})
+    return templates.TemplateResponse(request=request, name="auth.html", context={"modo": "cadastro"})
 
 
 @app.get("/login")
 def pagina_login(request: Request):
-    return templates.TemplateResponse(request=request, name="login.html", context={})
+    return templates.TemplateResponse(request=request, name="auth.html", context={"modo": "login"})
 
 
 @app.get("/painel")
