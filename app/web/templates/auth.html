@@ -51,6 +51,9 @@
                             </div>
                             <span class="field-error" id="erro-login-senha"></span>
                         </div>
+                        <p class="auth-switch" style="margin-top:-8px; text-align:right;">
+                            <a href="/usuarios/recuperar-senha">Esqueceu sua senha?</a>
+                        </p>
                         <button type="submit" class="btn-primary" id="botao-login">Entrar</button>
                     </form>
                     <p class="auth-switch" id="switch-login" {{ 'hidden' if modo == 'cadastro' else '' }}>
@@ -180,6 +183,7 @@
                 if (resposta.status === 200) {
                     localStorage.setItem('access_token', corpo.access_token);
                     localStorage.setItem('usuario_nome', corpo.usuario.nome);
+                    localStorage.setItem('usuario_email', corpo.usuario.email);
                     window.location.href = '/painel';
                     return;
                 }

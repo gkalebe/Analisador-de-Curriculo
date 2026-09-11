@@ -16,7 +16,10 @@
                 Este é o painel principal. As funcionalidades completas do painel (histórico e evolução das análises)
                 são da US-016, ainda não implementada — esta tela existe para validar o redirecionamento pós-login da US-002.
             </p>
-            <button id="botao-sair" class="btn-secondary">Sair</button>
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <a id="link-nova-vaga" class="btn-primary" href="/analises/vagas/nova">Cadastrar nova vaga</a>
+                <button id="botao-sair" class="btn-secondary">Sair</button>
+            </div>
         </div>
     </div>
 
@@ -26,6 +29,10 @@
             window.location.href = '/login';
         } else {
             document.getElementById('nome-usuario').textContent = localStorage.getItem('usuario_nome') || 'usuário';
+            const emailUsuario = localStorage.getItem('usuario_email');
+            if (emailUsuario) {
+                document.getElementById('link-nova-vaga').href = '/analises/vagas/nova?email=' + encodeURIComponent(emailUsuario);
+            }
         }
 
         document.getElementById('botao-sair').addEventListener('click', () => {
