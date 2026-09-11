@@ -81,6 +81,15 @@ def test_solicitar_recuperacao_senha_nao_envia_email_para_email_inexistente(_sem
     _sem_envio_real_de_email.assert_not_called()
 
 
+def test_solicitar_recuperacao_senha_retorna_token_mesmo_com_falha_no_envio(_sem_envio_real_de_email):
+    _sem_envio_real_de_email.side_effect = OSError("smtp indisponivel")
+    service, usuario = _criar_service_com_usuario()
+
+    token = service.solicitar_recuperacao_senha(usuario.email)
+
+    assert token is not None
+
+
 def test_redefinir_senha_atualiza_hash_com_token_valido():
     service, usuario = _criar_service_com_usuario()
     token = service.solicitar_recuperacao_senha(usuario.email)

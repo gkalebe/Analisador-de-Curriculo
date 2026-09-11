@@ -18,7 +18,7 @@ def enviar_email(destinatario: str, assunto: str, corpo: str, settings: Settings
     mensagem["To"] = destinatario
     mensagem.set_content(corpo)
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as servidor:
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as servidor:
         if settings.smtp_use_tls:
             servidor.starttls()
         if settings.smtp_user:
