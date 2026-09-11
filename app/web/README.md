@@ -29,5 +29,17 @@ Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicio
 - `POST /usuarios/recuperar-senha`: recebe `{"email": "..."}`, sempre responde `202` com mensagem genérica (não revela se o e-mail existe, por segurança) e dispara `AuthService.solicitar_recuperacao_senha`.
 - `POST /usuarios/redefinir-senha`: recebe `{"token": "...", "nova_senha": "..."}` (mínimo 8 caracteres), responde `200` em caso de sucesso ou `400` se o token for inválido/expirado.
 - Pendência fora do escopo de código: qual provedor de e-mail transacional vai efetivamente enviar o link com o token (Seção 4, item 1 do Plano de Ação — SendGrid, Resend etc. ainda não definido). Hoje o service só gera o token; o disparo do e-mail em si entra quando isso for decidido.
+- `GET /usuarios/recuperar-senha`: renderiza `templates/recuperar_senha.html` — formulário com um campo de e-mail.
+- `POST /usuarios/recuperar-senha/formulario`: recebe o e-mail do formulário, chama `AuthService.solicitar_recuperacao_senha` e volta a renderizar a mesma tela com a mensagem genérica de sucesso ("se o e-mail estiver cadastrado...") — nunca confirma nem nega se o e-mail existe, conforme critério de aceite da issue #23. O botão vira "Reenviar link" após o primeiro envio, cobrindo o critério de reenvio (o link expira em 60 minutos, `password_reset_expire_minutes` em `app/core/config.py`).
+- Essa rota é separada da `POST /usuarios/recuperar-senha` (JSON, usada por clientes que não são o formulário HTML) para não misturar `Form(...)` com o `SolicitarRecuperacaoSenhaRequest` no mesmo path.
+
+Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.2.
+
+## US-019 — Cadastrar informações de vaga no banco (front concluído nesta camada)
+
+- `GET /analises/vagas/nova`: renderiza `templates/vagas_nova.html` — formulário de cadastro de vaga (título opcional, descrição obrigatória, requisitos e área opcionais) e, quando `?email=` é informado e corresponde a um usuário existente, lista as vagas já salvas por ele para reaproveitar dados sem digitar tudo de novo.
+- `POST /analises/vagas`: recebe os campos do formulário, chama `AnalisadorService.cadastrar_vaga` e volta a renderizar a mesma tela com mensagem de sucesso ou erro (`400` se e-mail não encontrado, descrição vazia ou acima do limite configurado em `max_vaga_description_chars`).
+- Identificação do usuário: como US-002 (login, Kevin) ainda não existe, a tela usa um campo de e-mail (form/query string) resolvido via `UsuarioRepository.buscar_por_email` como identificador temporário — trocar por sessão/JWT assim que o login estiver pronto. Isso foi proposital para não invadir a US-002, que não é escopo desta entrega.
+- Testes: `tests/unit/test_analisador_service.py` (regras de negócio) e `tests/unit/test_analise_router.py` (HTTP, com fakes via `app.dependency_overrides`).
 
 Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.2.

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,6 +21,11 @@ from app.web.schemas import (
 )
 
 router = APIRouter(prefix="/usuarios", tags=["Autenticação"])
+templates = Jinja2Templates(directory="app/web/templates")
+
+MENSAGEM_RECUPERACAO_SENHA = (
+    "Se o e-mail informado estiver cadastrado, enviaremos instruções de recuperação de senha."
+)
 
 
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
@@ -67,8 +73,29 @@ def solicitar_recuperacao_senha(
     auth_service: AuthService = Depends(get_auth_service),
 ) -> MensagemResponse:
     auth_service.solicitar_recuperacao_senha(payload.email)
-    return MensagemResponse(
-        mensagem="Se o e-mail informado estiver cadastrado, enviaremos instruções de recuperação de senha."
+    return MensagemResponse(mensagem=MENSAGEM_RECUPERACAO_SENHA)
+
+
+@router.get("/recuperar-senha")
+def formulario_recuperar_senha(request: Request, email: str = ""):
+    return templates.TemplateResponse(
+        request=request,
+        name="recuperar_senha.html",
+        context={"email": email, "enviado": False, "mensagem": MENSAGEM_RECUPERACAO_SENHA},
+    )
+
+
+@router.post("/recuperar-senha/formulario")
+def solicitar_recuperacao_senha_formulario(
+    request: Request,
+    email: str = Form(...),
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    auth_service.solicitar_recuperacao_senha(email)
+    return templates.TemplateResponse(
+        request=request,
+        name="recuperar_senha.html",
+        context={"email": email, "enviado": True, "mensagem": MENSAGEM_RECUPERACAO_SENHA},
     )
 
 

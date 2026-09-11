@@ -28,4 +28,5 @@ class UsuarioRepository:
         return usuario
 
     def excluir(self, usuario: Usuario) -> None:
-        raise NotImplementedError
+        self.db.delete(usuario)
+        self.db.commit()
