@@ -21,6 +21,32 @@ class TokenRecuperacaoInvalidoError(Exception):
 class UsuarioNaoEncontradoError(Exception):
     pass
 
+FINALIDADE_RECUPERACAO_SENHA = "recuperacao_senha"
+FINALIDADE_EXCLUSAO_CONTA = "exclusao_conta"
+PRAZO_EXCLUSAO_HORAS = 48
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class TokenRecuperacaoInvalidoError(Exception):
+    pass
+
+
+class UsuarioNaoEncontradoError(Exception):
+    pass
+
+
+class EmailJaCadastradoError(Exception):
+    pass
+
+
+class SenhaInvalidaError(Exception):
+    pass
+
+
+class TokenExclusaoInvalidoError(Exception):
+    pass
+
 
 class AuthService:
     def __init__(self, db: Session):
