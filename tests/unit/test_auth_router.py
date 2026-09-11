@@ -232,6 +232,22 @@ def test_solicitar_recuperacao_senha_formulario_mostra_mensagem_generica():
     assert auth_service_falso.chamadas_recuperacao == ["gabriel@example.com"]
 
 
+def test_formulario_redefinir_senha_renderiza_pagina_com_token():
+    response = client.get("/usuarios/redefinir-senha", params={"token": "token-valido"})
+
+    assert response.status_code == 200
+    assert "Redefinir senha" in response.text
+    assert "token-valido" in response.text
+    assert "Solicite a recuperação de senha novamente" not in response.text
+
+
+def test_formulario_redefinir_senha_sem_token_mostra_link_invalido():
+    response = client.get("/usuarios/redefinir-senha")
+
+    assert response.status_code == 200
+    assert "Link inválido" in response.text
+
+
 def test_solicitar_recuperacao_senha_formulario_nao_revela_email_inexistente():
     auth_service_falso = AuthServiceFalso()
     app.dependency_overrides[get_auth_service] = lambda: auth_service_falso

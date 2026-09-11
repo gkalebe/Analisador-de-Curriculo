@@ -27,7 +27,7 @@ def enviar_email(destinatario: str, assunto: str, corpo: str, settings: Settings
 
 
 def enviar_email_recuperacao_senha(destinatario: str, token: str, settings: Settings) -> None:
-    link = f"{settings.frontend_login_url}?token={token}"
+    link = f"{settings.frontend_reset_password_url}?token={token}"
     assunto = "Recuperação de senha - currículoIA"
     corpo = (
         "Você solicitou a recuperação de senha.\n\n"

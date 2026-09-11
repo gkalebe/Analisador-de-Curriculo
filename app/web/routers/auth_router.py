@@ -99,6 +99,15 @@ def solicitar_recuperacao_senha_formulario(
     )
 
 
+@router.get("/redefinir-senha")
+def formulario_redefinir_senha(request: Request, token: str = ""):
+    return templates.TemplateResponse(
+        request=request,
+        name="redefinir_senha.html",
+        context={"token": token},
+    )
+
+
 @router.post("/redefinir-senha", response_model=MensagemResponse)
 def redefinir_senha(
     payload: RedefinirSenhaRequest,

@@ -13,6 +13,7 @@ def _settings(**overrides) -> Settings:
         "smtp_from": "",
         "smtp_use_tls": True,
         "frontend_login_url": "http://localhost:8000/login",
+        "frontend_reset_password_url": "http://localhost:8000/usuarios/redefinir-senha",
         "password_reset_expire_minutes": 30,
     }
     base.update(overrides)
@@ -60,4 +61,5 @@ def test_enviar_email_recuperacao_senha_monta_link_com_token():
         destinatario, assunto, corpo, settings_recebido = mock_enviar.call_args[0]
         assert destinatario == "destino@example.com"
         assert "token-123" in corpo
+        assert "http://localhost:8000/usuarios/redefinir-senha?token=token-123" in corpo
         assert settings_recebido is settings
