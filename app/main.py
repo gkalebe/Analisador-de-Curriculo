@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -10,6 +12,8 @@ from app.web.routers import (
     simulador_router,
     templates_router,
 )
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Analisador de Currículos", version="0.1.0")
 
