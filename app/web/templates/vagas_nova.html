@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cadastrar Vaga — Analisador de Currículos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+    <main class="min-h-screen py-10 px-4">
+        <div class="max-w-2xl mx-auto space-y-6">
+            <div>
+                <h1 class="text-3xl font-bold">Cadastrar vaga</h1>
+                <p class="text-gray-600 mt-1">
+                    Preencha as informações da vaga para salvá-la na sua conta e reutilizá-la depois, sem precisar colar tudo de novo.
+                </p>
+            </div>
+
+            {% if erro %}
+            <div class="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3">
+                {{ erro }}
+            </div>
+            {% endif %}
+
+            {% if sucesso %}
+            <div class="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3">
+                {{ sucesso }}
+            </div>
+            {% endif %}
+
+            <form method="get" action="/analises/vagas/nova" class="bg-white border border-gray-200 rounded-lg p-4 flex gap-2">
+                <input
+                    type="email"
+                    name="email"
+                    value="{{ email }}"
+                    placeholder="Seu e-mail cadastrado"
+                    required
+                    class="flex-1 rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                />
+                <button type="submit" class="rounded-md bg-gray-800 text-white px-4 py-2 hover:bg-gray-700">
+                    Entrar
+                </button>
+            </form>
+            <p class="text-xs text-gray-400 -mt-4">
+                Identificação temporária por e-mail, até a tela de login (US-002) estar pronta.
+            </p>
+
+            <form method="post" action="/analises/vagas" id="form-vaga" class="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+                <input type="hidden" name="email" value="{{ email }}" />
+
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="titulo">Título da vaga (opcional)</label>
+                    <input
+                        type="text"
+                        id="titulo"
+                        name="titulo"
+                        maxlength="200"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="descricao">Descrição da vaga</label>
+                    <textarea
+                        id="descricao"
+                        name="descricao"
+                        rows="8"
+                        required
+                        maxlength="{{ limite_descricao }}"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                        oninput="document.getElementById('contador-descricao').textContent = this.value.length"
+                    ></textarea>
+                    <p class="text-xs text-gray-400 mt-1">
+                        <span id="contador-descricao">0</span>/{{ limite_descricao }} caracteres
+                    </p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="requisitos">Requisitos (opcional)</label>
+                    <textarea
+                        id="requisitos"
+                        name="requisitos"
+                        rows="4"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    ></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="area">Área (opcional)</label>
+                    <input
+                        type="text"
+                        id="area"
+                        name="area"
+                        maxlength="100"
+                        class="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    />
+                </div>
+
+                <button type="submit" class="w-full rounded-md bg-gray-900 text-white px-4 py-2 hover:bg-gray-800">
+                    Salvar vaga
+                </button>
+            </form>
+
+            {% if vagas_salvas %}
+            <div class="space-y-2">
+                <h2 class="text-lg font-semibold">Suas vagas salvas</h2>
+                <p class="text-sm text-gray-500">Clique em uma vaga para reaproveitar as informações no formulário acima.</p>
+                <ul class="space-y-2">
+                    {% for vaga in vagas_salvas %}
+                    <li>
+                        <button
+                            type="button"
+                            onclick="reutilizarVaga(this)"
+                            data-titulo="{{ vaga.titulo or '' }}"
+                            data-descricao="{{ vaga.descricao }}"
+                            data-requisitos="{{ vaga.requisitos or '' }}"
+                            data-area="{{ vaga.area or '' }}"
+                            class="w-full text-left bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-400"
+                        >
+                            <p class="font-medium">{{ vaga.titulo or "(Sem título)" }}</p>
+                            <p class="text-sm text-gray-500">{{ vaga.area or "Área não informada" }}</p>
+                            <p class="text-sm text-gray-600 mt-1 line-clamp-2">{{ vaga.descricao[:160] }}{% if vaga.descricao|length > 160 %}…{% endif %}</p>
+                        </button>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% elif email %}
+            <p class="text-sm text-gray-500">Você ainda não tem nenhuma vaga salva.</p>
+            {% endif %}
+        </div>
+    </main>
+
+    <script>
+        function reutilizarVaga(botao) {
+            document.getElementById("titulo").value = botao.dataset.titulo;
+            document.getElementById("descricao").value = botao.dataset.descricao;
+            document.getElementById("requisitos").value = botao.dataset.requisitos;
+            document.getElementById("area").value = botao.dataset.area;
+            document.getElementById("contador-descricao").textContent = botao.dataset.descricao.length;
+            document.getElementById("form-vaga").scrollIntoView({ behavior: "smooth" });
+        }
+    </script>
+</body>
+</html>

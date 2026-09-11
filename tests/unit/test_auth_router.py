@@ -76,3 +76,41 @@ def test_redefinir_senha_rejeita_senha_curta():
     )
 
     assert response.status_code == 422
+
+
+def test_formulario_recuperar_senha_renderiza_pagina():
+    response = client.get("/usuarios/recuperar-senha")
+
+    assert response.status_code == 200
+    assert "Recuperar senha" in response.text
+    assert "Enviar link de recuperação" in response.text
+
+
+def test_solicitar_recuperacao_senha_formulario_mostra_mensagem_generica():
+    auth_service_falso = AuthServiceFalso()
+    app.dependency_overrides[get_auth_service] = lambda: auth_service_falso
+
+    response = client.post(
+        "/usuarios/recuperar-senha/formulario",
+        data={"email": "gabriel@example.com"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert "Se o e-mail informado estiver cadastrado" in response.text
+    assert "Reenviar link" in response.text
+    assert auth_service_falso.chamadas_recuperacao == ["gabriel@example.com"]
+
+
+def test_solicitar_recuperacao_senha_formulario_nao_revela_email_inexistente():
+    auth_service_falso = AuthServiceFalso()
+    app.dependency_overrides[get_auth_service] = lambda: auth_service_falso
+
+    response = client.post(
+        "/usuarios/recuperar-senha/formulario",
+        data={"email": "nao-cadastrado@example.com"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert "Se o e-mail informado estiver cadastrado" in response.text
