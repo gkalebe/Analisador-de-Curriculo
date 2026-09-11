@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 5
     max_vaga_description_chars: int = 5000
     frontend_login_url: str = "http://localhost:8000/login"
+    frontend_reset_password_url: str = "http://localhost:8000/usuarios/redefinir-senha"
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""

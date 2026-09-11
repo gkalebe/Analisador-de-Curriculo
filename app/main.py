@@ -51,8 +51,3 @@ def pagina_login(request: Request):
 @app.get("/painel")
 def pagina_painel(request: Request):
     return templates.TemplateResponse(request=request, name="painel.html", context={})
-
-
-@app.get("/configuracoes")
-def pagina_configuracoes(request: Request):
-    return templates.TemplateResponse(request=request, name="configuracoes.html", context={})

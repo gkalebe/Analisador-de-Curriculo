@@ -247,7 +247,15 @@
     padding: 10px 12px;
     background: rgba(255,255,255,0.07);
     border-radius: 10px;
+    border: none;
+    width: 100%;
+    color: inherit;
+    text-align: left;
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: background 0.15s;
   }
+  .user-chip:hover { background: rgba(255,255,255,0.13); }
   .user-avatar {
     width: 32px; height: 32px;
     border-radius: 50%;
@@ -267,6 +275,31 @@
     background: var(--bg);
     padding: 2rem;
     overflow-y: auto;
+  }
+
+  .settings-card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    max-width: 680px;
+  }
+  .settings-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-card-title i { color: var(--accent); font-size: 20px; }
+  .settings-card-title h3 {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 500;
+  }
+  .settings-card p {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+    margin-top: 10px;
   }
 
   .page-header { margin-bottom: 1.5rem; }

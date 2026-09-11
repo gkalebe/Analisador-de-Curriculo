@@ -71,10 +71,16 @@ function showScreen(id) {
 ════════════════════════════════════════ */
 function switchNav(page) {
   document.querySelectorAll('.nav-item[id^="nav-"]').forEach(n => n.classList.remove('active'));
-  document.getElementById('nav-' + page).classList.add('active');
+  const navItem = document.getElementById('nav-' + page);
+  if (navItem) navItem.classList.add('active');
   document.getElementById('page-analyze').style.display = page === 'analyze' ? 'block' : 'none';
   document.getElementById('page-history').style.display = page === 'history' ? 'block' : 'none';
+  document.getElementById('page-settings').style.display = page === 'settings' ? 'block' : 'none';
   if (page === 'history') renderHistory();
+}
+
+function openSettings() {
+  switchNav('settings');
 }
 
 /* ════════════════════════════════════════
