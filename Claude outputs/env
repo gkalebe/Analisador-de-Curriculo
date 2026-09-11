@@ -1,0 +1,16 @@
+ENVIRONMENT=development
+DATABASE_URL=postgresql+psycopg2://analisador:analisador@localhost:5432/analisador_curriculos
+SECRET_KEY=troque-por-uma-chave-secreta-forte
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+PASSWORD_RESET_EXPIRE_MINUTES=30
+GEMINI_API_KEY=
+ANTHROPIC_API_KEY=
+MAX_UPLOAD_SIZE_MB=5
+MAX_VAGA_DESCRIPTION_CHARS=5000
+FRONTEND_LOGIN_URL=http://localhost:8000/login
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=keviniqbal78@gmail.com
+SMTP_PASSWORD=rzhh gksj huzk aydm
+SMTP_FROM=keviniqbal78@gmail.com
+SMTP_USE_TLS=true
