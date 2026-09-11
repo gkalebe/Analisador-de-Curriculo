@@ -1,30 +1,21 @@
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
+from app.adapters.email.email_adapter import EmailAdapter
 from app.core.config import get_settings
+from app.core.persistencia.models import Usuario
 from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.email_service import enviar_email_recuperacao_senha
 
 logger = logging.getLogger(__name__)
 
 FINALIDADE_RECUPERACAO_SENHA = "recuperacao_senha"
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-class TokenRecuperacaoInvalidoError(Exception):
-    pass
-
-
-class UsuarioNaoEncontradoError(Exception):
-    pass
-
-FINALIDADE_RECUPERACAO_SENHA = "recuperacao_senha"
+FINALIDADE_ACESSO = "acesso"
 FINALIDADE_EXCLUSAO_CONTA = "exclusao_conta"
 PRAZO_EXCLUSAO_HORAS = 48
 
@@ -51,10 +42,43 @@ class TokenExclusaoInvalidoError(Exception):
     pass
 
 
+class CredenciaisInvalidasError(Exception):
+    pass
+
+
 class AuthService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, email_adapter: EmailAdapter | None = None):
         self.usuario_repository = UsuarioRepository(db)
         self.settings = get_settings()
+        self.email_adapter = email_adapter or EmailAdapter()
+
+    def cadastrar_usuario(self, nome: str, data_nascimento: date, email: str, senha: str) -> Usuario:
+        if self.usuario_repository.buscar_por_email(email) is not None:
+            raise EmailJaCadastradoError
+
+        usuario = Usuario(
+            nome=nome,
+            data_nascimento=data_nascimento,
+            email=email,
+            senha_hash=pwd_context.hash(senha),
+        )
+        usuario = self.usuario_repository.criar(usuario)
+        self.email_adapter.enviar_confirmacao_cadastro(usuario.email, usuario.nome)
+        return usuario
+
+    def autenticar(self, email: str, senha: str) -> tuple[Usuario, str]:
+        usuario = self.usuario_repository.buscar_por_email(email)
+        if usuario is None or not pwd_context.verify(senha, usuario.senha_hash):
+            raise CredenciaisInvalidasError
+
+        expira_em = datetime.now(timezone.utc) + timedelta(minutes=self.settings.access_token_expire_minutes)
+        payload = {
+            "sub": str(usuario.id_usuario),
+            "finalidade": FINALIDADE_ACESSO,
+            "exp": expira_em,
+        }
+        token = jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
+        return usuario, token
 
     def solicitar_recuperacao_senha(self, email: str) -> str | None:
         usuario = self.usuario_repository.buscar_por_email(email)

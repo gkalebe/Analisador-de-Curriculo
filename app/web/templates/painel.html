@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel — Analisador de Currículos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="placeholder-wrap">
+        <div class="placeholder-card">
+            <h1>Bem-vindo(a), <span id="nome-usuario">—</span></h1>
+            <p>
+                Este é o painel principal. As funcionalidades completas do painel (histórico e evolução das análises)
+                são da US-016, ainda não implementada — esta tela existe para validar o redirecionamento pós-login da US-002.
+            </p>
+            <button id="botao-sair" class="btn-secondary">Sair</button>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            window.location.href = '/login';
+        } else {
+            document.getElementById('nome-usuario').textContent = localStorage.getItem('usuario_nome') || 'usuário';
+        }
+
+        document.getElementById('botao-sair').addEventListener('click', () => {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('usuario_nome');
+            window.location.href = '/login';
+        });
+    </script>
+</body>
+</html>

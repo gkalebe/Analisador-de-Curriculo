@@ -10,7 +10,10 @@ class CurriculoRepository:
         self.db = db
 
     def criar(self, curriculo: Curriculo) -> Curriculo:
-        raise NotImplementedError
+        self.db.add(curriculo)
+        self.db.commit()
+        self.db.refresh(curriculo)
+        return curriculo
 
     def buscar_por_id(self, id_curriculo: uuid.UUID) -> Curriculo | None:
         raise NotImplementedError
@@ -19,7 +22,10 @@ class CurriculoRepository:
         raise NotImplementedError
 
     def atualizar_status(self, curriculo: Curriculo, status: str) -> Curriculo:
-        raise NotImplementedError
+        curriculo.status_processamento = status
+        self.db.commit()
+        self.db.refresh(curriculo)
+        return curriculo
 
     def excluir(self, curriculo: Curriculo) -> None:
         raise NotImplementedError
