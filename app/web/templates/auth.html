@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ 'Criar conta' if modo == 'cadastro' else 'Entrar' }} — Analisador de Currículos</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="auth-page">
+        <div class="auth-shell">
+            <div class="auth-left">
+                <div>
+                    <div class="auth-kicker" id="kicker">{{ 'CRIAR CONTA' if modo == 'cadastro' else 'LOGIN' }}</div>
+                    <a href="/" class="auth-logo">currículo<span>IA</span></a>
+                </div>
+                <div class="auth-left-mid">
+                    <h1 class="auth-title">Seu currículo, otimizado para a vaga certa.</h1>
+                    <p class="auth-subtitle">Análise inteligente e reestruturação personalizada.</p>
+                </div>
+                <div class="auth-benefits">
+                    <div class="benefit-pill"><i class="ti ti-search"></i> Análise com IA em segundos</div>
+                    <div class="benefit-pill"><i class="ti ti-map-pin"></i> Adequado à vaga específica</div>
+                    <div class="benefit-pill"><i class="ti ti-settings"></i> Só reescreve, nunca inventa</div>
+                    <div class="benefit-pill"><i class="ti ti-history"></i> Histórico de análise salva</div>
+                </div>
+            </div>
+
+            <div class="auth-right">
+                <div class="auth-card">
+                    <div class="auth-tabs">
+                        <button type="button" class="auth-tab {{ 'active' if modo != 'cadastro' else '' }}" id="tab-login" data-modo="login">Entrar</button>
+                        <button type="button" class="auth-tab {{ 'active' if modo == 'cadastro' else '' }}" id="tab-cadastro" data-modo="cadastro">Criar conta</button>
+                    </div>
+
+                    <div id="banner-login" class="alert-box erro"></div>
+                    <form id="form-login" class="auth-form" novalidate {{ 'hidden' if modo == 'cadastro' else '' }}>
+                        <div class="field">
+                            <label for="login-email">E-mail</label>
+                            <input type="email" id="login-email" placeholder="seu@email.com" />
+                            <span class="field-error" id="erro-login-email"></span>
+                        </div>
+                        <div class="field">
+                            <label for="login-senha">Senha</label>
+                            <div class="password-wrap">
+                                <input type="password" id="login-senha" placeholder="••••••••" />
+                                <button type="button" class="toggle-senha" data-target="login-senha" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+                            </div>
+                            <span class="field-error" id="erro-login-senha"></span>
+                        </div>
+                        <button type="submit" class="btn-primary" id="botao-login">Entrar</button>
+                    </form>
+                    <p class="auth-switch" id="switch-login" {{ 'hidden' if modo == 'cadastro' else '' }}>
+                        Não possui conta? <a href="#" data-switch="cadastro">Criar conta</a>
+                    </p>
+
+                    <div id="banner-cadastro" class="alert-box erro" hidden></div>
+                    <form id="form-cadastro" class="auth-form" novalidate {{ '' if modo == 'cadastro' else 'hidden' }}>
+                        <div class="field">
+                            <label for="cad-nome">Nome completo</label>
+                            <input type="text" id="cad-nome" placeholder="João Silva" />
+                            <span class="field-error" id="erro-cad-nome"></span>
+                        </div>
+                        <div class="field">
+                            <label for="cad-data">Data de nascimento</label>
+                            <input type="date" id="cad-data" />
+                            <span class="field-error" id="erro-cad-data_nascimento"></span>
+                        </div>
+                        <div class="field">
+                            <label for="cad-email">E-mail</label>
+                            <input type="email" id="cad-email" placeholder="seu@email.com" />
+                            <span class="field-error" id="erro-cad-email"></span>
+                        </div>
+                        <div class="field">
+                            <label for="cad-senha">Senha</label>
+                            <div class="password-wrap">
+                                <input type="password" id="cad-senha" placeholder="Mínimo 8 caracteres, 1 maiúscula, 1 número" />
+                                <button type="button" class="toggle-senha" data-target="cad-senha" aria-label="Mostrar senha"><i class="ti ti-eye"></i></button>
+                            </div>
+                            <span class="field-error" id="erro-cad-senha"></span>
+                        </div>
+                        <button type="submit" class="btn-primary" id="botao-cadastro">Criar conta</button>
+                    </form>
+                    <p class="auth-switch" id="switch-cadastro" {{ '' if modo == 'cadastro' else 'hidden' }}>
+                        Já possui conta? <a href="#" data-switch="login">Entrar</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const kickerEl = document.getElementById('kicker');
+        const tabLogin = document.getElementById('tab-login');
+        const tabCadastro = document.getElementById('tab-cadastro');
+        const formLogin = document.getElementById('form-login');
+        const formCadastro = document.getElementById('form-cadastro');
+        const switchLogin = document.getElementById('switch-login');
+        const switchCadastro = document.getElementById('switch-cadastro');
+        const bannerLogin = document.getElementById('banner-login');
+        const bannerCadastro = document.getElementById('banner-cadastro');
+
+        function limparErros(form) {
+            form.querySelectorAll('.field-error').forEach((el) => { el.textContent = ''; });
+            form.querySelectorAll('input.invalid').forEach((el) => el.classList.remove('invalid'));
+        }
+
+        function irPara(modo, atualizarUrl = true) {
+            const ehCadastro = modo === 'cadastro';
+            tabLogin.classList.toggle('active', !ehCadastro);
+            tabCadastro.classList.toggle('active', ehCadastro);
+            formLogin.hidden = ehCadastro;
+            formCadastro.hidden = !ehCadastro;
+            switchLogin.hidden = ehCadastro;
+            switchCadastro.hidden = !ehCadastro;
+            bannerLogin.classList.remove('show');
+            bannerCadastro.classList.remove('show');
+            kickerEl.textContent = ehCadastro ? 'CRIAR CONTA' : 'LOGIN';
+            document.title = (ehCadastro ? 'Criar conta' : 'Entrar') + ' — Analisador de Currículos';
+            if (atualizarUrl) {
+                history.pushState({ modo }, '', ehCadastro ? '/cadastro' : '/login');
+            }
+        }
+
+        tabLogin.addEventListener('click', () => irPara('login'));
+        tabCadastro.addEventListener('click', () => irPara('cadastro'));
+        document.querySelectorAll('[data-switch]').forEach((link) => {
+            link.addEventListener('click', (evento) => {
+                evento.preventDefault();
+                irPara(link.dataset.switch);
+            });
+        });
+        window.addEventListener('popstate', (evento) => {
+            irPara(evento.state && evento.state.modo === 'cadastro' ? 'cadastro' : 'login', false);
+        });
+
+        document.querySelectorAll('.toggle-senha').forEach((botao) => {
+            botao.addEventListener('click', () => {
+                const input = document.getElementById(botao.dataset.target);
+                const mostrando = input.type === 'text';
+                input.type = mostrando ? 'password' : 'text';
+                botao.querySelector('i').className = mostrando ? 'ti ti-eye' : 'ti ti-eye-off';
+            });
+        });
+
+        const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        // ── LOGIN ──
+        formLogin.addEventListener('submit', async (evento) => {
+            evento.preventDefault();
+            limparErros(formLogin);
+            bannerLogin.classList.remove('show');
+
+            const email = document.getElementById('login-email').value.trim();
+            const senha = document.getElementById('login-senha').value;
+            let valido = true;
+            if (!email || !REGEX_EMAIL.test(email)) {
+                document.getElementById('erro-login-email').textContent = 'Informe um e-mail válido.';
+                valido = false;
+            }
+            if (!senha) {
+                document.getElementById('erro-login-senha').textContent = 'Informe sua senha.';
+                valido = false;
+            }
+            if (!valido) return;
+
+            const botao = document.getElementById('botao-login');
+            botao.disabled = true;
+            try {
+                const resposta = await fetch('/usuarios/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, senha }),
+                });
+                const corpo = await resposta.json();
+
+                if (resposta.status === 200) {
+                    localStorage.setItem('access_token', corpo.access_token);
+                    localStorage.setItem('usuario_nome', corpo.usuario.nome);
+                    window.location.href = '/painel';
+                    return;
+                }
+
+                // Mensagem sempre genérica — a API não indica qual campo está incorreto.
+                bannerLogin.textContent = corpo.detail || 'E-mail ou senha inválidos.';
+                bannerLogin.classList.add('show');
+            } catch (erro) {
+                bannerLogin.textContent = 'Falha de conexão com o servidor. Tente novamente.';
+                bannerLogin.classList.add('show');
+            } finally {
+                botao.disabled = false;
+            }
+        });
+
+        // ── CADASTRO ──
+        const CAMPO_POR_LOC = {
+            nome: 'erro-cad-nome',
+            data_nascimento: 'erro-cad-data_nascimento',
+            email: 'erro-cad-email',
+            senha: 'erro-cad-senha',
+        };
+
+        formCadastro.addEventListener('submit', async (evento) => {
+            evento.preventDefault();
+            limparErros(formCadastro);
+            bannerCadastro.classList.remove('show');
+
+            const nome = document.getElementById('cad-nome').value.trim();
+            const data_nascimento = document.getElementById('cad-data').value;
+            const email = document.getElementById('cad-email').value.trim();
+            const senha = document.getElementById('cad-senha').value;
+
+            let valido = true;
+            if (!nome) { document.getElementById('erro-cad-nome').textContent = 'Informe seu nome completo.'; valido = false; }
+            if (!data_nascimento) { document.getElementById('erro-cad-data_nascimento').textContent = 'Informe sua data de nascimento.'; valido = false; }
+            if (!email || !REGEX_EMAIL.test(email)) { document.getElementById('erro-cad-email').textContent = 'Informe um e-mail válido.'; valido = false; }
+            if (!senha) { document.getElementById('erro-cad-senha').textContent = 'Informe uma senha.'; valido = false; }
+            if (!valido) return;
+
+            const botao = document.getElementById('botao-cadastro');
+            botao.disabled = true;
+            try {
+                const resposta = await fetch('/usuarios', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nome, data_nascimento, email, senha }),
+                });
+                const corpo = await resposta.json();
+
+                if (resposta.status === 201) {
+                    bannerCadastro.textContent = 'Cadastro realizado! Enviamos um e-mail de confirmação. Redirecionando para o login...';
+                    bannerCadastro.className = 'alert-box sucesso show';
+                    setTimeout(() => { irPara('login'); }, 1800);
+                    return;
+                }
+
+                if (resposta.status === 409) {
+                    document.getElementById('erro-cad-email').textContent = corpo.detail;
+                } else if (resposta.status === 422) {
+                    corpo.detail.forEach((erro) => {
+                        const campo = erro.loc[erro.loc.length - 1];
+                        const alvoId = CAMPO_POR_LOC[campo];
+                        const mensagem = erro.msg.replace(/^Value error, /, '');
+                        if (alvoId) {
+                            document.getElementById(alvoId).textContent = mensagem;
+                        } else {
+                            bannerCadastro.textContent = mensagem;
+                            bannerCadastro.className = 'alert-box erro show';
+                        }
+                    });
+                } else {
+                    bannerCadastro.textContent = 'Não foi possível concluir o cadastro. Tente novamente.';
+                    bannerCadastro.className = 'alert-box erro show';
+                }
+            } catch (erro) {
+                bannerCadastro.textContent = 'Falha de conexão com o servidor. Tente novamente.';
+                bannerCadastro.className = 'alert-box erro show';
+            } finally {
+                botao.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
