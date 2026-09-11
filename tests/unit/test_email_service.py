@@ -44,7 +44,7 @@ def test_enviar_email_com_smtp_host_envia_via_smtplib():
 
         enviar_email("destino@example.com", "Assunto", "Corpo", settings)
 
-        mock_smtp.assert_called_once_with("smtp.gmail.com", 587)
+        mock_smtp.assert_called_once_with("smtp.gmail.com", 587, timeout=10)
         instancia.starttls.assert_called_once()
         instancia.login.assert_called_once_with("remetente@example.com", "senha-app")
         instancia.send_message.assert_called_once()

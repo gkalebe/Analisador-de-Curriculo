@@ -32,11 +32,11 @@ def solicitar_recuperacao_senha(
 
 
 @router.get("/recuperar-senha")
-def formulario_recuperar_senha(request: Request):
+def formulario_recuperar_senha(request: Request, email: str = ""):
     return templates.TemplateResponse(
         request=request,
         name="recuperar_senha.html",
-        context={"email": "", "enviado": False, "mensagem": MENSAGEM_RECUPERACAO_SENHA},
+        context={"email": email, "enviado": False, "mensagem": MENSAGEM_RECUPERACAO_SENHA},
     )
 
 

@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -8,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.email_service import enviar_email_recuperacao_senha
+
+logger = logging.getLogger(__name__)
 
 FINALIDADE_RECUPERACAO_SENHA = "recuperacao_senha"
 
@@ -64,7 +67,10 @@ class AuthService:
             "exp": expira_em,
         }
         token = jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
-        enviar_email_recuperacao_senha(usuario.email, token, self.settings)
+        try:
+            enviar_email_recuperacao_senha(usuario.email, token, self.settings)
+        except OSError:
+            logger.exception("Falha ao enviar e-mail de recuperacao de senha para %s", usuario.email)
         return token
 
     def redefinir_senha(self, token: str, nova_senha: str) -> None:
