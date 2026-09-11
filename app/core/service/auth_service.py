@@ -1,11 +1,13 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
+from app.adapters.email.email_adapter import EmailAdapter
 from app.core.config import get_settings
+from app.core.persistencia.models import Usuario
 from app.core.persistencia.usuario_repository import UsuarioRepository
 
 FINALIDADE_RECUPERACAO_SENHA = "recuperacao_senha"
@@ -21,10 +23,29 @@ class UsuarioNaoEncontradoError(Exception):
     pass
 
 
+class EmailJaCadastradoError(Exception):
+    pass
+
+
 class AuthService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, email_adapter: EmailAdapter | None = None):
         self.usuario_repository = UsuarioRepository(db)
         self.settings = get_settings()
+        self.email_adapter = email_adapter or EmailAdapter()
+
+    def cadastrar_usuario(self, nome: str, data_nascimento: date, email: str, senha: str) -> Usuario:
+        if self.usuario_repository.buscar_por_email(email) is not None:
+            raise EmailJaCadastradoError
+
+        usuario = Usuario(
+            nome=nome,
+            data_nascimento=data_nascimento,
+            email=email,
+            senha_hash=pwd_context.hash(senha),
+        )
+        usuario = self.usuario_repository.criar(usuario)
+        self.email_adapter.enviar_confirmacao_cadastro(usuario.email, usuario.nome)
+        return usuario
 
     def solicitar_recuperacao_senha(self, email: str) -> str | None:
         usuario = self.usuario_repository.buscar_por_email(email)

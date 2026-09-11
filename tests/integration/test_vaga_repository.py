@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 import pytest
 from sqlalchemy import create_engine
@@ -35,6 +36,7 @@ def usuario(db: Session) -> Usuario:
     usuario = Usuario(
         id_usuario=uuid.uuid4(),
         nome="Gabriel Kalebe",
+        data_nascimento=date(1995, 5, 20),
         email=f"{uuid.uuid4()}@example.com",
         senha_hash="hash",
         perfil="candidato",
@@ -79,6 +81,7 @@ def test_listar_por_usuario_retorna_apenas_vagas_do_usuario(db: Session, usuario
     outro_usuario = Usuario(
         id_usuario=uuid.uuid4(),
         nome="Outro Usuário",
+        data_nascimento=date(1990, 1, 15),
         email=f"{uuid.uuid4()}@example.com",
         senha_hash="hash",
         perfil="candidato",
