@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configurações — currículoIA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: "Roboto", sans-serif; }
+        .font-brand { font-family: "Inter", sans-serif; }
+    </style>
+</head>
+<body class="bg-[#f3f3f3] text-gray-900">
+    <div class="min-h-screen flex flex-col md:flex-row">
+        <aside class="bg-[#06331d] text-white w-full md:w-64 shrink-0 flex flex-col gap-8 p-6">
+            <div class="border-b border-[#8e8e8e] pb-6 font-brand text-[28px]">
+                currículo<span class="font-normal">IA</span>
+            </div>
+
+            <nav class="flex flex-col gap-3">
+                <a href="/analises/vagas/nova{% if email %}?email={{ email|urlencode }}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-search"></i> Nova análise
+                </a>
+                <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-history"></i> Histórico
+                </a>
+                <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-file-text"></i> Currículo
+                </a>
+                <a href="#" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-robot"></i> ChatBOT
+                </a>
+            </nav>
+
+            <div class="mt-auto flex flex-col gap-3">
+                {% if email %}
+                <a href="/configuracoes?email={{ email|urlencode }}" class="flex items-center gap-3 rounded-lg bg-white/10 px-3 py-3" aria-current="page">
+                    <span class="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#1e5e3f] font-brand text-lg">
+                        {{ email[0]|upper }}
+                    </span>
+                    <div class="leading-tight">
+                        <p class="font-brand font-semibold">{{ email.split('@')[0] }}</p>
+                        <p class="text-sm text-white/80">{{ email }}</p>
+                    </div>
+                </a>
+                {% endif %}
+                <a href="/analises/vagas/nova{% if email %}?email={{ email|urlencode }}{% endif %}" class="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
+                    <i class="ti ti-arrow-left"></i> Voltar ao painel
+                </a>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-6 md:p-10">
+            <div class="mx-auto max-w-3xl space-y-6">
+                <div>
+                    <h1 class="font-brand text-[32px] font-bold text-black">Configurações</h1>
+                    <p class="mt-1 text-lg font-semibold text-[#727272]">Gerencie as informações e as preferências da sua conta.</p>
+                </div>
+
+                <section class="rounded-lg border-[0.5px] border-black bg-white p-6" aria-labelledby="titulo-conta">
+                    <div class="flex items-center gap-3">
+                        <i class="ti ti-user-cog text-[28px]"></i>
+                        <h2 id="titulo-conta" class="font-brand text-[28px] text-black">Conta</h2>
+                    </div>
+                    <p class="mt-4 text-[#727272]">As opções da sua conta estarão disponíveis nesta área.</p>
+                </section>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

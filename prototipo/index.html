@@ -96,13 +96,13 @@
       </button>
 
       <div class="sidebar-bottom">
-        <button class="user-chip" type="button" onclick="openSettings()" aria-label="Abrir configurações da conta">
+        <div class="user-chip">
           <div class="user-avatar" id="user-initials">?</div>
           <div>
             <div class="user-name" id="user-display-name">—</div>
             <div class="user-email" id="user-display-email">—</div>
           </div>
-        </button>
+        </div>
         <button class="nav-item" style="margin-top:8px;" onclick="doLogout()">
           <i class="ti ti-logout"></i> Sair
         </button>
@@ -229,21 +229,6 @@
         <div id="history-list"></div>
       </div>
 
-      <!-- ── PAGE: CONFIGURAÇÕES ── -->
-      <div id="page-settings" style="display:none;">
-        <div class="page-header">
-          <h1>Configurações</h1>
-          <p>Gerencie as informações e as preferências da sua conta.</p>
-        </div>
-
-        <div class="settings-card">
-          <div class="settings-card-title">
-            <i class="ti ti-user-cog"></i>
-            <h3>Conta</h3>
-          </div>
-          <p>As opções da sua conta estarão disponíveis nesta área.</p>
-        </div>
-      </div>
 
     </div><!-- /main-content -->
   </div><!-- /dashboard -->
