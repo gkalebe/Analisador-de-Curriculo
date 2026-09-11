@@ -37,9 +37,12 @@ class EmailAdapter:
         mensagem["To"] = destinatario
         mensagem.set_content(corpo)
 
-        with smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port, timeout=10) as smtp:
-            if self.settings.smtp_use_tls:
-                smtp.starttls()
-            if self.settings.smtp_user:
-                smtp.login(self.settings.smtp_user, self.settings.smtp_password)
-            smtp.send_message(mensagem)
+        try:
+            with smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port, timeout=10) as smtp:
+                if self.settings.smtp_use_tls:
+                    smtp.starttls()
+                if self.settings.smtp_user:
+                    smtp.login(self.settings.smtp_user, self.settings.smtp_password)
+                smtp.send_message(mensagem)
+        except (OSError, smtplib.SMTPException):
+            logger.exception("Falha ao enviar e-mail para %s", destinatario)
