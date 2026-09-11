@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -9,9 +10,14 @@ from app.adapters.email.email_adapter import EmailAdapter
 from app.core.config import get_settings
 from app.core.persistencia.models import Usuario
 from app.core.persistencia.usuario_repository import UsuarioRepository
+from app.core.service.email_service import enviar_email_recuperacao_senha
+
+logger = logging.getLogger(__name__)
 
 FINALIDADE_RECUPERACAO_SENHA = "recuperacao_senha"
 FINALIDADE_ACESSO = "acesso"
+FINALIDADE_EXCLUSAO_CONTA = "exclusao_conta"
+PRAZO_EXCLUSAO_HORAS = 48
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -25,6 +31,14 @@ class UsuarioNaoEncontradoError(Exception):
 
 
 class EmailJaCadastradoError(Exception):
+    pass
+
+
+class SenhaInvalidaError(Exception):
+    pass
+
+
+class TokenExclusaoInvalidoError(Exception):
     pass
 
 
@@ -76,7 +90,12 @@ class AuthService:
             "finalidade": FINALIDADE_RECUPERACAO_SENHA,
             "exp": expira_em,
         }
-        return jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
+        token = jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
+        try:
+            enviar_email_recuperacao_senha(usuario.email, token, self.settings)
+        except OSError:
+            logger.exception("Falha ao enviar e-mail de recuperacao de senha para %s", usuario.email)
+        return token
 
     def redefinir_senha(self, token: str, nova_senha: str) -> None:
         try:

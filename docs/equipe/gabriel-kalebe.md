@@ -6,10 +6,12 @@ Sprint 0: participação no kickoff técnico coletivo (repositório, estrutura d
 
 | US | Título | Pontos | Módulo | Status |
 |---|---|---|---|---|
-| US-003 | Recuperar senha via e-mail | 3 | `core/service/auth_service` | Concluída — `solicitar_recuperacao_senha`/`redefinir_senha` + endpoints `POST /usuarios/recuperar-senha` e `POST /usuarios/redefinir-senha` |
-| US-019 | Cadastrar informações de vaga no banco | 5 | `core/persistencia/vaga_repository` | Concluída — `criar`, `buscar_por_id`, `listar_por_usuario` |
+| US-003 | Recuperar senha via e-mail | 3 | `core/service/auth_service` | Concluída — back (issue #4: `solicitar_recuperacao_senha`/`redefinir_senha` + endpoints `POST /usuarios/recuperar-senha` e `POST /usuarios/redefinir-senha`) e front (issue #23: tela `GET /usuarios/recuperar-senha` + `POST /usuarios/recuperar-senha/formulario`, com mensagem genérica e opção de reenvio) |
+| US-019 | Cadastrar informações de vaga no banco | 5 | `core/persistencia/vaga_repository`, `web/analise` | Concluída — back (issue #5: `criar`, `buscar_por_id`, `listar_por_usuario`) e front (issue #38: tela `GET /analises/vagas/nova` + `POST /analises/vagas`, com listagem de vagas salvas para reuso) |
 
-Ambas dependiam de US-001 (Kevin) só para a base de `usuario_repository`/autenticação existir; implementadas com testes em `tests/unit/test_auth_service.py`, `tests/unit/test_auth_router.py` e `tests/integration/test_vaga_repository.py`. Pendência fora do código: provedor de e-mail transacional para disparar o link de recuperação (Plano de Ação, Seção 4, item 1 — ainda não definido pelo time).
+Ambas dependiam de US-001 (Kevin) só para a base de `usuario_repository`/autenticação existir. Como US-002 (login, Kevin) ainda não está pronta, a tela de US-019 identifica o usuário por e-mail (campo temporário no formulário) — trocar por sessão/JWT assim que o login estiver disponível. A tela de US-003 não depende de login (é justamente para quem esqueceu a senha), então não tem esse problema. Testes em `tests/unit/test_auth_service.py`, `tests/unit/test_auth_router.py`, `tests/unit/test_analisador_service.py`, `tests/unit/test_analise_router.py` e `tests/integration/test_vaga_repository.py`. Pendência fora do código: provedor de e-mail transacional para disparar o link de recuperação (Plano de Ação, Seção 4, item 1 — ainda não definido pelo time); o front já está pronto para quando isso for decidido.
+
+**Sprint 1 concluída** — issues #4, #5, #23 e #38 (as quatro atribuídas a mim) estão fechadas/prontas para revisão.
 
 ## Sprint 2 (Semanas 3-4)
 

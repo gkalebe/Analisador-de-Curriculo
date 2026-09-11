@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from unittest.mock import patch
 
 import pytest
 from jose import jwt
@@ -13,6 +14,12 @@ from app.core.service.auth_service import (
     TokenRecuperacaoInvalidoError,
     pwd_context,
 )
+
+
+@pytest.fixture(autouse=True)
+def _sem_envio_real_de_email():
+    with patch("app.core.service.auth_service.enviar_email_recuperacao_senha") as mock_enviar:
+        yield mock_enviar
 
 
 class UsuarioRepositorioFalso:
@@ -89,6 +96,31 @@ def test_solicitar_recuperacao_senha_retorna_none_para_email_inexistente():
     service, _ = _criar_service_com_usuario()
 
     assert service.solicitar_recuperacao_senha("nao-cadastrado@example.com") is None
+
+
+def test_solicitar_recuperacao_senha_envia_email(_sem_envio_real_de_email):
+    service, usuario = _criar_service_com_usuario()
+
+    token = service.solicitar_recuperacao_senha(usuario.email)
+
+    _sem_envio_real_de_email.assert_called_once_with(usuario.email, token, service.settings)
+
+
+def test_solicitar_recuperacao_senha_nao_envia_email_para_email_inexistente(_sem_envio_real_de_email):
+    service, _ = _criar_service_com_usuario()
+
+    service.solicitar_recuperacao_senha("nao-cadastrado@example.com")
+
+    _sem_envio_real_de_email.assert_not_called()
+
+
+def test_solicitar_recuperacao_senha_retorna_token_mesmo_com_falha_no_envio(_sem_envio_real_de_email):
+    _sem_envio_real_de_email.side_effect = OSError("smtp indisponivel")
+    service, usuario = _criar_service_com_usuario()
+
+    token = service.solicitar_recuperacao_senha(usuario.email)
+
+    assert token is not None
 
 
 def test_redefinir_senha_atualiza_hash_com_token_valido():

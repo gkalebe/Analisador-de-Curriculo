@@ -13,8 +13,18 @@ Você entrou já na Sprint 1 assumindo a fatia que seria de Carlos (US-004 + apo
 
 A migração inicial do Alembic (`alembic revision --autogenerate -m "..."` a partir de `core/persistencia/models.py`, que já está completo) e a validação do `docker-compose.yml`/CI são a sua entrega de infraestrutura desta sprint — sem elas, ninguém do time consegue rodar migração real contra o Postgres em nuvem.
 
-## Sprints 2 a 4
+## Sprint 2 (Semanas 3-4)
 
-O Plano de Ação não define uma US fixa para você além da Sprint 1 — seu ponto de entrada foi pensado para dar flexibilidade ao time. Alinhe com o Tech Lead/Scrum Master no fim da Sprint 1 se você continua reforçando infraestrutura (Docker, deploy, Alembic) ao longo do projeto ou se assume uma US de sprint futura, dependendo de como a carga do time estiver distribuída.
+Definido: você segue reforçando infraestrutura, agora com foco no núcleo de IA que arranca nesta sprint (US-006, US-007, US-008). Não é uma US formal — não tem pontuação no Plano de Ação — mas é trabalho real de apoio, tracked na issue #46.
+
+| Item | Descrição | Módulo |
+|---|---|---|
+| Issue #46 | Apoio técnico Sprint 2 — configurar provedor de IA do `AIServiceAdapter` (Gemini x Claude, ainda em aberto), estender CI para testes de integração de IA, apoiar Carlos no início do `AIServiceAdapter` | `adapters/ai_service`, CI |
+
+O pareamento com Carlos (item 3 da issue) só acontece quando ele retomar a US-006 — por ora, foque na configuração do provedor de IA e na extensão do CI, que não dependem dele.
+
+## Sprints 3 e 4
+
+Ainda em aberto. Alinhe com o Tech Lead/Scrum Master no fim da Sprint 2 se você continua reforçando infraestrutura ou se assume uma US de sprint futura, dependendo de como a carga do time estiver distribuída.
 
 Critérios de aceite (DADO/QUANDO/ENTÃO) de cada US: Levantamento de Requisitos v1.1, Seção 6.2.
