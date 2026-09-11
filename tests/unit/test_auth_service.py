@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.persistencia.models import Usuario
 from app.core.service.auth_service import (
     AuthService,
+    CredenciaisInvalidasError,
     EmailJaCadastradoError,
     TokenRecuperacaoInvalidoError,
     pwd_context,
@@ -52,6 +53,20 @@ def _criar_service_com_usuario() -> tuple[AuthService, Usuario]:
         data_nascimento=date(1995, 5, 20),
         email="gabriel@example.com",
         senha_hash="hash-antigo",
+        perfil="candidato",
+    )
+    service = AuthService(db=None, email_adapter=EmailAdapterFalso())
+    service.usuario_repository = UsuarioRepositorioFalso({usuario.id_usuario: usuario})
+    return service, usuario
+
+
+def _criar_service_com_usuario_autenticavel(senha: str = "SenhaCorreta123") -> tuple[AuthService, Usuario]:
+    usuario = Usuario(
+        id_usuario=uuid.uuid4(),
+        nome="Gabriel Kalebe",
+        data_nascimento=date(1995, 5, 20),
+        email="gabriel@example.com",
+        senha_hash=pwd_context.hash(senha),
         perfil="candidato",
     )
     service = AuthService(db=None, email_adapter=EmailAdapterFalso())
@@ -104,6 +119,31 @@ def test_redefinir_senha_recusa_token_com_finalidade_errada():
 
     with pytest.raises(TokenRecuperacaoInvalidoError):
         service.redefinir_senha(token, "nova-senha-123")
+
+
+def test_autenticar_retorna_usuario_e_token_com_credenciais_validas():
+    service, usuario = _criar_service_com_usuario_autenticavel("SenhaCorreta123")
+
+    usuario_autenticado, token = service.autenticar(usuario.email, "SenhaCorreta123")
+
+    assert usuario_autenticado.id_usuario == usuario.id_usuario
+    payload = jwt.decode(token, get_settings().secret_key, algorithms=["HS256"])
+    assert payload["sub"] == str(usuario.id_usuario)
+    assert payload["finalidade"] == "acesso"
+
+
+def test_autenticar_recusa_senha_incorreta_com_erro_generico():
+    service, usuario = _criar_service_com_usuario_autenticavel("SenhaCorreta123")
+
+    with pytest.raises(CredenciaisInvalidasError):
+        service.autenticar(usuario.email, "senha-errada")
+
+
+def test_autenticar_recusa_email_inexistente_com_mesmo_erro_generico():
+    service, _ = _criar_service_com_usuario_autenticavel("SenhaCorreta123")
+
+    with pytest.raises(CredenciaisInvalidasError):
+        service.autenticar("nao-cadastrado@example.com", "qualquer-senha")
 
 
 def test_cadastrar_usuario_persiste_com_senha_hasheada_e_envia_confirmacao():

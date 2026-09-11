@@ -4,12 +4,15 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.service.auth_service import (
     AuthService,
+    CredenciaisInvalidasError,
     EmailJaCadastradoError,
     TokenRecuperacaoInvalidoError,
     UsuarioNaoEncontradoError,
 )
 from app.web.schemas import (
     CadastrarUsuarioRequest,
+    LoginRequest,
+    LoginResponse,
     MensagemResponse,
     RedefinirSenhaRequest,
     SolicitarRecuperacaoSenhaRequest,
@@ -41,6 +44,21 @@ def cadastrar_usuario(
             detail="Este e-mail já está cadastrado.",
         ) from erro
     return UsuarioResponse.model_validate(usuario)
+
+
+@router.post("/login", response_model=LoginResponse)
+def login(
+    payload: LoginRequest,
+    auth_service: AuthService = Depends(get_auth_service),
+) -> LoginResponse:
+    try:
+        usuario, token = auth_service.autenticar(payload.email, payload.senha)
+    except CredenciaisInvalidasError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="E-mail ou senha inválidos.",
+        ) from erro
+    return LoginResponse(access_token=token, usuario=UsuarioResponse.model_validate(usuario))
 
 
 @router.post("/recuperar-senha", response_model=MensagemResponse, status_code=status.HTTP_202_ACCEPTED)

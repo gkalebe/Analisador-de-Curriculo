@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -10,6 +12,8 @@ from app.web.routers import (
     simulador_router,
     templates_router,
 )
+
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Analisador de Currículos", version="0.1.0")
 
@@ -32,3 +36,18 @@ def health_check() -> dict[str, str]:
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse(request=request, name="index.html", context={})
+
+
+@app.get("/cadastro")
+def pagina_cadastro(request: Request):
+    return templates.TemplateResponse(request=request, name="auth.html", context={"modo": "cadastro"})
+
+
+@app.get("/login")
+def pagina_login(request: Request):
+    return templates.TemplateResponse(request=request, name="auth.html", context={"modo": "login"})
+
+
+@app.get("/painel")
+def pagina_painel(request: Request):
+    return templates.TemplateResponse(request=request, name="painel.html", context={})

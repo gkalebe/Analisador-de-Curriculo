@@ -11,6 +11,7 @@ from app.core.persistencia.models import Usuario
 from app.core.persistencia.usuario_repository import UsuarioRepository
 
 FINALIDADE_RECUPERACAO_SENHA = "recuperacao_senha"
+FINALIDADE_ACESSO = "acesso"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,6 +25,10 @@ class UsuarioNaoEncontradoError(Exception):
 
 
 class EmailJaCadastradoError(Exception):
+    pass
+
+
+class CredenciaisInvalidasError(Exception):
     pass
 
 
@@ -46,6 +51,20 @@ class AuthService:
         usuario = self.usuario_repository.criar(usuario)
         self.email_adapter.enviar_confirmacao_cadastro(usuario.email, usuario.nome)
         return usuario
+
+    def autenticar(self, email: str, senha: str) -> tuple[Usuario, str]:
+        usuario = self.usuario_repository.buscar_por_email(email)
+        if usuario is None or not pwd_context.verify(senha, usuario.senha_hash):
+            raise CredenciaisInvalidasError
+
+        expira_em = datetime.now(timezone.utc) + timedelta(minutes=self.settings.access_token_expire_minutes)
+        payload = {
+            "sub": str(usuario.id_usuario),
+            "finalidade": FINALIDADE_ACESSO,
+            "exp": expira_em,
+        }
+        token = jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
+        return usuario, token
 
     def solicitar_recuperacao_senha(self, email: str) -> str | None:
         usuario = self.usuario_repository.buscar_por_email(email)

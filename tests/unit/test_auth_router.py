@@ -2,7 +2,11 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from app.core.service.auth_service import EmailJaCadastradoError, TokenRecuperacaoInvalidoError
+from app.core.service.auth_service import (
+    CredenciaisInvalidasError,
+    EmailJaCadastradoError,
+    TokenRecuperacaoInvalidoError,
+)
 from app.main import app
 from app.web.routers.auth_router import get_auth_service
 
@@ -21,8 +25,10 @@ class AuthServiceFalso:
         self.chamadas_recuperacao: list[str] = []
         self.chamadas_redefinicao: list[tuple[str, str]] = []
         self.chamadas_cadastro: list[dict] = []
+        self.chamadas_login: list[tuple[str, str]] = []
         self.token_invalido = False
         self.email_ja_cadastrado = False
+        self.credenciais_invalidas = False
 
     def solicitar_recuperacao_senha(self, email: str) -> str | None:
         self.chamadas_recuperacao.append(email)
@@ -40,6 +46,12 @@ class AuthServiceFalso:
         if self.email_ja_cadastrado:
             raise EmailJaCadastradoError
         return UsuarioFalso(nome=nome, email=email)
+
+    def autenticar(self, email: str, senha: str):
+        self.chamadas_login.append((email, senha))
+        if self.credenciais_invalidas:
+            raise CredenciaisInvalidasError
+        return UsuarioFalso(nome="Kevin Iqbal", email=email), "token-jwt-fake"
 
 
 def test_solicitar_recuperacao_senha_retorna_202_e_mensagem_generica():
@@ -155,3 +167,42 @@ def test_cadastrar_usuario_rejeita_senha_fora_das_regras_minimas():
     assert "mínimo de 8 caracteres" in mensagem
     assert "letra maiúscula" in mensagem
     assert "número" in mensagem
+
+
+def test_login_retorna_200_com_token_para_credenciais_validas():
+    auth_service_falso = AuthServiceFalso()
+    app.dependency_overrides[get_auth_service] = lambda: auth_service_falso
+
+    response = client.post("/usuarios/login", json={"email": "kevin@example.com", "senha": "SenhaForte123"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    corpo = response.json()
+    assert corpo["access_token"] == "token-jwt-fake"
+    assert corpo["token_type"] == "bearer"
+    assert corpo["usuario"]["email"] == "kevin@example.com"
+    assert auth_service_falso.chamadas_login == [("kevin@example.com", "SenhaForte123")]
+
+
+def test_login_retorna_401_generico_para_senha_incorreta():
+    auth_service_falso = AuthServiceFalso()
+    auth_service_falso.credenciais_invalidas = True
+    app.dependency_overrides[get_auth_service] = lambda: auth_service_falso
+
+    response = client.post("/usuarios/login", json={"email": "kevin@example.com", "senha": "senha-errada"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 401
+    assert response.json()["detail"] == "E-mail ou senha inválidos."
+
+
+def test_login_retorna_401_generico_para_email_inexistente():
+    auth_service_falso = AuthServiceFalso()
+    auth_service_falso.credenciais_invalidas = True
+    app.dependency_overrides[get_auth_service] = lambda: auth_service_falso
+
+    response = client.post("/usuarios/login", json={"email": "nao-cadastrado@example.com", "senha": "qualquer"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 401
+    assert response.json()["detail"] == "E-mail ou senha inválidos."
