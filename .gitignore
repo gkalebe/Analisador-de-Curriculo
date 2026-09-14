@@ -9,3 +9,12 @@ __pycache__/
 *.egg-info/
 .vscode/
 .idea/
+
+# Frontend (Node/Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+
+# Screenshots de demonstração (gerados fora do projeto)
+Claude outputs/
