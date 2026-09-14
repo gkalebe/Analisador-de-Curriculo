@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     password_reset_expire_minutes: int = 30
     gemini_api_key: str = ""
+    gemini_model_name: str = "gemini-flash-latest"
     anthropic_api_key: str = ""
+    anthropic_model_name: str = "claude-3-5-haiku-20241022"
     max_upload_size_mb: int = 5
     max_vaga_description_chars: int = 5000
     frontend_login_url: str = "http://localhost:8000/login"

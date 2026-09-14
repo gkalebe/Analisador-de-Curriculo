@@ -2,11 +2,12 @@ import uuid
 
 import pytest
 
-from app.core.persistencia.models import Vaga
+from app.core.persistencia.models import Analise, Curriculo, Vaga
 from app.core.service.analisador_service import (
     AnalisadorService,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
+    VagaNaoEncontradaError,
 )
 
 
@@ -26,11 +27,61 @@ class VagaRepositorioFalso:
         return [vaga for vaga in self.vagas if vaga.id_usuario == id_usuario]
 
 
+class CurriculoRepositorioFalso:
+    def __init__(self):
+        self.curriculos: list[Curriculo] = []
+
+    def criar(self, curriculo: Curriculo) -> Curriculo:
+        curriculo.id_curriculo = uuid.uuid4()
+        self.curriculos.append(curriculo)
+        return curriculo
+
+    def atualizar_status(self, curriculo: Curriculo, status: str) -> Curriculo:
+        curriculo.status_processamento = status
+        return curriculo
+
+
+class AnaliseRepositorioFalso:
+    def __init__(self):
+        self.analises: list[Analise] = []
+
+    def criar(self, analise: Analise) -> Analise:
+        analise.id_analise = uuid.uuid4()
+        self.analises.append(analise)
+        return analise
+
+    def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
+        return [analise for analise in self.analises if analise.id_usuario == id_usuario]
+
+
+class AIServiceAdapterFalso:
+    def __init__(self, resposta: str = '{"pontuacao": 90, "observacoes": "Ótimo encaixe."}'):
+        self.resposta = resposta
+
+    def comparar_curriculo_vaga(self, texto_curriculo: str, texto_vaga: str) -> str:
+        return self.resposta
+
+
+class CurriculoParserFalso:
+    def extrair_texto(self, conteudo: bytes, extensao: str) -> str:
+        return conteudo.decode("utf-8", errors="ignore")
+
+
 def _criar_service_com_fake() -> tuple[AnalisadorService, VagaRepositorioFalso]:
     service = AnalisadorService(db=None)
     fake = VagaRepositorioFalso()
     service.vaga_repository = fake
     return service, fake
+
+
+def _criar_service_completo_com_fakes() -> AnalisadorService:
+    service = AnalisadorService(db=None)
+    service.vaga_repository = VagaRepositorioFalso()
+    service.curriculo_repository = CurriculoRepositorioFalso()
+    service.analise_repository = AnaliseRepositorioFalso()
+    service.ai_service_adapter = AIServiceAdapterFalso()
+    service.curriculo_parser = CurriculoParserFalso()
+    return service
 
 
 def test_cadastrar_vaga_persiste_com_dados_completos():
@@ -86,3 +137,90 @@ def test_listar_vagas_usuario_retorna_apenas_do_usuario():
 
     assert len(vagas) == 1
     assert vagas[0].id_usuario == id_usuario
+
+
+def test_analisar_curriculo_para_vaga_com_sucesso():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga para dev Python.")
+
+    analise = service.analisar_curriculo_para_vaga(
+        id_usuario=id_usuario,
+        id_vaga=vaga.id_vaga,
+        conteudo=b"Experiencia com Python",
+        nome_arquivo="curriculo.pdf",
+        extensao="pdf",
+    )
+
+    assert analise.pontuacao == 90.0
+    assert analise.observacoes == "Ótimo encaixe."
+    assert analise.id_vaga == vaga.id_vaga
+    assert analise.id_usuario == id_usuario
+
+
+def test_analisar_curriculo_para_vaga_com_vaga_de_outro_usuario_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+    dono_vaga = uuid.uuid4()
+    outro_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=dono_vaga, descricao="Vaga qualquer.")
+
+    with pytest.raises(VagaNaoEncontradaError):
+        service.analisar_curriculo_para_vaga(
+            id_usuario=outro_usuario,
+            id_vaga=vaga.id_vaga,
+            conteudo=b"conteudo",
+            nome_arquivo="curriculo.pdf",
+            extensao="pdf",
+        )
+
+
+def test_analisar_curriculo_para_vaga_com_vaga_inexistente_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+
+    with pytest.raises(VagaNaoEncontradaError):
+        service.analisar_curriculo_para_vaga(
+            id_usuario=uuid.uuid4(),
+            id_vaga=uuid.uuid4(),
+            conteudo=b"conteudo",
+            nome_arquivo="curriculo.pdf",
+            extensao="pdf",
+        )
+
+
+def test_listar_analises_usuario_retorna_apenas_do_usuario():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    outro_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga.")
+    service.analisar_curriculo_para_vaga(
+        id_usuario=id_usuario, id_vaga=vaga.id_vaga, conteudo=b"x", nome_arquivo="a.pdf", extensao="pdf"
+    )
+    outra_vaga = service.cadastrar_vaga(id_usuario=outro_usuario, descricao="Vaga 2.")
+    service.analisar_curriculo_para_vaga(
+        id_usuario=outro_usuario, id_vaga=outra_vaga.id_vaga, conteudo=b"y", nome_arquivo="b.pdf", extensao="pdf"
+    )
+
+    analises = service.listar_analises_usuario(id_usuario)
+
+    assert len(analises) == 1
+    assert analises[0].id_usuario == id_usuario
+
+
+def test_interpretar_resultado_ia_remove_bloco_markdown():
+    service = _criar_service_completo_com_fakes()
+
+    pontuacao, observacoes = service._interpretar_resultado_ia(
+        '```json\n{"pontuacao": 55, "observacoes": "Parcial."}\n```'
+    )
+
+    assert pontuacao == 55.0
+    assert observacoes == "Parcial."
+
+
+def test_interpretar_resultado_ia_com_texto_invalido_cai_no_fallback():
+    service = _criar_service_completo_com_fakes()
+
+    pontuacao, observacoes = service._interpretar_resultado_ia("resposta que não é JSON")
+
+    assert pontuacao is None
+    assert observacoes == "resposta que não é JSON"

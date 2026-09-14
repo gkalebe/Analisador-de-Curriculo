@@ -116,13 +116,13 @@ class AnalisadorService:
         return self.analise_repository.listar_por_usuario(id_usuario)
 
     def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:
-        # Contrato combinado com o comparador de IA (app/adapters/ai_service/): a resposta
-        # deve vir como um JSON '{"pontuacao": 0-100, "observacoes": "..."}'. Enquanto esse
-        # adapter ainda não estiver implementado (ver README de app/adapters/), qualquer
-        # retorno que não seja esse JSON cai no fallback abaixo, guardando o texto cru em
-        # observacoes e pontuacao como None, em vez de quebrar a análise.
+        texto = (resultado_ia or "").strip()
+        if texto.startswith("```"):
+            texto = texto.strip("`").strip()
+            if texto.lower().startswith("json"):
+                texto = texto[4:].strip()
         try:
-            dados = json.loads(resultado_ia)
+            dados = json.loads(texto)
             pontuacao_bruta = dados.get("pontuacao")
             pontuacao = float(pontuacao_bruta) if pontuacao_bruta is not None else None
             observacoes = str(dados.get("observacoes") or resultado_ia)

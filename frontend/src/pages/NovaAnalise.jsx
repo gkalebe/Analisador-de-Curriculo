@@ -17,7 +17,7 @@ export default function NovaAnalise() {
   const [arrastando, setArrastando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
-  const [avisoNaoImplementado, setAvisoNaoImplementado] = useState(false);
+  const [avisoIndisponivel, setAvisoIndisponivel] = useState("");
   const [resultado, setResultado] = useState(null);
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export default function NovaAnalise() {
     evento.preventDefault();
     if (!arquivo || !idVagaSelecionada) return;
     setErro("");
-    setAvisoNaoImplementado(false);
+    setAvisoIndisponivel("");
     setResultado(null);
     setEnviando(true);
     try {
@@ -67,8 +67,8 @@ export default function NovaAnalise() {
       setResultado(resposta);
       setArquivo(null);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 501) {
-        setAvisoNaoImplementado(true);
+      if (e instanceof ApiError && (e.status === 501 || e.status === 503)) {
+        setAvisoIndisponivel(e.message);
       } else {
         setErro(e instanceof ApiError ? e.message : "Não foi possível concluir a análise. Tente novamente.");
       }
@@ -107,12 +107,9 @@ export default function NovaAnalise() {
 
         {erro && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{erro}</div>}
 
-        {avisoNaoImplementado && (
+        {avisoIndisponivel && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
-            A comparação por IA ainda não foi implementada pelo time (falta o comparador em{" "}
-            <code>app/adapters/ai_service/</code> e o repositório em{" "}
-            <code>app/core/persistencia/analise_repository.py</code>). O currículo e a vaga foram identificados
-            corretamente — assim que essas partes forem concluídas, essa tela já vai funcionar.
+            {avisoIndisponivel}
           </div>
         )}
 

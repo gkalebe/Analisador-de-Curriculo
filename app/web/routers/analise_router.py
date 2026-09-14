@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
 from app.adapters.curriculo_parser.curriculo_parser import FormatoNaoSuportadoError
 from app.core.database import get_db
 from app.core.persistencia.usuario_repository import UsuarioRepository
@@ -103,13 +104,20 @@ async def criar_analise(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Formato não suportado. Envie um arquivo PDF ou DOCX.",
         ) from erro
+    except IAConfiguracaoAusenteError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(erro),
+        ) from erro
+    except IAIndisponivelError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(erro),
+        ) from erro
     except NotImplementedError as erro:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=(
-                "A comparação por IA ainda não foi implementada pelo time "
-                "(app/adapters/ai_service/ e/ou app/core/persistencia/analise_repository.py)."
-            ),
+            detail="Essa funcionalidade ainda não foi implementada pelo time.",
         ) from erro
 
     return AnaliseResponse.model_validate(analise)
@@ -128,12 +136,5 @@ def listar_analises(
             detail="Não encontramos um usuário cadastrado com esse e-mail.",
         )
 
-    try:
-        analises = analisador_service.listar_analises_usuario(usuario.id_usuario)
-    except NotImplementedError as erro:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Listagem de análises ainda não implementada (app/core/persistencia/analise_repository.py).",
-        ) from erro
-
+    analises = analisador_service.listar_analises_usuario(usuario.id_usuario)
     return AnaliseListResponse(analises=[AnaliseResponse.model_validate(a) for a in analises])

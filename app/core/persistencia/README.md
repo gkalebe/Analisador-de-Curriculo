@@ -10,14 +10,14 @@ Se uma US precisar de um campo novo que não está no diagrama original, adicion
 
 ## Repositórios
 
-Os métodos abaixo estão com assinatura pronta, mas o corpo lança `NotImplementedError` — implementar é parte do trabalho da US, não algo pré-pronto. Exceções: `usuario_repository.buscar_por_id`, `buscar_por_email` e `atualizar` (necessários para US-003) e todos os métodos de `vaga_repository.py` (US-019) já estão implementados.
+Os métodos abaixo estão com assinatura pronta, mas o corpo lança `NotImplementedError` — implementar é parte do trabalho da US, não algo pré-pronto. Exceções: `usuario_repository.buscar_por_id`, `buscar_por_email` e `atualizar` (necessários para US-003), todos os métodos de `vaga_repository.py` (US-019) e `analise_repository.criar`/`buscar_por_id`/`listar_por_usuario` (US-007, ver abaixo) já estão implementados. `curriculo_repository.buscar_por_id`, `listar_por_usuario` e `excluir` continuam como esqueleto.
 
 | Arquivo | US | Sprint | Dev |
 |---|---|---|---|
 | `usuario_repository.py` | US-001, US-002, US-003, US-017 | 1 | Kevin, Gabriel Kalebe, Allan |
 | `vaga_repository.py` | US-019 | 1 | Gabriel Kalebe (concluído) |
 | `curriculo_repository.py` | US-004, US-016, US-018 | 1, 4 | Gustavo Souto Pereira (US-004), Carlos (US-016), Allan (US-018) |
-| `analise_repository.py` | US-007, US-014, US-016 | 2, 4 | Kevin, Gabriel Kalebe, Carlos |
+| `analise_repository.py` | US-007, US-014, US-016 | 2, 4 | Gabriel Kalebe (`criar`/`buscar_por_id`/`listar_por_usuario`, US-007, concluído — autorizado pelo time), Kevin, Carlos (US-014/US-016 restantes) |
 
 Padrão a seguir em cada método (`criar`, `buscar_por_id`, `listar_por_usuario`, etc.): usar `self.db.add` / `self.db.get` / `select(...)` do SQLAlchemy 2.0, sempre `commit()` + `refresh()` após escrita, e devolver a entidade (nunca um dicionário).
 

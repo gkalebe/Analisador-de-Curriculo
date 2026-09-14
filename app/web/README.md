@@ -25,7 +25,7 @@ Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicio
 ## O que falta (routers ainda com só o esqueleto)
 
 - Endpoints reais em `diagnostico_router.py`, `simulador_router.py`, `templates_router.py` e `painel_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py` e `analise_router.py` já estão implementados (ver seções abaixo).
-- `POST /analises` (rodar uma análise) devolve `501` até `AnaliseRepository` (`app/core/persistencia/`, Allan/Kevin) e `AIServiceAdapter` (`app/adapters/ai_service/`, Gustavo/Carlos) saírem do esqueleto — ver seção "US-004 a US-007" abaixo.
+- `POST /analises` (rodar uma análise) já está implementado de ponta a ponta — ver seção "Nova análise" abaixo. Devolve `503` se `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` não estiver configurada no `.env`.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.
 - Autenticação via JWT nos endpoints que exigem usuário logado além do login em si — hoje o token é gerado no login mas os demais endpoints ainda identificam o usuário por e-mail, não pelo token.
@@ -61,11 +61,11 @@ Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.
 - Antes usava um usuário mock fixo e renderizava `templates/upload.html`; hoje é JSON puro, identificado por e-mail como os demais endpoints, consumido por `frontend/src/pages/UploadCurriculo.jsx` (drag-and-drop).
 - Testes: `tests/unit/test_analise_router.py`.
 
-### Nova análise (currículo x vaga) — endpoints prontos, aguardando IA (Gabriel Kalebe, wiring; US-005/US-006 ainda de Gustavo/Vitor/Carlos)
+### Nova análise (currículo x vaga) — concluída (Gabriel Kalebe, com autorização do time para US-006/US-007)
 
-- `POST /analises` (multipart/form-data): recebe `email`, `id_vaga` e `file`, identifica o usuário e a vaga (`404` se algum não existir), extrai o texto do currículo e chama `AnalisadorService.analisar_curriculo_para_vaga`. Responde `201` com `{"id_analise", "id_curriculo", "id_vaga", "pontuacao", "observacoes", "data_analise"}`.
+- `POST /analises` (multipart/form-data): recebe `email`, `id_vaga` e `file`, identifica o usuário e a vaga (`404` se algum não existir), extrai o texto do currículo e chama `AnalisadorService.analisar_curriculo_para_vaga`, que já roda a comparação por IA de verdade (`app/adapters/ai_service/ai_service_adapter.py`) e persiste em `Analise` (`app/core/persistencia/analise_repository.py`). Responde `201` com `{"id_analise", "id_curriculo", "id_vaga", "pontuacao", "observacoes", "data_analise"}`.
 - `GET /analises?email=...`: lista as análises já feitas pelo usuário.
-- Ambos dependem de duas peças que ainda são só esqueleto e não são deste diretório: `AnaliseRepository` (`app/core/persistencia/analise_repository.py`, dono Allan/Kevin) e o comparador de IA (`app/adapters/ai_service/ai_service_adapter.py`, dono Gustavo/Carlos — `_montar_prompt_comparacao` e `AIServiceClient.gerar_resposta` ainda lançam `NotImplementedError`). Enquanto isso, os dois endpoints capturam `NotImplementedError` e respondem `501` com uma mensagem explicando o que falta, em vez de um erro 500 cru — a tela `frontend/src/pages/NovaAnalise.jsx` já trata esse caso.
-- Contrato combinado para o retorno do `AIServiceAdapter.comparar_curriculo_vaga`: uma string JSON `{"pontuacao": 0-100, "observacoes": "..."}` — ver `AnalisadorService._interpretar_resultado_ia`. Alinhe com quem for implementar o adapter antes de mudar esse formato.
+- Requer `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY` no `.env` (ver `.env.example`) — sem nenhuma das duas configuradas, `POST /analises` responde `503` com mensagem explicando o que falta, em vez de um erro 500 cru. Se a API de IA não responder em 30s ou recusar a requisição, também responde `503` (em vez de a tela ficar carregando indefinidamente) — ver `IAIndisponivelError` em `app/adapters/README.md`. Modelo usado é configurável via `GEMINI_MODEL_NAME`/`ANTHROPIC_MODEL_NAME` (padrão `gemini-flash-latest`/`claude-3-5-haiku-20241022`).
+- Contrato do retorno do `AIServiceAdapter.comparar_curriculo_vaga`: uma string JSON `{"pontuacao": 0-100, "observacoes": "..."}` — ver `AnalisadorService._interpretar_resultado_ia` (tolera blocos de markdown ao redor do JSON). Combine com quem mexer no prompt antes de mudar esse formato.
 - Tela: `frontend/src/pages/NovaAnalise.jsx` — escolhe uma vaga salva e envia um currículo. `Cadastrar vaga` (`NovaVaga.jsx`) e `Enviar currículo` (`UploadCurriculo.jsx`) foram separadas dessa tela (antes a de vaga usava o título errado "Nova análise"); as três agora compartilham `frontend/src/components/Sidebar.jsx`.
-- Testes: `tests/unit/test_analise_router.py` (inclui os casos de `501`).
+- Testes: `tests/unit/test_analise_router.py`, `tests/unit/test_analisador_service.py`, `tests/unit/test_ai_service_adapter.py`.
