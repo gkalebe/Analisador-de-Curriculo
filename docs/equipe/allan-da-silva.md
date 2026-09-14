@@ -16,7 +16,7 @@ US-005 (Colar descrição textual de uma vaga) saiu da sua lista: passou para Vi
 |---|---|---|---|
 | US-009 | Obter sugestões de reescrita de trechos fracos | 8 | `core/service/diagnostico_service` |
 
-Já criada e atribuída a você no board: issue #11 (back) e #28 (front). Depende da entrega de US-008 (Gabriel Kalebe), que por sua vez depende de US-006 (Carlos) — Carlos está pausado nesta sprint por decisão do Tech Lead, então as duas issues ficam em Backlog (não Ready) até a esteira destravar. Pode adiantar leitura/design enquanto isso, mas não há bloqueio para você resolver sozinho.
+Já criada e atribuída a você no board: issue #11 (back) e #28 (front). Depende da entrega de US-008 (Gabriel Kalebe), que por sua vez dependia de US-006 (Carlos) — Carlos está pausado nesta sprint por decisão do Tech Lead. Atualização: o bloqueio técnico de IA (US-006) já foi resolvido — Gabriel Kalebe implementou o `AIServiceAdapter`/`AnaliseRepository` fora do escopo original dele, com autorização do time (ver `app/adapters/README.md`) — então as issues não estão mais travadas pela parte de IA; confirme com o Tech Lead se já passaram de Backlog para Ready.
 
 ## Sprint 3 (Semanas 5-6)
 

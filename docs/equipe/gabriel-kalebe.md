@@ -21,6 +21,8 @@ Ambas dependiam de US-001 (Kevin) só para a base de `usuario_repository`/autent
 
 Depende da entrega de US-006 (Carlos). US-009 (Allan) depende desta entrega.
 
+**Fora do escopo desta US:** com US-006 pausada, implementei o núcleo técnico de IA que travava a esteira — `AIServiceAdapter` (`GeminiClient`/`ClaudeClient`, com timeout de 30s e tratamento de erro) e `AnaliseRepository` completo — fora do que estava originalmente atribuído a mim (eram de Carlos e de Allan/Kevin, respectivamente), com autorização do time antes de mexer. Detalhes técnicos em `app/adapters/README.md` e `app/core/persistencia/README.md`. Isso destrava a parte de IA de US-007 (Kevin), US-008 (minha) e US-009 (Allan); a US-006 em si (critérios de aceite completos) continua de Carlos.
+
 ## Sprint 3 (Semanas 5-6)
 
 | US | Título | Pontos | Módulo |
