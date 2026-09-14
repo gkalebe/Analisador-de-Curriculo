@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_use_tls: bool = True
+    sendgrid_api_key: str = ""
 
 
 @lru_cache
