@@ -1,9 +1,12 @@
 import uuid
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
 from app.adapters.curriculo_parser.curriculo_parser import FormatoNaoSuportadoError
 from app.core.persistencia.models import Usuario
+from app.core.service.analisador_service import VagaNaoEncontradaError
 from app.main import app
 from app.web.routers.analise_router import get_analisador_service, get_usuario_repository
 
@@ -22,7 +25,11 @@ class AnalisadorServiceFalso:
     def __init__(self):
         self.settings = type("Settings", (), {"max_upload_size_mb": 5})()
         self.deve_recusar_formato = False
+        self.deve_recusar_vaga = False
+        self.deve_recusar_nao_implementado = False
         self.uploads_processados: list[dict] = []
+        self.analises_criadas: list[dict] = []
+        self.analises_para_listar: list = []
 
     def processar_upload_curriculo(self, conteudo, nome_arquivo, extensao, id_usuario):
         if self.deve_recusar_formato:
@@ -34,6 +41,29 @@ class AnalisadorServiceFalso:
         }
         self.uploads_processados.append(resultado)
         return resultado
+
+    def analisar_curriculo_para_vaga(self, id_usuario, id_vaga, conteudo, nome_arquivo, extensao):
+        if self.deve_recusar_formato:
+            raise FormatoNaoSuportadoError(extensao)
+        if self.deve_recusar_vaga:
+            raise VagaNaoEncontradaError
+        if self.deve_recusar_nao_implementado:
+            raise NotImplementedError
+        analise = SimpleNamespace(
+            id_analise=uuid.uuid4(),
+            id_curriculo=uuid.uuid4(),
+            id_vaga=id_vaga,
+            pontuacao=87.5,
+            observacoes="Bom encaixe com a vaga.",
+            data_analise=datetime.now(timezone.utc),
+        )
+        self.analises_criadas.append(analise)
+        return analise
+
+    def listar_analises_usuario(self, id_usuario):
+        if self.deve_recusar_nao_implementado:
+            raise NotImplementedError
+        return self.analises_para_listar
 
 
 def _usuario() -> Usuario:
@@ -111,3 +141,134 @@ def test_upload_curriculo_com_arquivo_acima_do_limite_retorna_400():
     app.dependency_overrides.clear()
     assert response.status_code == 400
     assert "limite" in response.json()["detail"]
+
+
+def test_criar_analise_com_email_desconhecido_retorna_404():
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.post(
+        "/analises",
+        data={"email": "nao-cadastrado@example.com", "id_vaga": str(uuid.uuid4())},
+        files={"file": ("curriculo.pdf", b"conteudo qualquer", "application/pdf")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+
+def test_criar_analise_com_sucesso():
+    usuario = _usuario()
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.post(
+        "/analises",
+        data={"email": usuario.email, "id_vaga": str(uuid.uuid4())},
+        files={"file": ("curriculo.pdf", b"conteudo do curriculo", "application/pdf")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 201
+    corpo = response.json()
+    assert corpo["pontuacao"] == 87.5
+    assert corpo["observacoes"] == "Bom encaixe com a vaga."
+
+
+def test_criar_analise_com_vaga_nao_encontrada_retorna_404():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_vaga = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/analises",
+        data={"email": usuario.email, "id_vaga": str(uuid.uuid4())},
+        files={"file": ("curriculo.pdf", b"conteudo", "application/pdf")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+    assert "Vaga não encontrada" in response.json()["detail"]
+
+
+def test_criar_analise_com_formato_nao_suportado_retorna_400():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_formato = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/analises",
+        data={"email": usuario.email, "id_vaga": str(uuid.uuid4())},
+        files={"file": ("curriculo.txt", b"conteudo", "text/plain")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    assert "Formato não suportado" in response.json()["detail"]
+
+
+def test_criar_analise_ainda_nao_implementada_retorna_501():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_nao_implementado = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/analises",
+        data={"email": usuario.email, "id_vaga": str(uuid.uuid4())},
+        files={"file": ("curriculo.pdf", b"conteudo", "application/pdf")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 501
+
+
+def test_listar_analises_com_email_desconhecido_retorna_404():
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.get("/analises", params={"email": "nao-cadastrado@example.com"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+
+def test_listar_analises_com_sucesso():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.analises_para_listar = [
+        SimpleNamespace(
+            id_analise=uuid.uuid4(),
+            id_curriculo=uuid.uuid4(),
+            id_vaga=uuid.uuid4(),
+            pontuacao=42.0,
+            observacoes="ok",
+            data_analise=datetime.now(timezone.utc),
+        )
+    ]
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.get("/analises", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert len(response.json()["analises"]) == 1
+
+
+def test_listar_analises_ainda_nao_implementada_retorna_501():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_nao_implementado = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.get("/analises", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 501

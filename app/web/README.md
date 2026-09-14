@@ -25,6 +25,7 @@ Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicio
 ## O que falta (routers ainda com só o esqueleto)
 
 - Endpoints reais em `diagnostico_router.py`, `simulador_router.py`, `templates_router.py` e `painel_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py` e `analise_router.py` já estão implementados (ver seções abaixo).
+- `POST /analises` (rodar uma análise) devolve `501` até `AnaliseRepository` (`app/core/persistencia/`, Allan/Kevin) e `AIServiceAdapter` (`app/adapters/ai_service/`, Gustavo/Carlos) saírem do esqueleto — ver seção "US-004 a US-007" abaixo.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.
 - Autenticação via JWT nos endpoints que exigem usuário logado além do login em si — hoje o token é gerado no login mas os demais endpoints ainda identificam o usuário por e-mail, não pelo token.
@@ -59,4 +60,12 @@ Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.
 - `POST /analises/upload` (multipart/form-data): recebe `email` + `file` (PDF ou DOCX, até `max_upload_size_mb`), identifica o usuário por e-mail (`404` se não encontrado), extrai o texto via `CurriculoParser` e responde `201` com `{"id_curriculo", "nome_arquivo", "tamanho_texto_extraido"}`, ou `400` para formato não suportado ou arquivo acima do limite.
 - Antes usava um usuário mock fixo e renderizava `templates/upload.html`; hoje é JSON puro, identificado por e-mail como os demais endpoints, consumido por `frontend/src/pages/UploadCurriculo.jsx` (drag-and-drop).
 - Testes: `tests/unit/test_analise_router.py`.
-- O que ainda falta (US-005 a US-007, diagnóstico/comparação com a IA) é escopo de `diagnostico_router.py` e `AIServiceAdapter`, não deste endpoint.
+
+### Nova análise (currículo x vaga) — endpoints prontos, aguardando IA (Gabriel Kalebe, wiring; US-005/US-006 ainda de Gustavo/Vitor/Carlos)
+
+- `POST /analises` (multipart/form-data): recebe `email`, `id_vaga` e `file`, identifica o usuário e a vaga (`404` se algum não existir), extrai o texto do currículo e chama `AnalisadorService.analisar_curriculo_para_vaga`. Responde `201` com `{"id_analise", "id_curriculo", "id_vaga", "pontuacao", "observacoes", "data_analise"}`.
+- `GET /analises?email=...`: lista as análises já feitas pelo usuário.
+- Ambos dependem de duas peças que ainda são só esqueleto e não são deste diretório: `AnaliseRepository` (`app/core/persistencia/analise_repository.py`, dono Allan/Kevin) e o comparador de IA (`app/adapters/ai_service/ai_service_adapter.py`, dono Gustavo/Carlos — `_montar_prompt_comparacao` e `AIServiceClient.gerar_resposta` ainda lançam `NotImplementedError`). Enquanto isso, os dois endpoints capturam `NotImplementedError` e respondem `501` com uma mensagem explicando o que falta, em vez de um erro 500 cru — a tela `frontend/src/pages/NovaAnalise.jsx` já trata esse caso.
+- Contrato combinado para o retorno do `AIServiceAdapter.comparar_curriculo_vaga`: uma string JSON `{"pontuacao": 0-100, "observacoes": "..."}` — ver `AnalisadorService._interpretar_resultado_ia`. Alinhe com quem for implementar o adapter antes de mudar esse formato.
+- Tela: `frontend/src/pages/NovaAnalise.jsx` — escolhe uma vaga salva e envia um currículo. `Cadastrar vaga` (`NovaVaga.jsx`) e `Enviar currículo` (`UploadCurriculo.jsx`) foram separadas dessa tela (antes a de vaga usava o título errado "Nova análise"); as três agora compartilham `frontend/src/components/Sidebar.jsx`.
+- Testes: `tests/unit/test_analise_router.py` (inclui os casos de `501`).

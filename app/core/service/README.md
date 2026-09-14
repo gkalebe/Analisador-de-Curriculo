@@ -40,4 +40,10 @@ Provedor de e-mail transacional definido: SendGrid (`app/adapters/email/`), com 
 
 `AnalisadorService` ganhou `cadastrar_vaga(id_usuario, descricao, titulo="", requisitos="", area="")` e `listar_vagas_usuario(id_usuario)`, além das exceções `DescricaoVagaObrigatoriaError` (descrição vazia/só espaços) e `DescricaoVagaMuitoLongaError` (acima de `max_vaga_description_chars`, em `app/core/config.py`). `cadastrar_vaga` valida e delega a persistência para `VagaRepository.criar` (já implementado, US-019 back); `listar_vagas_usuario` delega para `VagaRepository.listar_por_usuario`, usado pela tela de reaproveitamento de vagas salvas. Testado em `tests/unit/test_analisador_service.py` com um fake de repositório em memória.
 
-`US-004` a `US-007` continuam pendentes neste mesmo arquivo (Gustavo, Vitor, Kevin, Carlos).
+## US-005/US-006 — Comparar currículo com vaga (wiring pronto, lógica de IA pendente)
+
+`AnalisadorService` ganhou `analisar_curriculo_para_vaga(id_usuario, id_vaga, conteudo, nome_arquivo, extensao)` e `listar_analises_usuario(id_usuario)`, além da exceção `VagaNaoEncontradaError`. O método busca a vaga do usuário, extrai o texto do currículo (`CurriculoParser`, já pronto), chama `AIServiceAdapter.comparar_curriculo_vaga` e persiste o resultado via `AnaliseRepository.criar`.
+
+Isso é só o "fio" (igual ao que a Sprint 0 já tinha feito para os outros services) — as duas pontas que fazem a comparação de verdade continuam como esqueleto, fora deste arquivo: `AnaliseRepository` (`core/persistencia/`, Allan/Kevin) e `AIServiceAdapter`/`AIServiceClient` (`adapters/ai_service/`, Gustavo/Carlos) ainda lançam `NotImplementedError`. Por isso `analisar_curriculo_para_vaga` e `listar_analises_usuario` não funcionam de ponta a ponta ainda — o router (`analise_router.py`) converte esse `NotImplementedError` em `501` em vez de deixar estourar como erro 500.
+
+`US-004` a `US-007` continuam pendentes neste mesmo arquivo (Gustavo, Vitor, Kevin, Carlos) — o que foi feito agora foi só a orquestração do lado do service/router (Gabriel Kalebe), não a implementação da IA nem do repositório.

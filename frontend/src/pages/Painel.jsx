@@ -22,6 +22,7 @@ export default function Painel() {
 
   if (!sessao) return null;
 
+  const linkNovaAnalise = `/analises/nova?email=${encodeURIComponent(sessao.email)}`;
   const linkNovaVaga = `/analises/vagas/nova?email=${encodeURIComponent(sessao.email)}`;
   const linkUpload = `/analises/upload?email=${encodeURIComponent(sessao.email)}`;
 
@@ -35,8 +36,11 @@ export default function Painel() {
           US-002.
         </p>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link className="btn-primary" to={linkNovaAnalise}>
+            Nova análise
+          </Link>
           <Link className="btn-primary" to={linkNovaVaga}>
-            Cadastrar nova vaga
+            Cadastrar vaga
           </Link>
           <Link className="btn-primary" to={linkUpload}>
             Enviar currículo

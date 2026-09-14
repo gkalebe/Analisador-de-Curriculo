@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import Sidebar from "../components/Sidebar.jsx";
 import { criarVaga, listarVagas } from "../api/vagasApi.js";
 import { novoFormularioVaga, preencherFormularioComVaga } from "../models/vaga.js";
 import { ApiError } from "../api/client.js";
@@ -59,59 +60,13 @@ export default function NovaVaga() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
-      <aside className="bg-[#06331d] text-white w-full md:w-64 shrink-0 flex flex-col gap-8 p-6">
-        <Link to="/" className="border-b border-[#8e8e8e] pb-6 font-brand text-[28px] text-white no-underline">
-          currículo<span className="font-normal">IA</span>
-        </Link>
-
-        <nav className="flex flex-col gap-3">
-          <span className="flex items-center gap-3 rounded-lg border border-white/30 bg-white/5 px-3 py-3 shadow-inner font-brand text-lg">
-            <i className="ti ti-search"></i> Nova análise
-          </span>
-          <a href="#" className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
-            <i className="ti ti-history"></i> Histórico
-          </a>
-          <a
-            href={`/analises/upload?email=${encodeURIComponent(emailInicial)}`}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate(`/analises/upload?email=${encodeURIComponent(emailInicial)}`);
-            }}
-            className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5"
-          >
-            <i className="ti ti-file-text"></i> Currículo
-          </a>
-          <a href="#" className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
-            <i className="ti ti-robot"></i> ChatBOT
-          </a>
-        </nav>
-
-        <div className="mt-auto flex flex-col gap-3">
-          {emailInicial && (
-            <div className="flex items-center gap-3 rounded-lg px-3 py-3">
-              <span className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#1e5e3f] font-brand text-lg">
-                {emailInicial[0]?.toUpperCase()}
-              </span>
-              <div className="leading-tight">
-                <p className="font-brand font-semibold">{emailInicial.split("@")[0]}</p>
-                <p className="text-sm text-white/80">{emailInicial}</p>
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => navigate("/painel")}
-            className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5 text-left"
-          >
-            <i className="ti ti-arrow-left"></i> Voltar ao painel
-          </button>
-        </div>
-      </aside>
+      <Sidebar email={emailInicial} ativo="vaga" />
 
       <main className="flex-1 p-6 space-y-4">
         <div>
-          <h1 className="font-brand text-[32px] font-bold text-black">Nova análise</h1>
+          <h1 className="font-brand text-[32px] font-bold text-black">Cadastrar vaga</h1>
           <p className="mt-1 text-lg font-semibold text-[#727272]">
-            Cadastre a vaga de interesse para reaproveitar depois na análise — sem precisar colar tudo de novo.
+            Cadastre a vaga de interesse para reaproveitar depois em uma análise — sem precisar colar tudo de novo.
           </p>
         </div>
 

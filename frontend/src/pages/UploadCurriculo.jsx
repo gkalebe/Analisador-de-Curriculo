@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+import Sidebar from "../components/Sidebar.jsx";
 import { enviarCurriculo } from "../api/curriculoApi.js";
 import { formatarTamanhoArquivo, validarArquivoCurriculo } from "../models/curriculo.js";
 import { ApiError } from "../api/client.js";
 
 export default function UploadCurriculo() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const emailInicial = searchParams.get("email") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
@@ -58,59 +58,13 @@ export default function UploadCurriculo() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
-      <aside className="bg-[#06331d] text-white w-full md:w-64 shrink-0 flex flex-col gap-8 p-6">
-        <Link to="/" className="border-b border-[#8e8e8e] pb-6 font-brand text-[28px] text-white no-underline">
-          currículo<span className="font-normal">IA</span>
-        </Link>
-
-        <nav className="flex flex-col gap-3">
-          <a
-            href={`/analises/vagas/nova?email=${encodeURIComponent(emailInicial)}`}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate(`/analises/vagas/nova?email=${encodeURIComponent(emailInicial)}`);
-            }}
-            className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5"
-          >
-            <i className="ti ti-search"></i> Nova análise
-          </a>
-          <a href="#" className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
-            <i className="ti ti-history"></i> Histórico
-          </a>
-          <span className="flex items-center gap-3 rounded-lg border border-white/30 bg-white/5 px-3 py-3 shadow-inner font-brand text-lg">
-            <i className="ti ti-file-text"></i> Currículo
-          </span>
-          <a href="#" className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
-            <i className="ti ti-robot"></i> ChatBOT
-          </a>
-        </nav>
-
-        <div className="mt-auto flex flex-col gap-3">
-          {emailInicial && (
-            <div className="flex items-center gap-3 rounded-lg px-3 py-3">
-              <span className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#1e5e3f] font-brand text-lg">
-                {emailInicial[0]?.toUpperCase()}
-              </span>
-              <div className="leading-tight">
-                <p className="font-brand font-semibold">{emailInicial.split("@")[0]}</p>
-                <p className="text-sm text-white/80">{emailInicial}</p>
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => navigate("/painel")}
-            className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5 text-left"
-          >
-            <i className="ti ti-arrow-left"></i> Voltar ao painel
-          </button>
-        </div>
-      </aside>
+      <Sidebar email={emailInicial} ativo="curriculo" />
 
       <main className="flex-1 p-6 space-y-4">
         <div>
           <h1 className="font-brand text-[32px] font-bold text-black">Enviar currículo</h1>
           <p className="mt-1 text-lg font-semibold text-[#727272]">
-            Faça o upload do seu currículo em PDF ou DOCX para começarmos a análise.
+            Faça o upload do seu currículo em PDF ou DOCX para guardá-lo e usá-lo depois numa análise.
           </p>
         </div>
 
@@ -186,7 +140,7 @@ export default function UploadCurriculo() {
                 disabled={!arquivo || enviando}
                 className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
               >
-                <i className="ti ti-send"></i> {enviando ? "Enviando..." : "Iniciar análise"}
+                <i className="ti ti-send"></i> {enviando ? "Enviando..." : "Enviar currículo"}
               </button>
             </form>
           </div>
