@@ -43,7 +43,8 @@ class AnalisadorService:
 
         return {
             "id_curriculo": str(novo_curriculo.id_curriculo),
-            "texto_extraido_tamanho": len(texto_extraido)
+            "nome_arquivo": nome_arquivo,
+            "tamanho_texto_extraido": len(texto_extraido),
         }
 
     def cadastrar_vaga(
