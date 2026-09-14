@@ -14,11 +14,8 @@ Já está montada a estrutura: `AIServiceClient` (interface abstrata), `GeminiCl
 
 ## `curriculo_parser/curriculo_parser.py`
 
-US-004 — Sprint 1 (Gustavo Souto Pereira).
+US-004 — Sprint 1 (Gustavo Souto Pereira). Concluído: `_extrair_texto_pdf` (via `pymupdf`/`fitz`) e `_extrair_texto_docx` (via `python-docx`) já implementados. `FormatoNaoSuportadoError` é capturada em `analise_router.py` e convertida em `400`. Validação de tamanho (limite de `max_upload_size_mb`, `app/core/config.py`) é feita no router, não no parser.
 
-O dispatch por extensão (`extrair_texto`) e a exceção `FormatoNaoSuportadoError` já estão prontos. Falta implementar:
+## `email/` (`email_adapter.py`, `sendgrid_client.py`)
 
-- `_extrair_texto_pdf`: extração de texto usando `pymupdf` (import `fitz`).
-- `_extrair_texto_docx`: extração de texto usando `python-docx`.
-
-Ambas as libs já estão no `requirements.txt`. Ver critérios de aceite de US-004 (formatos aceitos, limite de 5MB — a validação de tamanho é responsabilidade do router/service, não do parser).
+US-003 — provedor de e-mail transacional (recuperação de senha e confirmação de cadastro). `EmailAdapter` escolhe entre SendGrid (via `sendgrid_client.py`, usado quando `SENDGRID_API_KEY` está configurada no `.env`), SMTP puro (`smtp_host` configurado) ou log local em desenvolvimento (nenhum dos dois configurado) — nessa ordem. Erros de envio (timeout, credencial inválida, indisponibilidade do provedor) são capturados e logados, nunca propagados para o chamador: uma falha de e-mail não deve derrubar o cadastro ou a recuperação de senha. O envio de confirmação de cadastro roda como `BackgroundTask` (agendado em `auth_router.py`) para não bloquear a resposta HTTP.

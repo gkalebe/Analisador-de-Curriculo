@@ -28,4 +28,4 @@ alembic revision --autogenerate -m "descricao-curta"
 alembic upgrade head
 ```
 
-Toda mudança em `models.py` deve vir acompanhada da migração correspondente no mesmo PR.
+Toda mudança em `models.py` deve vir acompanhada da migração correspondente no mesmo PR — a migração `54b69fafad49_adiciona_data_nascimento_e_exclusao_.py` corrigiu um caso em que isso não tinha acontecido (`Usuario.data_nascimento` e `Usuario.exclusao_solicitada_em` já existiam no model mas nunca tinham sido migrados, quebrando `alembic upgrade head` em bancos criados do zero). Depois de puxar essa migração, rode `alembic upgrade head` no seu ambiente local.

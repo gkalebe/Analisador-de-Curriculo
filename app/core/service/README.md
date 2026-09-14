@@ -24,11 +24,17 @@ Os construtores já estão montados na Sprint 0 (o "fio" entre service, reposito
 
 Referência de critérios de aceite (DADO/QUANDO/ENTÃO) por US: Levantamento de Requisitos v1.1, Seção 6.2. Referência de decisão arquitetural: Documento de Arquitetura de Software, Seção 4.
 
+## US-001/US-002 — Cadastro e login (concluídas)
+
+`AuthService` tem `cadastrar_usuario(nome, data_nascimento, email, senha, enviar_email=True)` e `autenticar(email, senha)`. O parâmetro `enviar_email` existe para o router poder criar o usuário e agendar o e-mail de confirmação como `BackgroundTask` sem bloquear a resposta HTTP nos ~segundos que o envio (SendGrid/SMTP) pode levar — chamado diretamente (`enviar_email=True`, o padrão) o método continua enviando de forma síncrona, como nos testes existentes.
+
+`US-017` continua pendente neste mesmo arquivo (Allan).
+
 ## US-003 — Recuperar senha via e-mail (concluída)
 
 `AuthService` ganhou `solicitar_recuperacao_senha(email)` e `redefinir_senha(token, nova_senha)`, além das exceções `TokenRecuperacaoInvalidoError` e `UsuarioNaoEncontradoError`. Abordagem escolhida: token assinado (JWT, `python-jose`, expira em `password_reset_expire_minutes` — configurável em `app/core/config.py`) em vez de gravar um campo novo em `models.py`. Isso evita mexer no schema (área sensível, ver Plano de Ação Seção 1.4) e mantém a validação sem estado — quem quiser trocar por token opaco persistido no banco mais adiante, avise o time antes de alterar `Usuario`.
 
-`US-001`, `US-002` e `US-017` continuam pendentes neste mesmo arquivo (Kevin e Allan).
+Provedor de e-mail transacional definido: SendGrid (`app/adapters/email/`), com fallback para SMTP puro ou log local quando `SENDGRID_API_KEY` não está configurada.
 
 ## US-019 — Cadastrar informações de vaga no banco (concluída)
 
