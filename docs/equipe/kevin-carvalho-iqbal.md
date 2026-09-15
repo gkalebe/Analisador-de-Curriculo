@@ -17,7 +17,7 @@ Entregue US-001 nos primeiros 2-3 dias: Gabriel Kalebe, Gustavo e Allan dependem
 |---|---|---|---|
 | US-007 | Comparar currículo com vaga e ver aderência | 13 | `core/service/analisador_service` (Fuzzy Matching/Tokenização) |
 
-Depende da entrega de US-006 (Carlos).
+Dependia da entrega de US-006 (Carlos). Atualização: o bloqueio técnico de IA já foi resolvido — Gabriel Kalebe implementou o `AIServiceAdapter` fora do escopo original dele, com autorização do time (ver `app/adapters/README.md`) — então a parte que dependia da IA existir já está destravada.
 
 ## Sprint 3 (Semanas 5-6)
 

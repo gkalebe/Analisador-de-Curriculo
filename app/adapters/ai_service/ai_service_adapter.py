@@ -2,6 +2,16 @@ from abc import ABC, abstractmethod
 
 from app.core.config import get_settings
 
+TIMEOUT_SEGUNDOS = 30
+
+
+class IAConfiguracaoAusenteError(Exception):
+    pass
+
+
+class IAIndisponivelError(Exception):
+    pass
+
 
 class AIServiceClient(ABC):
     @abstractmethod
@@ -9,19 +19,55 @@ class AIServiceClient(ABC):
 
 
 class GeminiClient(AIServiceClient):
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = "gemini-flash-latest"):
         self.api_key = api_key
+        self.model_name = model_name
 
     def gerar_resposta(self, prompt: str) -> str:
-        raise NotImplementedError
+        if not self.api_key:
+            raise IAConfiguracaoAusenteError(
+                "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
+            )
+        import google.api_core.exceptions
+        import google.generativeai as genai
+
+        genai.configure(api_key=self.api_key)
+        modelo = genai.GenerativeModel(self.model_name)
+        try:
+            resposta = modelo.generate_content(prompt, request_options={"timeout": TIMEOUT_SEGUNDOS})
+        except google.api_core.exceptions.GoogleAPICallError as erro:
+            raise IAIndisponivelError(
+                f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
+                "Tente novamente em instantes."
+            ) from erro
+        return resposta.text
 
 
 class ClaudeClient(AIServiceClient):
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, model_name: str = "claude-3-5-haiku-20241022"):
         self.api_key = api_key
+        self.model_name = model_name
 
     def gerar_resposta(self, prompt: str) -> str:
-        raise NotImplementedError
+        if not self.api_key:
+            raise IAConfiguracaoAusenteError(
+                "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
+            )
+        import anthropic
+
+        cliente = anthropic.Anthropic(api_key=self.api_key, timeout=TIMEOUT_SEGUNDOS)
+        try:
+            resposta = cliente.messages.create(
+                model=self.model_name,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except anthropic.APIError as erro:
+            raise IAIndisponivelError(
+                f"O serviço de IA (Claude) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
+                "Tente novamente em instantes."
+            ) from erro
+        return "".join(bloco.text for bloco in resposta.content if bloco.type == "text")
 
 
 class AIServiceAdapter:
@@ -31,9 +77,9 @@ class AIServiceAdapter:
         else:
             settings = get_settings()
             if settings.anthropic_api_key:
-                self.cliente = ClaudeClient(settings.anthropic_api_key)
+                self.cliente = ClaudeClient(settings.anthropic_api_key, settings.anthropic_model_name)
             else:
-                self.cliente = GeminiClient(settings.gemini_api_key)
+                self.cliente = GeminiClient(settings.gemini_api_key, settings.gemini_model_name)
 
     def analisar_curriculo(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_analise(texto_curriculo)
@@ -44,7 +90,22 @@ class AIServiceAdapter:
         return self.cliente.gerar_resposta(prompt)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
-        raise NotImplementedError
+        return (
+            "Você é um recrutador experiente. Analise o currículo abaixo e responda ESTRITAMENTE em "
+            "JSON válido, sem nenhum texto fora do JSON e sem markdown, no formato exato "
+            '{"pontuacao": <número de 0 a 100 avaliando a qualidade geral do currículo>, '
+            '"observacoes": "<3 a 5 frases em português com pontos fortes, pontos a melhorar e '
+            'sugestões objetivas>"}.\n\n'
+            f"Currículo:\n{texto_curriculo}"
+        )
 
     def _montar_prompt_comparacao(self, texto_curriculo: str, texto_vaga: str) -> str:
-        raise NotImplementedError
+        return (
+            "Você é um recrutador experiente. Compare o currículo do candidato com a descrição da "
+            "vaga abaixo e responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem "
+            'markdown, no formato exato {"pontuacao": <número de 0 a 100 avaliando a aderência do '
+            'currículo à vaga>, "observacoes": "<3 a 5 frases em português explicando pontos de '
+            'encaixe, lacunas e sugestões objetivas para o candidato>"}.\n\n'
+            f"Descrição da vaga:\n{texto_vaga}\n\n"
+            f"Currículo do candidato:\n{texto_curriculo}"
+        )

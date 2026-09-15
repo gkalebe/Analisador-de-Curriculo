@@ -1,5 +1,6 @@
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.persistencia.models import Analise
@@ -10,10 +11,14 @@ class AnaliseRepository:
         self.db = db
 
     def criar(self, analise: Analise) -> Analise:
-        raise NotImplementedError
+        self.db.add(analise)
+        self.db.commit()
+        self.db.refresh(analise)
+        return analise
 
     def buscar_por_id(self, id_analise: uuid.UUID) -> Analise | None:
-        raise NotImplementedError
+        return self.db.get(Analise, id_analise)
 
     def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
-        raise NotImplementedError
+        stmt = select(Analise).where(Analise.id_usuario == id_usuario).order_by(Analise.data_analise.desc())
+        return list(self.db.execute(stmt).scalars().all())

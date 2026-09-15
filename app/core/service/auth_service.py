@@ -52,7 +52,9 @@ class AuthService:
         self.settings = get_settings()
         self.email_adapter = email_adapter or EmailAdapter()
 
-    def cadastrar_usuario(self, nome: str, data_nascimento: date, email: str, senha: str) -> Usuario:
+    def cadastrar_usuario(
+        self, nome: str, data_nascimento: date, email: str, senha: str, enviar_email: bool = True
+    ) -> Usuario:
         if self.usuario_repository.buscar_por_email(email) is not None:
             raise EmailJaCadastradoError
 
@@ -63,7 +65,8 @@ class AuthService:
             senha_hash=pwd_context.hash(senha),
         )
         usuario = self.usuario_repository.criar(usuario)
-        self.email_adapter.enviar_confirmacao_cadastro(usuario.email, usuario.nome)
+        if enviar_email:
+            self.email_adapter.enviar_confirmacao_cadastro(usuario.email, usuario.nome)
         return usuario
 
     def autenticar(self, email: str, senha: str) -> tuple[Usuario, str]:

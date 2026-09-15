@@ -1,3 +1,4 @@
+import json
 import uuid
 
 from sqlalchemy.orm import Session
@@ -7,7 +8,7 @@ from app.adapters.curriculo_parser.curriculo_parser import CurriculoParser
 from app.core.config import get_settings
 from app.core.persistencia.analise_repository import AnaliseRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
-from app.core.persistencia.models import Vaga
+from app.core.persistencia.models import Analise, Curriculo, Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
 
 
@@ -16,6 +17,10 @@ class DescricaoVagaObrigatoriaError(Exception):
 
 
 class DescricaoVagaMuitoLongaError(Exception):
+    pass
+
+
+class VagaNaoEncontradaError(Exception):
     pass
 
 
@@ -33,7 +38,6 @@ class AnalisadorService:
         texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
 
         # Cria registro de curriculo
-        from app.core.persistencia.models import Curriculo
         novo_curriculo = Curriculo(
             nome_arquivo=nome_arquivo,
             id_usuario=id_usuario,
@@ -43,7 +47,8 @@ class AnalisadorService:
 
         return {
             "id_curriculo": str(novo_curriculo.id_curriculo),
-            "texto_extraido_tamanho": len(texto_extraido)
+            "nome_arquivo": nome_arquivo,
+            "tamanho_texto_extraido": len(texto_extraido),
         }
 
     def cadastrar_vaga(
@@ -71,3 +76,56 @@ class AnalisadorService:
 
     def listar_vagas_usuario(self, id_usuario: uuid.UUID) -> list[Vaga]:
         return self.vaga_repository.listar_por_usuario(id_usuario)
+
+    def analisar_curriculo_para_vaga(
+        self,
+        id_usuario: uuid.UUID,
+        id_vaga: uuid.UUID,
+        conteudo: bytes,
+        nome_arquivo: str,
+        extensao: str,
+    ) -> Analise:
+        vaga = self.vaga_repository.buscar_por_id(id_vaga)
+        if vaga is None or vaga.id_usuario != id_usuario:
+            raise VagaNaoEncontradaError
+
+        texto_curriculo = self.curriculo_parser.extrair_texto(conteudo, extensao)
+
+        novo_curriculo = Curriculo(
+            nome_arquivo=nome_arquivo,
+            id_usuario=id_usuario,
+            status_processamento="processando",
+        )
+        self.curriculo_repository.criar(novo_curriculo)
+
+        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
+        pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
+
+        analise = Analise(
+            id_curriculo=novo_curriculo.id_curriculo,
+            id_vaga=vaga.id_vaga,
+            id_usuario=id_usuario,
+            pontuacao=pontuacao,
+            observacoes=observacoes,
+        )
+        analise = self.analise_repository.criar(analise)
+        self.curriculo_repository.atualizar_status(novo_curriculo, "concluido")
+        return analise
+
+    def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
+        return self.analise_repository.listar_por_usuario(id_usuario)
+
+    def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:
+        texto = (resultado_ia or "").strip()
+        if texto.startswith("```"):
+            texto = texto.strip("`").strip()
+            if texto.lower().startswith("json"):
+                texto = texto[4:].strip()
+        try:
+            dados = json.loads(texto)
+            pontuacao_bruta = dados.get("pontuacao")
+            pontuacao = float(pontuacao_bruta) if pontuacao_bruta is not None else None
+            observacoes = str(dados.get("observacoes") or resultado_ia)
+            return pontuacao, observacoes
+        except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
+            return None, resultado_ia
