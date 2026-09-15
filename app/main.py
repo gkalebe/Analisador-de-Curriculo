@@ -43,28 +43,3 @@ app.include_router(painel_router.router)
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
-
-
-@app.get("/")
-def home(request: Request):
-    return templates.TemplateResponse(request=request, name="index.html", context={})
-
-
-@app.get("/cadastro")
-def pagina_cadastro(request: Request):
-    return templates.TemplateResponse(request=request, name="auth.html", context={"modo": "cadastro"})
-
-
-@app.get("/login")
-def pagina_login(request: Request):
-    return templates.TemplateResponse(request=request, name="auth.html", context={"modo": "login"})
-
-
-@app.get("/painel")
-def pagina_painel(request: Request):
-    return templates.TemplateResponse(request=request, name="painel.html", context={})
-
-
-@app.get("/configuracoes")
-def pagina_configuracoes(request: Request, email: str = ""):
-    return templates.TemplateResponse(request=request, name="configuracoes.html", context={"email": email})
