@@ -1,85 +1,0 @@
-Gustavo Souto Pereira 
-Desenvolvedor iOS | Mobile Engineer 
-gustavosoutodev@gmail.com | +55 (61) 9 9905-8243 
-linkedin.com/in/gustavo-souto | github.com/gustavosouto02  
-Brasília - DF, Brasil 
- 
-Resumo Profissional 
-Desenvolvedor iOS com experiência prática na Apple Developer Academy e no INCT, atuando no 
-ciclo completo de desenvolvimento de aplicativos, da concepção à publicação na App Store. 
-Especialista em interfaces nativas com SwiftUI e UIKit, integração de APIs REST e persistência 
-com SwiftData/CoreData, aplicando arquiteturas MVVM/Clean, princípios SOLID e testes 
-automatizados para garantir desempenho e estabilidade. 
- 
-Habilidades Técnicas (Hard Skills) 
-iOS e Mobile: Swift, SwiftUI, UIKit, Objective-C, Flutter, watchOS, integração com APIs nativas 
-Arquitetura e Engenharia: MVVM, Clean Architecture, SOLID, Design Patterns, modularização, code 
-review 
-Dados e Persistência: SwiftData, CoreData, Supabase, Firebase, SQL, modelagem de dados, 
-sincronização com nuvem 
-Qualidade e Automação: XCTest, testes automatizados, CI/CD, GitHub Actions, Xcode Cloud 
-Concorrência e Integrações: Async/Await, GCD, Combine, APIs RESTful, comunicação assíncrona 
-Ferramentas e Processos: Git, GitFlow, SPM, CocoaPods, Scrum, Kanban, Figma 
-Tecnologias Complementares: Python, Java, JavaScript, React, Node.js, C/C++, PHP 
-Formação Acadêmica  
-Bacharelado em Ciência da Computação – Universidade Católica de Brasília  
-(Jan 2023 – Dez 2026) - Em andamento 
- 
-Curso Superior de Tecnologia em Gestão Financeira – IESB 
- ( Abr 2023 - Mai 2025) - Concluído 
-Projetos em Destaque 
-• CashUP: Organizador Financeiro: App iOS de finanças pessoais com foco em clareza visual, 
-controle de gastos e experiência intuitiva, desenvolvido em SwiftUI com persistência local e UX 
-orientada ao usuário. Link 
-• Navan: Sistema iOS que automatiza embarque/desembarque com BLE, envia notificações em 
-tempo real aos responsáveis e integra app em SwiftUI com back-end em FastAPI para aumentar 
-segurança e reduzir erros manuais. Link 
-• Sete: Esporte e Performance: App iOS para acompanhamento de performance esportiva, com 
-métricas, gráficos de evolução e arquitetura em SwiftUI + SwiftData pensada para manutenção e 
-crescimento contínuo. Link 
- 
-1
-
-Experiência 
-Desenvolvedor IOS - Apple Developer Academy - UCB (Jan 2025 - Atual) 
-• Desenvolvi aplicativos iOS com SwiftUI e UIKit, da prototipação à publicação na App Store, 
-aplicando boas práticas de arquitetura, usabilidade e desenvolvimento nativo. 
-• Publicação de diversos aplicativos na App Store para IOS, watchOS alcançando usuários em mais 
-de 10 países e consolidando experiência real de entrega em produção. 
-• Pesquisei e prototipei soluções de interface focadas em engajamento e retenção de usuários. 
-• Projetei e implementei integrações mobile com back-end via APIs REST, persistência local e 
-comunicação assíncrona para aumentar confiabilidade. 
-Estagiário em Engenharia de Software – Instituto Nacional de Ciência e Tecnologia  
-(Abr 2026 – Atual) 
-• Desenvolvimento, manutenção e melhoria de sistemas e soluções digitais com foco na 
-modernização da comunicação institucional e da gestão de processos internos. 
-• Levantamento e organização de requisitos, modelagem de fluxos e documentação de processos. 
-• Atuação no desenvolvimento de módulos web e mobile, com uso de PHP e integração de APIs e 
-bases de dados com foco em arquitetura de sistemas, qualidade de software. 
-• Automação de rotinas operacionais, análise de dados, geração de relatórios e apoio na criação e 
-manutenção de dashboards e indicadores, economizando 8 horas semanais de trabalho manual 
-da equipe. 
-Idiomas 
-- Inglês - Avançado 
-- Espanhol - Básico 
-- Português - Nativo  
-Certificados 
--
-Trilha Desenvolvimento iOS – Apple Developer Academy | UCB – 900h – Conclusão: Fev/2026. 
--
-Certificações em Python e Data Science (DataCamp, 2025):  
-Pandas, Seaborn, FastAPI, Scikit-Learn, OOP, Python Toolbox. 
--
-Conclusão TIC em Trilhas – SCRUM | UCB – Out/2024 
--
-Conclusão TIC em Trilhas – Git | UCB – Out/2024 
--
-Workshop Figma em 2 dias – Criação de protótipos 
--
-Desenvolvimento Colaborativo em GitHub – UCB – 30h 
--
-Estudo de Robótica com Arduino – UCB – 27h – Set/2024 
--
-Linguagem de Programação Python – Básico – Fundação Bradesco – Nov/2023 
- 
-2

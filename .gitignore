@@ -18,3 +18,7 @@ npm-debug.log*
 
 # Screenshots de demonstração (gerados fora do projeto)
 Claude outputs/
+
+# Currículos enviados pelos usuários (dados pessoais; não versionar)
+storage/curriculos/*
+!storage/curriculos/.gitkeep
