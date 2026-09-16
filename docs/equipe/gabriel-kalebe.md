@@ -38,7 +38,10 @@ US-012 e US-013 chegaram para mim via issues #31 e #32 no kanban (ambas com o r�
 | US | Título | Pontos | Módulo |
 |---|---|---|---|
 | US-015 | Visualizar plano de desenvolvimento e certificações sugeridas | 5 | `core/service/plano_service` |
+| US-016 (back) | Acessar painel com histórico e evolução das análises | — | `core/service/plano_service`, `web/painel_router` |
 
 Depende da entrega de US-014 (Kevin).
+
+US-016 (back) chegou para mim via issue #20 no kanban (`[BACK] US-016`, atribuída a mim pelo time), enquanto a tabela original de ownership em `app/web/README.md`/`app/core/service/README.md` listava esse módulo como compartilhado entre Kevin/Carlos/Allan. Implementei o endpoint `GET /painel/historico`: histórico de análises (data, vaga, pontuação) e as competências mais recorrentes como lacuna entre os currículos analisados, ordenadas por frequência — calculado sem IA, comparando `Vaga.requisitos` com `Curriculo.texto_extraido`. Existe uma issue irmã `[FRONT] US-016` (#35, "Dashboard de histórico e gráfico de evolução das análises") ainda sem dono no kanban — não implementei a tela porque essa issue não estava atribuída a mim; fica para quando o time definir quem assume. Ver `app/web/README.md` e `app/core/service/README.md` para detalhes técnicos.
 
 Critérios de aceite (DADO/QUANDO/ENTÃO) de cada US: Levantamento de Requisitos v1.1, Seção 6.2.

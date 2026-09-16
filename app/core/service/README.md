@@ -13,7 +13,7 @@ Os construtores já estão montados na Sprint 0 (o "fio" entre service, reposito
 | `diagnostico_service.py` | US-008, US-009 | 2 | Gabriel Kalebe, Allan | `analise_repository`, `ai_service_adapter` |
 | `simulador_service.py` | US-010, US-011 | 3 | Kevin, Gabriel Kalebe | `vaga_repository`, `ai_service_adapter` |
 | `template_service.py` | US-012, US-013 | 3 | Allan, Carlos (implementado por Gabriel Kalebe, com autorização do time) | `curriculo_repository`, `analise_repository`, `ai_service_adapter`, `curriculo_exporter` |
-| `plano_service.py` | US-014, US-015 | 4 | Kevin, Gabriel Kalebe | `analise_repository` |
+| `plano_service.py` | US-014, US-015, US-016 | 4 | Kevin, Gabriel Kalebe (US-016, concluído) | `analise_repository` |
 
 ## Convenção ao implementar uma US
 
@@ -61,3 +61,16 @@ Feito por Gabriel Kalebe, fora do que estava originalmente atribuído a ele (`te
 A lista `TEMPLATES` (3 templates fixos: `moderno`, `classico`, `minimalista`, cada um com `preview_ficticio` para a galeria) fica hardcoded no próprio módulo — não há tabela no banco para isso, decisão deliberada para não adicionar complexidade sem necessidade nesta fase do projeto.
 
 Erros tratados no router (`templates_router.py`): `NenhumaAnaliseEncontradaError` → `403`, `CurriculoNaoEncontradoError`/`TemplateNaoEncontradoError` → `404`, `FormatoExportacaoInvalidoError` → `400`. Testes: `tests/unit/test_template_service.py` e `tests/unit/test_templates_router.py`.
+
+## US-016 (back) — Histórico de análises e lacunas recorrentes (concluída)
+
+Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) atribuída a ele no kanban.
+
+`PlanoService` ganhou `obter_historico_e_lacunas(id_usuario)`, que devolve um `dict` com duas chaves:
+
+- `historico`: uma entrada por análise do usuário (`id_analise`, `data_analise`, `vaga_titulo`, `pontuacao`), reaproveitando `AnaliseRepository.listar_por_usuario` (já implementado, US-007) e as relações `Analise.vaga`/`Analise.curriculo` do SQLAlchemy — nenhum método novo de repositório foi necessário.
+- `lacunas_recorrentes`: calculada por `_competencias_em_lacuna`, que separa `Vaga.requisitos` em itens e marca como lacuna todo item que não aparece (substring, case-insensitive) em `Curriculo.texto_extraido`; depois soma a frequência de cada lacuna com `collections.Counter` em todas as análises do usuário e ordena da mais para a menos frequente.
+
+Decisão deliberada: essa contagem de lacunas **não usa IA** — é heurística de texto simples sobre campos que já existem (`Vaga.requisitos`, `Curriculo.texto_extraido`), evitando 1 chamada de IA por análise só para montar o painel (custo, latência e mais um ponto de falha) e mantendo o painel disponível mesmo sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` configurada. Se o time decidir que a extração precisa ser semântica (sinônimos, etc.) em vez de substring, isso é uma evolução futura, não um requisito da issue #20.
+
+Testes: `tests/unit/test_plano_service.py`.

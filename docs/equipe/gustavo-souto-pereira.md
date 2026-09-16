@@ -27,4 +27,6 @@ O pareamento com Carlos (item 3 da issue) só acontece quando ele retomar a US-0
 
 Ainda em aberto. Alinhe com o Tech Lead/Scrum Master no fim da Sprint 2 se você continua reforçando infraestrutura ou se assume uma US de sprint futura, dependendo de como a carga do time estiver distribuída.
 
+**Atualização (Sprint 3):** as issues `[BACK] US-012` (#12) e `[BACK] US-013` (#13) estavam atribuídas a você no board (em Ready, sem trabalho iniciado). Gabriel Kalebe recebeu as issues `[FRONT] US-012`/`[FRONT] US-013` (#31/#32) e, com autorização do time, implementou os dois lados (front + back) na mesma entrega — as issues #12/#13 foram reatribuídas a ele e fechadas como concluídas para refletir isso, sem que você precisasse iniciar esse trabalho. Se você já tinha algo em andamento em `template_service.py`/`templates_router.py`, avise o time para evitar retrabalho.
+
 Critérios de aceite (DADO/QUANDO/ENTÃO) de cada US: Levantamento de Requisitos v1.1, Seção 6.2.

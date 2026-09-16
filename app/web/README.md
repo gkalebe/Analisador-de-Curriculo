@@ -18,13 +18,13 @@ Regra da Clean Architecture simplificada: esta camada conhece o `core`, mas o `c
 | `diagnostico_router.py` | Diagnóstico | US-008, US-009 | 2 | Gabriel Kalebe, Allan |
 | `simulador_router.py` | Simulador | US-010, US-011 | 3 | Kevin, Gabriel Kalebe |
 | `templates_router.py` | Templates ATS | US-012, US-013 | 3 | Allan, Carlos (implementado por Gabriel Kalebe, com autorização do time) |
-| `painel_router.py` | Plano Dev. / Painel / Biblioteca | US-014 a US-016, US-018 | 4 | Kevin, Gabriel Kalebe, Carlos, Allan |
+| `painel_router.py` | Plano Dev. / Painel / Biblioteca | US-014 a US-016, US-018 | 4 | Kevin, Gabriel Kalebe (US-016 back, concluído), Carlos, Allan |
 
 Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicione o endpoint no arquivo correspondente — não crie um router novo sem necessidade, para não fragmentar módulos que já existem.
 
 ## O que falta (routers ainda com só o esqueleto)
 
-- Endpoints reais em `diagnostico_router.py`, `simulador_router.py` e `painel_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py`, `analise_router.py` e `templates_router.py` já estão implementados (ver seções abaixo).
+- Endpoints reais em `diagnostico_router.py` e `simulador_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py`, `analise_router.py`, `templates_router.py` já estão implementados, e `painel_router.py` tem o endpoint de US-016 implementado (ver seções abaixo); US-014, US-015 e US-018 seguem pendentes nesse mesmo router.
 - `POST /analises` (rodar uma análise) já está implementado de ponta a ponta — ver seção "Nova análise" abaixo. Devolve `503` se `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` não estiver configurada no `.env`.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.
@@ -80,3 +80,14 @@ Feito por Gabriel Kalebe (fora do que estava originalmente atribuído a ele — 
 - Geração do arquivo: `app/adapters/curriculo_exporter/curriculo_exporter.py` (ver `app/adapters/README.md`).
 - Telas: `frontend/src/pages/GaleriaTemplates.jsx` (grade com os 3 templates e preview fictício) e `frontend/src/pages/PreviewExportarCurriculo.jsx` (escolhe o currículo/análise, mostra preview do PDF em `<iframe>` e baixa PDF/DOCX). Acessíveis pelo item "Templates ATS" na `Sidebar.jsx` e pelo botão em `Painel.jsx`.
 - Testes: `tests/unit/test_template_service.py`, `tests/unit/test_templates_router.py`, `tests/unit/test_ai_service_adapter.py` (novo caso para `extrair_dados_estruturados`), `tests/integration/test_curriculo_repository.py`.
+
+## US-016 (back) — Histórico de análises e lacunas recorrentes (concluída, em `painel_router.py`)
+
+Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) veio atribuída a ele no kanban.
+
+- `GET /painel/historico?email=...`: devolve `{"historico": [...], "lacunas_recorrentes": [...]}`. `404` se o e-mail não estiver cadastrado. Não valida "mínimo de 2 análises" (US-007) no back — com 0 ou 1 análise só devolve listas vazias/menores, sem erro; a tela (US-016 front, issue #35, ainda não atribuída/feita) decide como exibir isso.
+- `historico`: um item por análise (`id_analise`, `data_analise`, `vaga_titulo`, `pontuacao`), mais recente primeiro (usa `AnaliseRepository.listar_por_usuario`, já ordenado).
+- `lacunas_recorrentes`: lista `{"competencia", "frequencia"}` ordenada da mais para a menos frequente. Calculada sem IA (determinístico, sem custo/latência extra e sem depender de `GEMINI_API_KEY`/`ANTHROPIC_API_KEY`): para cada análise, separa `Vaga.requisitos` em itens (por vírgula/`;`/quebra de linha) e considera "lacuna" todo item que não aparece como substring (case-insensitive) em `Curriculo.texto_extraido`; depois soma a frequência de cada lacuna entre todas as análises do usuário. Vaga sem `requisitos` preenchido não gera lacuna para aquela análise.
+- `PlanoService.obter_historico_e_lacunas` é o método novo; `PainelHistoricoResponse`/`HistoricoAnaliseItem`/`LacunaRecorrente` ficam em `app/web/schemas_painel.py`.
+- Testes: `tests/unit/test_plano_service.py`, `tests/unit/test_painel_router.py`.
+- Não implementado agora (fora do escopo da issue #20): a tela React (issue #35, `[FRONT] US-016`, hoje sem dono no kanban) e US-014/US-015/US-018 (demais partes de `painel_router.py`/`plano_service.py`).
