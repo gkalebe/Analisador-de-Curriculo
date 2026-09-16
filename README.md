@@ -39,13 +39,21 @@ npm run dev
 
 A aplicação (telas) sobe em `http://localhost:5173` e consome a API em `http://localhost:8000` via CORS. Os dois processos rodam em paralelo durante o desenvolvimento.
 
-Para rodar só a API + banco via Docker:
+Para subir o projeto inteiro, incluindo banco, API e frontend:
 
 ```
 docker compose up --build
 ```
 
-O `docker-compose.yml` ainda não tem um serviço para o frontend — hoje ele roda só via `npm run dev`, fora do Docker.
+Depois, acesse a aplicação em `http://127.0.0.1:5173` e a documentação da API em `http://127.0.0.1:8000/docs`. Para executar em segundo plano, use `docker compose up --build -d`.
+
+Para parar os containers:
+
+```
+docker compose down
+```
+
+O serviço `frontend` compila a SPA React e a serve com Nginx. As portas são publicadas explicitamente em IPv4 para evitar travamentos do `localhost` via IPv6 no Windows/Docker Desktop.
 
 ## Testes
 
@@ -76,7 +84,7 @@ frontend/
     └── components/  # UI compartilhada entre páginas
 ```
 
-`app/web/templates/` e `app/web/static/` ainda existem no repositório mas estão obsoletos — eram usados pela renderização Jinja2 antiga e não são mais servidos por nenhuma rota. As telas equivalentes agora vivem em `frontend/src/pages/`.
+O frontend do projeto tem uma única fonte: [`frontend/`](frontend/), uma SPA React com Vite. A camada `app/web/` contém apenas a API JSON, schemas e routers do backend; não há mais renderização HTML pelo FastAPI.
 
 Cada pasta abaixo tem seu próprio `README.md` com a tabela de quem implementa o quê, em qual Sprint, e o que já está pronto vs. pendente:
 
