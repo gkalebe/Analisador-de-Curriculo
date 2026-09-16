@@ -23,3 +23,20 @@ export function validarArquivoCurriculo(file) {
 export function formatarTamanhoArquivo(bytes) {
   return (bytes / (1024 * 1024)).toFixed(2) + " MB";
 }
+
+export function formatarDataUpload(dataIso) {
+  if (!dataIso) return "";
+  try {
+    const d = new Date(dataIso);
+    return d.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dataIso;
+  }
+}
+

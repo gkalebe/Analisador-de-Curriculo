@@ -30,4 +30,5 @@ class CurriculoRepository:
         return curriculo
 
     def excluir(self, curriculo: Curriculo) -> None:
-        raise NotImplementedError
+        self.db.delete(curriculo)
+        self.db.commit()

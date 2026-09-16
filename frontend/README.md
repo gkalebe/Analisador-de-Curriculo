@@ -1,8 +1,30 @@
 # frontend/
 
-SPA em React 18 + Vite que consome a API do backend (`app/`) via `fetch`. Substitui a renderização Jinja2 antiga (`app/web/templates/`), que ficou obsoleta.
+SPA em React 18 + Vite que consome a API do backend (`app/`) via `fetch`. Esta é a única camada de frontend do projeto; o FastAPI serve apenas a API JSON.
 
 ## Como rodar
+
+Para subir banco, API e frontend juntos via Docker, execute na raiz do projeto:
+
+```
+docker compose up --build
+```
+
+A SPA ficará disponível em `http://127.0.0.1:5173`.
+
+Para desenvolvimento com hot reload dentro do Docker, execute na raiz do projeto:
+
+```
+docker compose -f docker-compose.dev.yml up --build
+```
+
+O Vite observa `frontend/src/` e o Uvicorn observa `app/`. Para parar:
+
+```
+docker compose -f docker-compose.dev.yml down
+```
+
+Para desenvolvimento isolado do frontend:
 
 ```
 cp .env.example .env.local

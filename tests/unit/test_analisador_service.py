@@ -5,6 +5,7 @@ import pytest
 from app.core.persistencia.models import Analise, Curriculo, Vaga
 from app.core.service.analisador_service import (
     AnalisadorService,
+    CurriculoNaoEncontradoError,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
     VagaNaoEncontradaError,
@@ -35,6 +36,12 @@ class CurriculoRepositorioFalso:
         curriculo.id_curriculo = uuid.uuid4()
         self.curriculos.append(curriculo)
         return curriculo
+
+    def buscar_por_id(self, id_curriculo: uuid.UUID) -> Curriculo | None:
+        return next((c for c in self.curriculos if c.id_curriculo == id_curriculo), None)
+
+    def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Curriculo]:
+        return [c for c in self.curriculos if c.id_usuario == id_usuario]
 
     def atualizar_status(self, curriculo: Curriculo, status: str) -> Curriculo:
         curriculo.status_processamento = status
@@ -224,3 +231,67 @@ def test_interpretar_resultado_ia_com_texto_invalido_cai_no_fallback():
 
     assert pontuacao is None
     assert observacoes == "resposta que não é JSON"
+
+
+def test_analisar_curriculo_salvo_para_vaga_com_sucesso(tmp_path, monkeypatch):
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+
+    curriculo = Curriculo(
+        nome_arquivo="curriculo_salvo.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    diretorio = tmp_path / "storage" / "curriculos"
+    diretorio.mkdir(parents=True)
+    caminho_txt = diretorio / f"{curriculo.id_curriculo}.txt"
+    caminho_txt.write_text("Texto extraído do currículo salvo", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    analise = service.analisar_curriculo_salvo_para_vaga(
+        id_usuario=id_usuario,
+        id_vaga=vaga.id_vaga,
+        id_curriculo=curriculo.id_curriculo,
+    )
+
+    assert analise.id_curriculo == curriculo.id_curriculo
+    assert analise.id_vaga == vaga.id_vaga
+    assert analise.pontuacao == 90.0
+
+
+def test_analisar_curriculo_salvo_curriculo_inexistente_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev.")
+
+    with pytest.raises(CurriculoNaoEncontradoError):
+        service.analisar_curriculo_salvo_para_vaga(
+            id_usuario=id_usuario,
+            id_vaga=vaga.id_vaga,
+            id_curriculo=uuid.uuid4(),
+        )
+
+
+def test_analisar_curriculo_salvo_de_outro_usuario_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+    dono = uuid.uuid4()
+    outro = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=dono, descricao="Vaga dev.")
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=outro,
+        status_processamento="concluido",
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    with pytest.raises(CurriculoNaoEncontradoError):
+        service.analisar_curriculo_salvo_para_vaga(
+            id_usuario=dono,
+            id_vaga=vaga.id_vaga,
+            id_curriculo=curriculo.id_curriculo,
+        )
+

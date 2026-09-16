@@ -1,8 +1,8 @@
 # web/
 
-Camada de apresentação: rotas FastAPI (`routers/`) e schemas Pydantic de request/response, servindo API JSON pura — sem renderização de HTML. As telas ficam em `frontend/` (React + Vite), como uma SPA separada que consome essas rotas via `fetch`.
+Camada de apresentação da API: rotas FastAPI (`routers/`) e schemas Pydantic de request/response, servindo API JSON pura — sem renderização de HTML. Todo o frontend fica em `frontend/` (React + Vite), como uma SPA que consome essas rotas via `fetch`.
 
-`templates/` e `static/` ainda existem neste diretório mas estão obsoletos: eram usados pela renderização Jinja2 anterior à migração para React e não são mais referenciados por nenhum router.
+Não coloque telas, templates HTML ou assets de frontend nesta camada. Componentes, estilos e chamadas ao backend pertencem a `frontend/`.
 
 Schemas separados por domínio, em vez de um único arquivo: `schemas_auth.py` (cadastro/login/recuperação de senha), `schemas_vaga.py` (vagas) e `schemas_curriculo.py` (upload de currículo). `schemas.py` foi mantido só como um shim de compatibilidade que reexporta os três — prefira importar direto do módulo de domínio em código novo.
 

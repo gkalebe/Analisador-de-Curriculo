@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import { lerSessao } from "../models/usuario.js";
 
 const ITENS = [
   { chave: "analise", rotulo: "Nova análise", icone: "ti-search", rota: "/analises/nova" },
@@ -9,9 +10,10 @@ const ITENS = [
 
 export default function Sidebar({ email, ativo }) {
   const navigate = useNavigate();
+  const emailAtivo = email || lerSessao()?.email || "";
 
   function irPara(rota) {
-    navigate(email ? `${rota}?email=${encodeURIComponent(email)}` : rota);
+    navigate(emailAtivo ? `${rota}?email=${encodeURIComponent(emailAtivo)}` : rota);
   }
 
   return (
@@ -52,14 +54,14 @@ export default function Sidebar({ email, ativo }) {
       </nav>
 
       <div className="mt-auto flex flex-col gap-3">
-        {email && (
+        {emailAtivo && (
           <div className="flex items-center gap-3 rounded-lg px-3 py-3">
             <span className="flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#1e5e3f] font-brand text-lg">
-              {email[0]?.toUpperCase()}
+              {emailAtivo[0]?.toUpperCase()}
             </span>
             <div className="leading-tight">
-              <p className="font-brand font-semibold">{email.split("@")[0]}</p>
-              <p className="text-sm text-white/80">{email}</p>
+              <p className="font-brand font-semibold">{emailAtivo.split("@")[0]}</p>
+              <p className="text-sm text-white/80">{emailAtivo}</p>
             </div>
           </div>
         )}

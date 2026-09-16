@@ -14,7 +14,7 @@ const CAMPO_POR_LOC = {
 };
 
 /**
- * Card de autenticação com as duas abas (login/cadastro), replicando app/web/templates/auth.html.
+ * Card de autenticação compartilhado pelas telas de login e cadastro.
  * `modoInicial` decide qual aba abre primeiro — Login.jsx e Cadastro.jsx só passam esse prop.
  */
 export default function AuthCard({ modoInicial }) {
