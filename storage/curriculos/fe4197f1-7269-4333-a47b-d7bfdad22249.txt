@@ -1,0 +1,4 @@
+Curriculo de Teste
+Nome: Gustavo Souto
+Email: gugasouto2004@gmail.com
+Experiencia: Desenvolvedor Python e React

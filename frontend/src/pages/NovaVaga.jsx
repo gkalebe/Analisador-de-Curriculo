@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import { criarVaga, listarVagas } from "../api/vagasApi.js";
 import { novoFormularioVaga, preencherFormularioComVaga } from "../models/vaga.js";
+import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
 
 const LIMITE_DESCRICAO_PADRAO = 5000;
@@ -10,7 +11,7 @@ const LIMITE_DESCRICAO_PADRAO = 5000;
 export default function NovaVaga() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const emailInicial = searchParams.get("email") || "";
+  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [form, setForm] = useState(novoFormularioVaga(emailInicial));
