@@ -53,3 +53,37 @@ export async function requisitarComArquivo(caminho, formData) {
 
   return corpo;
 }
+
+/**
+ * Variante de requisitar() para respostas binárias (PDF/DOCX) — usada pela exportação de
+ * templates. Devolve o blob e o nome de arquivo sugerido pelo servidor (Content-Disposition).
+ */
+export async function requisitarArquivo(caminho, { params } = {}) {
+  const url = new URL(caminho, API_URL);
+  if (params) {
+    Object.entries(params).forEach(([chave, valor]) => {
+      if (valor !== undefined && valor !== null && valor !== "") {
+        url.searchParams.set(chave, valor);
+      }
+    });
+  }
+
+  const resposta = await fetch(url);
+
+  if (!resposta.ok) {
+    const corpo = await resposta.json().catch(() => null);
+    throw new ApiError(resposta.status, corpo);
+  }
+
+  const blob = await resposta.blob();
+  const nomeArquivo = extrairNomeArquivo(resposta.headers.get("Content-Disposition"));
+  return { blob, nomeArquivo };
+}
+
+function extrairNomeArquivo(cabecalhoDisposition) {
+  if (!cabecalhoDisposition) return "";
+  const combinado = cabecalhoDisposition.match(/filename\*=UTF-8''([^;]+)/);
+  if (combinado) return decodeURIComponent(combinado[1]);
+  const simples = cabecalhoDisposition.match(/filename="?([^";]+)"?/);
+  return simples ? simples[1] : "";
+}

@@ -17,14 +17,14 @@ Regra da Clean Architecture simplificada: esta camada conhece o `core`, mas o `c
 | `vagas_router.py` | Vagas | US-019 | 1-2 | Gabriel Kalebe |
 | `diagnostico_router.py` | Diagnóstico | US-008, US-009 | 2 | Gabriel Kalebe, Allan |
 | `simulador_router.py` | Simulador | US-010, US-011 | 3 | Kevin, Gabriel Kalebe |
-| `templates_router.py` | Templates ATS | US-012, US-013 | 3 | Allan, Carlos |
+| `templates_router.py` | Templates ATS | US-012, US-013 | 3 | Allan, Carlos (implementado por Gabriel Kalebe, com autorização do time) |
 | `painel_router.py` | Plano Dev. / Painel / Biblioteca | US-014 a US-016, US-018 | 4 | Kevin, Gabriel Kalebe, Carlos, Allan |
 
 Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicione o endpoint no arquivo correspondente — não crie um router novo sem necessidade, para não fragmentar módulos que já existem.
 
 ## O que falta (routers ainda com só o esqueleto)
 
-- Endpoints reais em `diagnostico_router.py`, `simulador_router.py`, `templates_router.py` e `painel_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py` e `analise_router.py` já estão implementados (ver seções abaixo).
+- Endpoints reais em `diagnostico_router.py`, `simulador_router.py` e `painel_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py`, `analise_router.py` e `templates_router.py` já estão implementados (ver seções abaixo).
 - `POST /analises` (rodar uma análise) já está implementado de ponta a ponta — ver seção "Nova análise" abaixo. Devolve `503` se `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` não estiver configurada no `.env`.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.
@@ -64,8 +64,19 @@ Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.
 ### Nova análise (currículo x vaga) — concluída (Gabriel Kalebe, com autorização do time para US-006/US-007)
 
 - `POST /analises` (multipart/form-data): recebe `email`, `id_vaga` e `file`, identifica o usuário e a vaga (`404` se algum não existir), extrai o texto do currículo e chama `AnalisadorService.analisar_curriculo_para_vaga`, que já roda a comparação por IA de verdade (`app/adapters/ai_service/ai_service_adapter.py`) e persiste em `Analise` (`app/core/persistencia/analise_repository.py`). Responde `201` com `{"id_analise", "id_curriculo", "id_vaga", "pontuacao", "observacoes", "data_analise"}`.
-- `GET /analises?email=...`: lista as análises já feitas pelo usuário.
-- Requer `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY` no `.env` (ver `.env.example`) — sem nenhuma das duas configuradas, `POST /analises` responde `503` com mensagem explicando o que falta, em vez de um erro 500 cru. Se a API de IA não responder em 30s ou recusar a requisição, também responde `503` (em vez de a tela ficar carregando indefinidamente) — ver `IAIndisponivelError` em `app/adapters/README.md`. Modelo usado é configurável via `GEMINI_MODEL_NAME`/`ANTHROPIC_MODEL_NAME` (padrão `gemini-flash-latest`/`claude-3-5-haiku-20241022`).
+- `GET /analises?email=...`: lista as análises já feitas pelo usuário. Assim como em `POST /analises`, um `NotImplementedError` vindo do service é convertido em `501` em vez de estourar `500` — esse tratamento estava faltando só no `GET` (o `POST` já tinha) e foi corrigido junto com o trabalho de US-012/US-013 abaixo.
+- Requer `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY` no `.env` (ver `.env.example`) — sem nenhuma das duas configuradas, `POST /analises` responde `503` com mensagem explicando o que falta, em vez de um erro 500 cru. Modelo usado é configurável via `GEMINI_MODEL_NAME`/`ANTHROPIC_MODEL_NAME`.
 - Contrato do retorno do `AIServiceAdapter.comparar_curriculo_vaga`: uma string JSON `{"pontuacao": 0-100, "observacoes": "..."}` — ver `AnalisadorService._interpretar_resultado_ia` (tolera blocos de markdown ao redor do JSON). Combine com quem mexer no prompt antes de mudar esse formato.
-- Tela: `frontend/src/pages/NovaAnalise.jsx` — escolhe uma vaga salva e envia um currículo. `Cadastrar vaga` (`NovaVaga.jsx`) e `Enviar currículo` (`UploadCurriculo.jsx`) foram separadas dessa tela (antes a de vaga usava o título errado "Nova análise"); as três agora compartilham `frontend/src/components/Sidebar.jsx`.
+- Tela: `frontend/src/pages/NovaAnalise.jsx` — escolhe uma vaga salva e envia um currículo. `Cadastrar vaga` (`NovaVaga.jsx`) e `Enviar currículo` (`UploadCurriculo.jsx`) foram separadas dessa tela (antes a de vaga usava o título errado "Nova análise"); as três agora compartilham `frontend/src/components/Sidebar.jsx`. Ao concluir uma análise com sucesso, um link "Ver templates ATS para este currículo" leva para `/templates`.
 - Testes: `tests/unit/test_analise_router.py`, `tests/unit/test_analisador_service.py`, `tests/unit/test_ai_service_adapter.py`.
+
+## US-012/US-013 — Galeria de templates e exportação de currículo (concluída, em `templates_router.py`)
+
+Feito por Gabriel Kalebe (fora do que estava originalmente atribuído a ele — `templates_router.py`/`template_service.py` eram de Allan/Carlos; time autorizou antes de mexer, mesmo padrão das US-006/US-007).
+
+- `GET /templates?email=...`: lista os templates disponíveis (`moderno`, `classico`, `minimalista`, cada um com um `preview_ficticio` para exibir na galeria sem depender de um currículo real). `404` se o e-mail não estiver cadastrado, `403` se o usuário ainda não tiver nenhuma análise concluída (regra de negócio: só faz sentido escolher template depois de ao menos uma análise).
+- `GET /templates/exportar?email=...&id_curriculo=...&id_template=...&formato=pdf|docx`: gera e devolve o arquivo (PDF ou DOCX) do currículo indicado, no template escolhido. `404` se e-mail, currículo (ou currículo de outro usuário) ou template não existirem; `400` se o `formato` não for `pdf`/`docx`. O nome do arquivo (com acentuação) vai tanto no `Content-Disposition: filename=` (versão ASCII, fallback) quanto em `filename*=UTF-8''...` (RFC 5987, nome completo em navegadores modernos).
+- Extração de dados estruturados: `TemplateService._extrair_dados_curriculo` chama `AIServiceAdapter.extrair_dados_estruturados` sobre `Curriculo.texto_extraido` (texto bruto salvo no upload/análise — novo campo, ver `core/persistencia/README.md`). Se a IA não estiver configurada (`IAConfiguracaoAusenteError`) ou estiver indisponível (`IAIndisponivelError`, timeout de 30s), cai num fallback que usa o texto bruto direto, sem quebrar a exportação — RNF-008 aplicado aqui também.
+- Geração do arquivo: `app/adapters/curriculo_exporter/curriculo_exporter.py` (ver `app/adapters/README.md`).
+- Telas: `frontend/src/pages/GaleriaTemplates.jsx` (grade com os 3 templates e preview fictício) e `frontend/src/pages/PreviewExportarCurriculo.jsx` (escolhe o currículo/análise, mostra preview do PDF em `<iframe>` e baixa PDF/DOCX). Acessíveis pelo item "Templates ATS" na `Sidebar.jsx` e pelo botão em `Painel.jsx`.
+- Testes: `tests/unit/test_template_service.py`, `tests/unit/test_templates_router.py`, `tests/unit/test_ai_service_adapter.py` (novo caso para `extrair_dados_estruturados`), `tests/integration/test_curriculo_repository.py`.

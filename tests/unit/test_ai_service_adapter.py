@@ -40,6 +40,16 @@ def test_analisar_curriculo_envia_prompt_com_curriculo():
     assert "Experiência com Python." in cliente_falso.prompts_recebidos[0]
 
 
+def test_extrair_dados_estruturados_envia_prompt_com_texto_curriculo():
+    cliente_falso = AIServiceClientFalso()
+    adapter = AIServiceAdapter(cliente=cliente_falso)
+
+    resultado = adapter.extrair_dados_estruturados("Experiência com Python.")
+
+    assert resultado == cliente_falso.resposta
+    assert "Experiência com Python." in cliente_falso.prompts_recebidos[0]
+
+
 def test_gemini_client_sem_api_key_lanca_erro_de_configuracao():
     cliente = GeminiClient(api_key="")
 

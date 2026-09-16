@@ -136,5 +136,12 @@ def listar_analises(
             detail="Não encontramos um usuário cadastrado com esse e-mail.",
         )
 
-    analises = analisador_service.listar_analises_usuario(usuario.id_usuario)
+    try:
+        analises = analisador_service.listar_analises_usuario(usuario.id_usuario)
+    except NotImplementedError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Essa funcionalidade ainda não foi implementada pelo time.",
+        ) from erro
+
     return AnaliseListResponse(analises=[AnaliseResponse.model_validate(a) for a in analises])

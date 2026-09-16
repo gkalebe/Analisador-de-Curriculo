@@ -12,7 +12,7 @@ Os construtores já estão montados na Sprint 0 (o "fio" entre service, reposito
 | `analisador_service.py` | US-004 a US-007, US-019 | 1-2 | Gustavo Souto Pereira, Vitor Bittencourt dos Santos, Kevin, Gabriel Kalebe, Carlos | `curriculo_repository`, `vaga_repository`, `analise_repository`, `curriculo_parser`, `ai_service_adapter` |
 | `diagnostico_service.py` | US-008, US-009 | 2 | Gabriel Kalebe, Allan | `analise_repository`, `ai_service_adapter` |
 | `simulador_service.py` | US-010, US-011 | 3 | Kevin, Gabriel Kalebe | `vaga_repository`, `ai_service_adapter` |
-| `template_service.py` | US-012, US-013 | 3 | Allan, Carlos | `curriculo_repository` |
+| `template_service.py` | US-012, US-013 | 3 | Allan, Carlos (implementado por Gabriel Kalebe, com autorização do time) | `curriculo_repository`, `analise_repository`, `ai_service_adapter`, `curriculo_exporter` |
 | `plano_service.py` | US-014, US-015 | 4 | Kevin, Gabriel Kalebe | `analise_repository` |
 
 ## Convenção ao implementar uma US
@@ -46,6 +46,18 @@ Provedor de e-mail transacional definido: SendGrid (`app/adapters/email/`), com 
 
 `_interpretar_resultado_ia` decodifica o JSON `{"pontuacao", "observacoes"}` que o `AIServiceAdapter` devolve, removendo blocos de markdown (```json ... ```) que o modelo às vezes adiciona mesmo sendo instruído a não fazer isso; se o texto não vier num JSON válido, cai num fallback (`pontuacao=None`, `observacoes=<texto cru>`) em vez de quebrar a análise.
 
-Erros tratados no router (`analise_router.py`): `VagaNaoEncontradaError` → `404`, `FormatoNaoSuportadoError` → `400`, `IAConfiguracaoAusenteError` (sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` no `.env`) → `503` com mensagem amigável, `IAIndisponivelError` (API de IA não respondeu em 30s ou recusou a requisição) → `503` também, em vez de a chamada ficar travada sem limite de tempo.
+Erros tratados no router (`analise_router.py`): `VagaNaoEncontradaError` → `404`, `FormatoNaoSuportadoError` → `400`, `IAConfiguracaoAusenteError` (sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` no `.env`) → `503` com mensagem amigável.
 
 Feito por Gabriel Kalebe (fora do que estava originalmente atribuído a ele nessas US — `analisador_service.py`/`analise_router.py` já eram compartilhados com Gustavo/Vitor/Kevin/Carlos, mas a parte de `analise_repository.py` e `ai_service_adapter.py` era deles; time autorizou antes de mexer). Testes: `tests/unit/test_analisador_service.py` e `tests/unit/test_ai_service_adapter.py`.
+
+## US-012/US-013 — Galeria de templates e exportação de currículo (concluída)
+
+Feito por Gabriel Kalebe, fora do que estava originalmente atribuído a ele (`template_service.py`/`templates_router.py` eram de Allan/Carlos; time autorizou antes de mexer, mesmo padrão das US-005/006/007 acima).
+
+`TemplateService` ganhou `listar_templates(id_usuario)` (lança `NenhumaAnaliseEncontradaError` se o usuário ainda não tiver nenhuma análise) e `exportar_curriculo(id_usuario, id_curriculo, id_template, formato)`, além das exceções `CurriculoNaoEncontradoError`, `TemplateNaoEncontradoError` e `FormatoExportacaoInvalidoError`.
+
+`exportar_curriculo` busca o currículo (confere que pertence ao usuário), chama `_extrair_dados_curriculo` — que usa `AIServiceAdapter.extrair_dados_estruturados` sobre `Curriculo.texto_extraido` para tentar obter nome/email/telefone/resumo/formação/experiência/habilidades em JSON, com fallback para um dicionário "vazio" (só com `texto_bruto` preenchido) se a IA não estiver configurada ou disponível — e delega a geração do arquivo para `CurriculoExporter` (`app/adapters/curriculo_exporter/`, ver `app/adapters/README.md`), devolvendo `(conteudo_bytes, nome_arquivo, media_type)`.
+
+A lista `TEMPLATES` (3 templates fixos: `moderno`, `classico`, `minimalista`, cada um com `preview_ficticio` para a galeria) fica hardcoded no próprio módulo — não há tabela no banco para isso, decisão deliberada para não adicionar complexidade sem necessidade nesta fase do projeto.
+
+Erros tratados no router (`templates_router.py`): `NenhumaAnaliseEncontradaError` → `403`, `CurriculoNaoEncontradoError`/`TemplateNaoEncontradoError` → `404`, `FormatoExportacaoInvalidoError` → `400`. Testes: `tests/unit/test_template_service.py` e `tests/unit/test_templates_router.py`.

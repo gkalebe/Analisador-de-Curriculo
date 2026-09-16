@@ -16,7 +16,7 @@ US-005 (Colar descrição textual de uma vaga) saiu da sua lista: passou para Vi
 |---|---|---|---|
 | US-009 | Obter sugestões de reescrita de trechos fracos | 8 | `core/service/diagnostico_service` |
 
-Já criada e atribuída a você no board: issue #11 (back) e #28 (front). Depende da entrega de US-008 (Gabriel Kalebe), que por sua vez dependia de US-006 (Carlos) — Carlos está pausado nesta sprint por decisão do Tech Lead. Atualização: o bloqueio técnico de IA (US-006) já foi resolvido — Gabriel Kalebe implementou o `AIServiceAdapter`/`AnaliseRepository` fora do escopo original dele, com autorização do time (ver `app/adapters/README.md`) — então as issues não estão mais travadas pela parte de IA; confirme com o Tech Lead se já passaram de Backlog para Ready.
+Já criada e atribuída a você no board: issue #11 (back) e #28 (front). Depende da entrega de US-008 (Gabriel Kalebe), que por sua vez depende de US-006 (Carlos) — Carlos está pausado nesta sprint por decisão do Tech Lead, então as duas issues ficam em Backlog (não Ready) até a esteira destravar. Pode adiantar leitura/design enquanto isso, mas não há bloqueio para você resolver sozinho.
 
 ## Sprint 3 (Semanas 5-6)
 
@@ -25,6 +25,8 @@ Já criada e atribuída a você no board: issue #11 (back) e #28 (front). Depend
 | US-012 | Acessar templates de currículo ATS-friendly | 5 | `web/templates`, `core/service/template_service` |
 
 US-013 (Carlos) depende desta entrega. Nesta sprint você assume o fluxo de telas/exportação, equilibrando o trabalho mais backend/IA que teve nas Sprints 1 e 2.
+
+**Atualização:** as issues #31/#32 (US-012/US-013) acabaram indo para o kanban atribuídas diretamente a Gabriel Kalebe (rótulo `[FRONT]`), não para você/Carlos como esta tabela original previa. Gabriel implementou as duas de ponta a ponta (front + back) com autorização do time — ver `docs/equipe/gabriel-kalebe.md` e `app/web/README.md` para o que foi entregue. Se você já tinha começado algo em `template_service.py`/`templates_router.py`, avise o time antes de mesclar para evitar conflito.
 
 ## Sprint 4 (Semanas 7-8)
 

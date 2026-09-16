@@ -1,5 +1,6 @@
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.persistencia.models import Curriculo
@@ -16,10 +17,11 @@ class CurriculoRepository:
         return curriculo
 
     def buscar_por_id(self, id_curriculo: uuid.UUID) -> Curriculo | None:
-        raise NotImplementedError
+        return self.db.get(Curriculo, id_curriculo)
 
     def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Curriculo]:
-        raise NotImplementedError
+        stmt = select(Curriculo).where(Curriculo.id_usuario == id_usuario).order_by(Curriculo.data_upload.desc())
+        return list(self.db.execute(stmt).scalars().all())
 
     def atualizar_status(self, curriculo: Curriculo, status: str) -> Curriculo:
         curriculo.status_processamento = status

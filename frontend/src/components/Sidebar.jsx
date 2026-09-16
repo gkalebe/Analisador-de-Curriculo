@@ -4,6 +4,7 @@ const ITENS = [
   { chave: "analise", rotulo: "Nova análise", icone: "ti-search", rota: "/analises/nova" },
   { chave: "vaga", rotulo: "Cadastrar vaga", icone: "ti-briefcase", rota: "/analises/vagas/nova" },
   { chave: "curriculo", rotulo: "Currículo", icone: "ti-file-text", rota: "/analises/upload" },
+  { chave: "templates", rotulo: "Templates ATS", icone: "ti-layout-grid", rota: "/templates" },
 ];
 
 export default function Sidebar({ email, ativo }) {

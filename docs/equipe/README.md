@@ -17,15 +17,17 @@ Antes de começar uma US, siga a Seção 1.4 do Plano de Ação: uma US = uma br
 
 ## Status atual (visão geral)
 
-Panorama rápido do board (`@gkalebe's untitled project`), mantido pelo Tech Lead conforme o projeto avança — não substitui o board, é só um resumo para quem não quer abrir o GitHub. Última atualização: Sprint 2.
+Panorama rápido do board (`@gkalebe's untitled project`), mantido pelo Tech Lead conforme o projeto avança — não substitui o board, é só um resumo para quem não quer abrir o GitHub. Última atualização: Sprint 3.
 
-| Pessoa | Sprint 1 | Sprint 2 | Observação |
-|---|---|---|---|
-| Kevin | Concluída | US-007 — issues #9/#26, depende de US-006 | — |
-| Gabriel Kalebe | Concluída (issues #4, #5, #23, #38) | US-008 — issues #10/#27, depende de US-006 | — |
-| Allan | Concluída | US-009 — issues #11/#28 atribuídas, em Backlog (bloqueada atrás de US-008 → US-006) | — |
-| Carlos | Sem entrega (cedeu a fatia a Gustavo) | US-006 — issue #8 existe (Sprint 2) mas **pausada**: sem atribuição, em Backlog | Decisão do Tech Lead; bloqueio técnico de IA já resolvido por Gabriel Kalebe (ver observação abaixo) — US-006 em si (critérios de aceite completos) continua em aberto, retoma quando definido |
-| Gustavo | Concluída (US-004 + infra) | Apoio técnico — issue #46, atribuída, em Ready | Sem US formal; segue reforçando infraestrutura de IA |
-| Vitor | Concluída (US-005) | A definir com o Tech Lead | — |
+| Pessoa | Sprint 1 | Sprint 2 | Sprint 3 | Observação |
+|---|---|---|---|---|
+| Kevin | Concluída | US-007 — issues #9/#26, depende de US-006 | A definir com o Tech Lead | — |
+| Gabriel Kalebe | Concluída (issues #4, #5, #23, #38) | US-008 — issues #10/#27, depende de US-006 | US-012/US-013 — issues #31/#32, concluídas (front + back, com autorização do time) | Ver `docs/equipe/gabriel-kalebe.md` |
+| Allan | Concluída | US-009 — issues #11/#28 atribuídas, em Backlog (bloqueada atrás de US-008 → US-006) | US-012 nominalmente atribuída a você no plano original, mas as issues #31/#32 foram para Gabriel Kalebe no board | Ver nota em `docs/equipe/allan-da-silva.md` |
+| Carlos | Sem entrega (cedeu a fatia a Gustavo) | US-006 — issue #8 existe (Sprint 2) mas **pausada**: sem atribuição, em Backlog | US-013 nominalmente atribuída a você no plano original, mas as issues #31/#32 foram para Gabriel Kalebe no board | Ver nota em `docs/equipe/carlos-eduardo-oliveira.md`; US-006 (Sprint 2) segue aberta/pausada e é sua para concluir |
+| Gustavo | Concluída (US-004 + infra) | Apoio técnico — issue #46, atribuída, em Ready | A definir com o Tech Lead | — |
+| Vitor | Concluída (US-005) | A definir com o Tech Lead | A definir com o Tech Lead | — |
 
-Cadeia de dependência da Sprint 2, de olho: US-006 (Carlos, pausada) → US-007 (Kevin) e US-008 (Gabriel Kalebe) → US-009 (Allan). Atualização: enquanto Carlos está pausado, Gabriel Kalebe implementou o núcleo técnico que travava a esteira (`AIServiceAdapter` com Gemini/Claude e `AnaliseRepository`), fora do que estava originalmente atribuído a ele nessas duas frentes, com autorização do time antes de mexer — ver `app/adapters/README.md` e `app/core/persistencia/README.md`. Isso já destrava US-007, US-008 e US-009 na parte que dependia da IA existir; US-006 em si (validar o prompt contra os critérios de aceite completos da história, palavras-chave e percentual de aderência detalhado) continua formalmente de Carlos, em aberto.
+Cadeia de dependência da Sprint 2, de olho: US-006 (Carlos, pausada) → US-007 (Kevin) e US-008 (Gabriel Kalebe) → US-009 (Allan). Enquanto Carlos estiver pausado, Kevin/Gabriel/Allan ficam com a US formalmente atribuída mas sem poder concluir a parte que depende da IA — o apoio técnico do Gustavo (issue #46: provedor de IA + CI) adianta o terreno para quando a esteira destravar.
+
+Sprint 3: as issues #31/#32 (US-012/US-013, template ATS + exportação) chegaram no kanban já atribuídas a Gabriel Kalebe com o rótulo `[FRONT]`, embora o plano original (e a tabela de ownership em `app/web/README.md`) previsse Allan (US-012) e Carlos (US-013). Gabriel pediu e recebeu autorização do time para implementar as duas de ponta a ponta, já que as issues envolviam tanto tela quanto o back que ainda não existia. US-006 (Carlos) continua a pendência mais antiga em aberto do projeto — a comparação currículo x vaga em si já funciona (implementada por Gabriel com autorização, ver Sprint 2), mas os critérios de aceite completos de US-006 (percentual de aderência detalhado, palavras-chave específicas ausentes) ainda não foram feitos por ninguém.

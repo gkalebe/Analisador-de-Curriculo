@@ -25,6 +25,7 @@ export default function Painel() {
   const linkNovaAnalise = `/analises/nova?email=${encodeURIComponent(sessao.email)}`;
   const linkNovaVaga = `/analises/vagas/nova?email=${encodeURIComponent(sessao.email)}`;
   const linkUpload = `/analises/upload?email=${encodeURIComponent(sessao.email)}`;
+  const linkTemplates = `/templates?email=${encodeURIComponent(sessao.email)}`;
 
   return (
     <div className="placeholder-wrap">
@@ -44,6 +45,9 @@ export default function Painel() {
           </Link>
           <Link className="btn-primary" to={linkUpload}>
             Enviar currículo
+          </Link>
+          <Link className="btn-primary" to={linkTemplates}>
+            Templates ATS
           </Link>
           <button className="btn-secondary" onClick={sair}>
             Sair

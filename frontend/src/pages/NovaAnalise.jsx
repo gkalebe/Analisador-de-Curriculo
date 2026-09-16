@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import { criarAnalise } from "../api/analiseApi.js";
 import { listarVagas } from "../api/vagasApi.js";
@@ -118,6 +118,12 @@ export default function NovaAnalise() {
             <p className="font-brand text-lg font-semibold">Análise concluída</p>
             {resultado.pontuacao != null && <p>Pontuação: {resultado.pontuacao}</p>}
             {resultado.observacoes && <p>{resultado.observacoes}</p>}
+            <Link
+              className="inline-block font-semibold text-[#1e5e3f] underline"
+              to={`/templates?email=${encodeURIComponent(emailInicial)}`}
+            >
+              Ver templates ATS para este currículo
+            </Link>
           </div>
         )}
 

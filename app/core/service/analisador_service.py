@@ -34,14 +34,13 @@ class AnalisadorService:
         self.settings = get_settings()
 
     def processar_upload_curriculo(self, conteudo: bytes, nome_arquivo: str, extensao: str, id_usuario) -> dict:
-        # Extrai o texto
         texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
 
-        # Cria registro de curriculo
         novo_curriculo = Curriculo(
             nome_arquivo=nome_arquivo,
             id_usuario=id_usuario,
-            status_processamento="processando"
+            status_processamento="processando",
+            texto_extraido=texto_extraido,
         )
         self.curriculo_repository.criar(novo_curriculo)
 
@@ -95,6 +94,7 @@ class AnalisadorService:
             nome_arquivo=nome_arquivo,
             id_usuario=id_usuario,
             status_processamento="processando",
+            texto_extraido=texto_curriculo,
         )
         self.curriculo_repository.criar(novo_curriculo)
 

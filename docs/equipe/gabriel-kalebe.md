@@ -21,15 +21,17 @@ Ambas dependiam de US-001 (Kevin) só para a base de `usuario_repository`/autent
 
 Depende da entrega de US-006 (Carlos). US-009 (Allan) depende desta entrega.
 
-**Fora do escopo desta US:** com US-006 pausada, implementei o núcleo técnico de IA que travava a esteira — `AIServiceAdapter` (`GeminiClient`/`ClaudeClient`, com timeout de 30s e tratamento de erro) e `AnaliseRepository` completo — fora do que estava originalmente atribuído a mim (eram de Carlos e de Allan/Kevin, respectivamente), com autorização do time antes de mexer. Detalhes técnicos em `app/adapters/README.md` e `app/core/persistencia/README.md`. Isso destrava a parte de IA de US-007 (Kevin), US-008 (minha) e US-009 (Allan); a US-006 em si (critérios de aceite completos) continua de Carlos.
-
 ## Sprint 3 (Semanas 5-6)
 
 | US | Título | Pontos | Módulo |
 |---|---|---|---|
 | US-011 | Receber feedback da resposta de entrevista | 8 | `core/service/simulador_service` |
+| US-012 | Acessar templates de currículo ATS-friendly | 5 | `web/templates`, `core/service/template_service` |
+| US-013 | Aplicar currículo a template e exportar PDF/DOCX | 8 | `core/service/template_service`, `adapters/curriculo_exporter` |
 
 Depende da entrega de US-010 (Kevin).
+
+US-012 e US-013 chegaram para mim via issues #31 e #32 no kanban (ambas com o rótulo `[FRONT]`, atribuídas diretamente a mim pelo time), embora a tabela de ownership por módulo em `app/web/README.md` credite essas duas US a Allan/Carlos. Como as issues do board estavam comigo e envolviam tanto tela quanto o back que ainda não existia (`template_service.py`/`templates_router.py` só tinham o esqueleto), pedi e recebi autorização do time para implementar as duas pontas — mesmo padrão já usado nas US-005/006/007 (Sprint 1-2). Entregue: coluna `Curriculo.texto_extraido` (nova, com migração), `AIServiceAdapter.extrair_dados_estruturados`, o adapter `curriculo_exporter/` (PDF via fpdf2 + DOCX via python-docx, 3 templates), `TemplateService` e `templates_router.py` completos, e as telas `GaleriaTemplates.jsx`/`PreviewExportarCurriculo.jsx`. De passagem, corrigi também um bug pré-existente em `analise_router.py`: `GET /analises` não convertia `NotImplementedError` em `501` (só `POST /analises` fazia isso) — não relacionado a US-012/013, mas notado ao rodar a suíte de testes completa antes de entregar. Ver `app/adapters/README.md`, `app/web/README.md` e `app/core/service/README.md` para detalhes técnicos.
 
 ## Sprint 4 (Semanas 7-8)
 

@@ -8,6 +8,8 @@ import RedefinirSenha from "./pages/RedefinirSenha.jsx";
 import NovaVaga from "./pages/NovaVaga.jsx";
 import UploadCurriculo from "./pages/UploadCurriculo.jsx";
 import NovaAnalise from "./pages/NovaAnalise.jsx";
+import GaleriaTemplates from "./pages/GaleriaTemplates.jsx";
+import PreviewExportarCurriculo from "./pages/PreviewExportarCurriculo.jsx";
 
 export default function App() {
   return (
@@ -21,6 +23,8 @@ export default function App() {
       <Route path="/analises/nova" element={<NovaAnalise />} />
       <Route path="/analises/vagas/nova" element={<NovaVaga />} />
       <Route path="/analises/upload" element={<UploadCurriculo />} />
+      <Route path="/templates" element={<GaleriaTemplates />} />
+      <Route path="/templates/exportar" element={<PreviewExportarCurriculo />} />
     </Routes>
   );
 }

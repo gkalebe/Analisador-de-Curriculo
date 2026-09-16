@@ -32,6 +32,7 @@ class Curriculo(Base):
     nome_arquivo: Mapped[str] = mapped_column(String(255), nullable=False)
     data_upload: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     status_processamento: Mapped[str] = mapped_column(String(50), nullable=False, default="pendente")
+    texto_extraido: Mapped[str | None] = mapped_column(Text, nullable=True)
     id_usuario: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuario.id_usuario"), nullable=False)
 
     usuario: Mapped["Usuario"] = relationship(back_populates="curriculos")

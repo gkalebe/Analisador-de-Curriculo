@@ -89,6 +89,10 @@ class AIServiceAdapter:
         prompt = self._montar_prompt_comparacao(texto_curriculo, texto_vaga)
         return self.cliente.gerar_resposta(prompt)
 
+    def extrair_dados_estruturados(self, texto_curriculo: str) -> str:
+        prompt = self._montar_prompt_extracao(texto_curriculo)
+        return self.cliente.gerar_resposta(prompt)
+
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
         return (
             "Você é um recrutador experiente. Analise o currículo abaixo e responda ESTRITAMENTE em "
@@ -108,4 +112,17 @@ class AIServiceAdapter:
             'encaixe, lacunas e sugestões objetivas para o candidato>"}.\n\n'
             f"Descrição da vaga:\n{texto_vaga}\n\n"
             f"Currículo do candidato:\n{texto_curriculo}"
+        )
+
+    def _montar_prompt_extracao(self, texto_curriculo: str) -> str:
+        return (
+            "Você é um assistente de RH. A partir do texto de currículo abaixo, extraia os dados em "
+            "JSON válido, sem nenhum texto fora do JSON e sem markdown, no formato exato "
+            '{"nome": "<nome completo ou string vazia>", "email": "<e-mail ou string vazia>", '
+            '"telefone": "<telefone ou string vazia>", "resumo": "<2 a 3 frases de resumo profissional>", '
+            '"formacao": "<formação acadêmica, um item por linha, separados por \\n, ou string vazia>", '
+            '"experiencia_profissional": "<experiências profissionais, um item por linha, separados '
+            'por \\n, ou string vazia>", "habilidades": "<habilidades técnicas e comportamentais '
+            'separadas por vírgula, ou string vazia>"}.\n\n'
+            f"Currículo:\n{texto_curriculo}"
         )
