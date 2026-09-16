@@ -13,7 +13,16 @@ from app.web.routers import (
     vagas_router,
 )
 
+from app.core.database import Base, engine
+import app.core.persistencia.models  # noqa: F401
+
 logging.basicConfig(level=logging.INFO)
+
+# Garante que as tabelas existem no banco ao iniciar
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as erro:
+    logging.warning(f"Não foi possível executar create_all na inicialização: {erro}")
 
 app = FastAPI(title="Analisador de Currículos", version="0.1.0")
 

@@ -19,7 +19,7 @@ class AIServiceClient(ABC):
 
 
 class GeminiClient(AIServiceClient):
-    def __init__(self, api_key: str, model_name: str = "gemini-flash-latest"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3.6-flash"):
         self.api_key = api_key
         self.model_name = model_name
 
@@ -31,7 +31,7 @@ class GeminiClient(AIServiceClient):
         import google.api_core.exceptions
         import google.generativeai as genai
 
-        genai.configure(api_key=self.api_key)
+        genai.configure(api_key=self.api_key, transport="rest")
         modelo = genai.GenerativeModel(self.model_name)
         try:
             resposta = modelo.generate_content(prompt, request_options={"timeout": TIMEOUT_SEGUNDOS})
