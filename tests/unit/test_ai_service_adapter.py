@@ -72,7 +72,7 @@ def test_gemini_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
         def generate_content(self, prompt, request_options=None):
             raise google.api_core.exceptions.DeadlineExceeded("tempo esgotado")
 
-    monkeypatch.setattr(genai, "configure", lambda api_key: None)
+    monkeypatch.setattr(genai, "configure", lambda *args, **kwargs: None)
     monkeypatch.setattr(genai, "GenerativeModel", lambda model_name: ModeloFalso())
 
     cliente = GeminiClient(api_key="chave-qualquer")

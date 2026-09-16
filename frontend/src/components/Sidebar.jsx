@@ -3,6 +3,7 @@ import { lerSessao } from "../models/usuario.js";
 
 const ITENS = [
   { chave: "analise", rotulo: "Nova análise", icone: "ti-search", rota: "/analises/nova" },
+  { chave: "historico", rotulo: "Histórico", icone: "ti-history", rota: "/analises/historico" },
   { chave: "vaga", rotulo: "Cadastrar vaga", icone: "ti-briefcase", rota: "/analises/vagas/nova" },
   { chave: "curriculo", rotulo: "Currículo", icone: "ti-file-text", rota: "/analises/upload" },
   { chave: "templates", rotulo: "Templates ATS", icone: "ti-layout-grid", rota: "/templates" },
@@ -45,9 +46,6 @@ export default function Sidebar({ email, ativo }) {
             </a>
           )
         )}
-        <a href="#" className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
-          <i className="ti ti-history"></i> Histórico
-        </a>
         <a href="#" className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
           <i className="ti ti-robot"></i> ChatBOT
         </a>

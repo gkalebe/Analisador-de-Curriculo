@@ -19,7 +19,7 @@ class AIServiceClient(ABC):
 
 
 class GeminiClient(AIServiceClient):
-    def __init__(self, api_key: str, model_name: str = "gemini-flash-latest"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3.6-flash"):
         self.api_key = api_key
         self.model_name = model_name
 
@@ -31,7 +31,7 @@ class GeminiClient(AIServiceClient):
         import google.api_core.exceptions
         import google.generativeai as genai
 
-        genai.configure(api_key=self.api_key)
+        genai.configure(api_key=self.api_key, transport="rest")
         modelo = genai.GenerativeModel(self.model_name)
         try:
             resposta = modelo.generate_content(prompt, request_options={"timeout": TIMEOUT_SEGUNDOS})
@@ -105,11 +105,35 @@ class AIServiceAdapter:
 
     def _montar_prompt_comparacao(self, texto_curriculo: str, texto_vaga: str) -> str:
         return (
-            "Você é um recrutador experiente. Compare o currículo do candidato com a descrição da "
-            "vaga abaixo e responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem "
-            'markdown, no formato exato {"pontuacao": <número de 0 a 100 avaliando a aderência do '
-            'currículo à vaga>, "observacoes": "<3 a 5 frases em português explicando pontos de '
-            'encaixe, lacunas e sugestões objetivas para o candidato>"}.\n\n'
+            "Você é um especialista em recrutamento técnico e algoritmos de triagem ATS (Applicant Tracking Systems).\n"
+            "Compare o currículo do candidato com os requisitos da vaga e elabore um diagnóstico técnico de otimização ATS.\n\n"
+            "DIRETRIZES FUNDAMENTAIS DE VERACIDADE (REGRAS ESTRITAS):\n"
+            "1. NUNCA invente ferramentas, empresas, cargos, anos de experiência ou fatos não citados no currículo original.\n"
+            "2. Seu objetivo é ajudar o candidato a expressar o que ele JÁ SABE ou JÁ FEZ da melhor forma (usando verbos de ação fortes, palavras-chave precisas da vaga e quantificação de impactos).\n"
+            "3. Aponte termos técnicos da vaga que estão presentes e os que estão ausentes.\n"
+            "4. Forneça sugestões concretas de reescrita lado a lado (trecho original vs trecho otimizado para ATS).\n\n"
+            "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown extras, seguindo este formato exato:\n"
+            "{\n"
+            '  "pontuacao": <número inteiro de 0 a 100 avaliando a aderência técnica do currículo à vaga>,\n'
+            '  "resumo": "<2 a 3 frases explicando de forma transparente o critério da pontuação e o nível de alinhamento>",\n'
+            '  "observacoes": "<resumo consolidado da análise em 3 a 5 frases>",\n'
+            '  "palavras_chave": {\n'
+            '    "correspondentes": ["<termo 1>", "<termo 2>"],\n'
+            '    "ausentes": ["<termo 1>", "<termo 2>"]\n'
+            "  },\n"
+            '  "diagnostico_ats": {\n'
+            '    "pontos_fortes": ["<ponto 1>", "<ponto 2>"],\n'
+            '    "o_que_reorganizar": ["<orientação prática de destaque ou ordem>"],\n'
+            '    "o_que_retirar": ["<termos vagos, clichês ou elementos irrelevantes para cortar>"]\n'
+            "  },\n"
+            '  "sugestoes_reescrita": [\n'
+            "    {\n"
+            '      "trecho_original": "<trecho exato do currículo original que está genérico ou fraco>",\n'
+            '      "sugestao_otimizada": "<versão reescrita com verbos de ação e foco em ATS, SEM inventar fatos>",\n'
+            '      "motivo": "<por que essa versão melhora a pontuação em robôs ATS e recrutadores>"\n'
+            "    }\n"
+            "  ]\n"
+            "}\n\n"
             f"Descrição da vaga:\n{texto_vaga}\n\n"
             f"Currículo do candidato:\n{texto_curriculo}"
         )
