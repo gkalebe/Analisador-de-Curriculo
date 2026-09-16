@@ -233,7 +233,7 @@ def test_interpretar_resultado_ia_com_texto_invalido_cai_no_fallback():
     assert observacoes == "resposta que não é JSON"
 
 
-def test_analisar_curriculo_salvo_para_vaga_com_sucesso(tmp_path, monkeypatch):
+def test_analisar_curriculo_salvo_para_vaga_com_sucesso():
     service = _criar_service_completo_com_fakes()
     id_usuario = uuid.uuid4()
     vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
@@ -242,15 +242,10 @@ def test_analisar_curriculo_salvo_para_vaga_com_sucesso(tmp_path, monkeypatch):
         nome_arquivo="curriculo_salvo.pdf",
         id_usuario=id_usuario,
         status_processamento="concluido",
+        texto_extraido="Texto extraído do currículo salvo",
+        conteudo_arquivo=b"Conteudo do arquivo",
     )
     service.curriculo_repository.criar(curriculo)
-
-    diretorio = tmp_path / "storage" / "curriculos"
-    diretorio.mkdir(parents=True)
-    caminho_txt = diretorio / f"{curriculo.id_curriculo}.txt"
-    caminho_txt.write_text("Texto extraído do currículo salvo", encoding="utf-8")
-
-    monkeypatch.chdir(tmp_path)
 
     analise = service.analisar_curriculo_salvo_para_vaga(
         id_usuario=id_usuario,

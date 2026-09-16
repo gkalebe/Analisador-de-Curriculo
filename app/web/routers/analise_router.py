@@ -1,7 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
@@ -262,7 +261,7 @@ def baixar_arquivo_curriculo(
         )
 
     try:
-        caminho_arquivo, nome_arquivo = analisador_service.obter_arquivo_curriculo(usuario.id_usuario, id_curriculo)
+        conteudo_arquivo, nome_arquivo = analisador_service.obter_arquivo_curriculo(usuario.id_usuario, id_curriculo)
     except CurriculoNaoEncontradoError as erro:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -274,8 +273,9 @@ def baixar_arquivo_curriculo(
             detail="Arquivo físico do currículo não encontrado.",
         ) from erro
 
-    return FileResponse(
-        path=caminho_arquivo,
-        filename=nome_arquivo,
-        media_type="application/octet-stream",
+    media_type = "application/pdf" if nome_arquivo.lower().endswith(".pdf") else "application/octet-stream"
+    return Response(
+        content=conteudo_arquivo,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
     )
