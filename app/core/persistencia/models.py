@@ -85,3 +85,11 @@ class Analise(Base):
     curriculo: Mapped["Curriculo"] = relationship(back_populates="analises")
     vaga: Mapped["Vaga"] = relationship(back_populates="analises")
     usuario: Mapped["Usuario"] = relationship(back_populates="analises")
+
+    @property
+    def titulo_vaga(self) -> str | None:
+        return self.vaga.titulo if self.vaga else None
+
+    @property
+    def nome_curriculo(self) -> str | None:
+        return self.curriculo.nome_arquivo if self.curriculo else None

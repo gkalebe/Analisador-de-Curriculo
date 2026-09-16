@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.persistencia.models import Analise
 
@@ -17,8 +17,18 @@ class AnaliseRepository:
         return analise
 
     def buscar_por_id(self, id_analise: uuid.UUID) -> Analise | None:
-        return self.db.get(Analise, id_analise)
+        stmt = (
+            select(Analise)
+            .options(joinedload(Analise.vaga), joinedload(Analise.curriculo))
+            .where(Analise.id_analise == id_analise)
+        )
+        return self.db.execute(stmt).scalars().first()
 
     def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
-        stmt = select(Analise).where(Analise.id_usuario == id_usuario).order_by(Analise.data_analise.desc())
+        stmt = (
+            select(Analise)
+            .options(joinedload(Analise.vaga), joinedload(Analise.curriculo))
+            .where(Analise.id_usuario == id_usuario)
+            .order_by(Analise.data_analise.desc())
+        )
         return list(self.db.execute(stmt).scalars().all())

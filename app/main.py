@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI
@@ -18,13 +19,18 @@ import app.core.persistencia.models  # noqa: F401
 
 logging.basicConfig(level=logging.INFO)
 
-# Garante que as tabelas existem no banco ao iniciar
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as erro:
-    logging.warning(f"Não foi possível executar create_all na inicialização: {erro}")
 
-app = FastAPI(title="Analisador de Currículos", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        Base.metadata.create_all(bind=engine)
+        logging.info("Tabelas do banco verificadas/criadas no startup.")
+    except Exception as erro:
+        logging.error(f"Erro ao inicializar tabelas no banco: {erro}")
+    yield
+
+
+app = FastAPI(title="Analisador de Currículos", version="0.1.0", lifespan=lifespan)
 
 # Front-end agora é uma SPA em React (frontend/), servida separadamente pelo Vite em
 # desenvolvimento (http://localhost:5173). O FastAPI passa a ser só uma API JSON.
