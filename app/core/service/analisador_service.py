@@ -1,6 +1,5 @@
 import json
 import uuid
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -42,27 +41,17 @@ class AnalisadorService:
         self.ai_service_adapter = AIServiceAdapter()
         self.settings = get_settings()
 
-    def _salvar_arquivo_e_texto(
-        self, id_curriculo: uuid.UUID, nome_arquivo: str, conteudo: bytes, texto_extraido: str
-    ) -> None:
-        diretorio = Path("storage/curriculos")
-        diretorio.mkdir(parents=True, exist_ok=True)
-        caminho_arquivo = diretorio / f"{id_curriculo}_{nome_arquivo}"
-        caminho_arquivo.write_bytes(conteudo)
-        caminho_texto = diretorio / f"{id_curriculo}.txt"
-        caminho_texto.write_text(texto_extraido, encoding="utf-8")
-
     def processar_upload_curriculo(self, conteudo: bytes, nome_arquivo: str, extensao: str, id_usuario) -> dict:
         texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
 
         novo_curriculo = Curriculo(
             nome_arquivo=nome_arquivo,
             id_usuario=id_usuario,
-            status_processamento="processando",
+            status_processamento="concluido",
             texto_extraido=texto_extraido,
+            conteudo_arquivo=conteudo,
         )
         self.curriculo_repository.criar(novo_curriculo)
-        self._salvar_arquivo_e_texto(novo_curriculo.id_curriculo, nome_arquivo, conteudo, texto_extraido)
 
         return {
             "id_curriculo": str(novo_curriculo.id_curriculo),
@@ -115,9 +104,9 @@ class AnalisadorService:
             id_usuario=id_usuario,
             status_processamento="processando",
             texto_extraido=texto_curriculo,
+            conteudo_arquivo=conteudo,
         )
         self.curriculo_repository.criar(novo_curriculo)
-        self._salvar_arquivo_e_texto(novo_curriculo.id_curriculo, nome_arquivo, conteudo, texto_curriculo)
 
         resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
         pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
@@ -147,15 +136,13 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        caminho_texto = Path("storage/curriculos") / f"{curriculo.id_curriculo}.txt"
-        if caminho_texto.exists():
-            texto_curriculo = caminho_texto.read_text(encoding="utf-8")
-        else:
-            caminho_arquivo = Path("storage/curriculos") / f"{curriculo.id_curriculo}_{curriculo.nome_arquivo}"
-            if caminho_arquivo.exists():
-                conteudo = caminho_arquivo.read_bytes()
+        texto_curriculo = curriculo.texto_extraido
+        if not texto_curriculo:
+            if curriculo.conteudo_arquivo:
                 extensao = curriculo.nome_arquivo.rsplit(".", 1)[-1] if "." in curriculo.nome_arquivo else ""
-                texto_curriculo = self.curriculo_parser.extrair_texto(conteudo, extensao)
+                texto_curriculo = self.curriculo_parser.extrair_texto(curriculo.conteudo_arquivo, extensao)
+                curriculo.texto_extraido = texto_curriculo
+                self.db.commit()
             else:
                 raise CurriculoArquivoNaoEncontradoError
 
@@ -180,29 +167,23 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        caminho_texto = Path("storage/curriculos") / f"{curriculo.id_curriculo}.txt"
-        texto_extraido = None
-        if caminho_texto.exists():
-            texto_extraido = caminho_texto.read_text(encoding="utf-8")
-
         return {
             "id_curriculo": curriculo.id_curriculo,
             "nome_arquivo": curriculo.nome_arquivo,
             "data_upload": curriculo.data_upload,
             "status_processamento": curriculo.status_processamento,
-            "texto_extraido": texto_extraido,
+            "texto_extraido": curriculo.texto_extraido,
         }
 
-    def obter_arquivo_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> tuple[Path, str]:
+    def obter_arquivo_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> tuple[bytes, str]:
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        caminho_arquivo = Path("storage/curriculos") / f"{curriculo.id_curriculo}_{curriculo.nome_arquivo}"
-        if not caminho_arquivo.exists():
+        if not curriculo.conteudo_arquivo:
             raise CurriculoArquivoNaoEncontradoError
 
-        return caminho_arquivo, curriculo.nome_arquivo
+        return curriculo.conteudo_arquivo, curriculo.nome_arquivo
 
     def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
         return self.analise_repository.listar_por_usuario(id_usuario)
@@ -217,7 +198,10 @@ class AnalisadorService:
             dados = json.loads(texto)
             pontuacao_bruta = dados.get("pontuacao")
             pontuacao = float(pontuacao_bruta) if pontuacao_bruta is not None else None
-            observacoes = str(dados.get("observacoes") or resultado_ia)
+            if any(k in dados for k in ("palavras_chave", "diagnostico_ats", "sugestoes_reescrita", "resumo")):
+                observacoes = json.dumps(dados, ensure_ascii=False)
+            else:
+                observacoes = str(dados.get("observacoes") or resultado_ia)
             return pontuacao, observacoes
         except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
             return None, resultado_ia

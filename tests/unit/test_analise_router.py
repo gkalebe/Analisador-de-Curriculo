@@ -355,15 +355,13 @@ def test_obter_detalhes_curriculo_com_sucesso():
     assert dados["texto_extraido"] == "Conteudo do curriculo aqui."
 
 
-def test_baixar_arquivo_curriculo_com_sucesso(tmp_path):
+def test_baixar_arquivo_curriculo_com_sucesso():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     id_curr = uuid.uuid4()
 
-    arquivo_mock = tmp_path / "meu_curriculo.pdf"
-    arquivo_mock.write_bytes(b"%PDF-1.4 dummy pdf content")
-
-    service_falso.arquivo_curriculo = (arquivo_mock, "meu_curriculo.pdf")
+    conteudo_mock = b"%PDF-1.4 dummy pdf content"
+    service_falso.arquivo_curriculo = (conteudo_mock, "meu_curriculo.pdf")
     app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 

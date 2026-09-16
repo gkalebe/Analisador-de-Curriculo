@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI
@@ -13,9 +14,23 @@ from app.web.routers import (
     vagas_router,
 )
 
+from app.core.database import Base, engine
+import app.core.persistencia.models  # noqa: F401
+
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Analisador de Currículos", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        Base.metadata.create_all(bind=engine)
+        logging.info("Tabelas do banco verificadas/criadas no startup.")
+    except Exception as erro:
+        logging.error(f"Erro ao inicializar tabelas no banco: {erro}")
+    yield
+
+
+app = FastAPI(title="Analisador de Currículos", version="0.1.0", lifespan=lifespan)
 
 # Front-end agora é uma SPA em React (frontend/), servida separadamente pelo Vite em
 # desenvolvimento (http://localhost:5173). O FastAPI passa a ser só uma API JSON.

@@ -1,3 +1,4 @@
+import json
 import uuid
 
 import pytest
@@ -233,7 +234,7 @@ def test_interpretar_resultado_ia_com_texto_invalido_cai_no_fallback():
     assert observacoes == "resposta que não é JSON"
 
 
-def test_analisar_curriculo_salvo_para_vaga_com_sucesso(tmp_path, monkeypatch):
+def test_analisar_curriculo_salvo_para_vaga_com_sucesso():
     service = _criar_service_completo_com_fakes()
     id_usuario = uuid.uuid4()
     vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
@@ -242,15 +243,10 @@ def test_analisar_curriculo_salvo_para_vaga_com_sucesso(tmp_path, monkeypatch):
         nome_arquivo="curriculo_salvo.pdf",
         id_usuario=id_usuario,
         status_processamento="concluido",
+        texto_extraido="Texto extraído do currículo salvo",
+        conteudo_arquivo=b"Conteudo do arquivo",
     )
     service.curriculo_repository.criar(curriculo)
-
-    diretorio = tmp_path / "storage" / "curriculos"
-    diretorio.mkdir(parents=True)
-    caminho_txt = diretorio / f"{curriculo.id_curriculo}.txt"
-    caminho_txt.write_text("Texto extraído do currículo salvo", encoding="utf-8")
-
-    monkeypatch.chdir(tmp_path)
 
     analise = service.analisar_curriculo_salvo_para_vaga(
         id_usuario=id_usuario,
@@ -294,4 +290,37 @@ def test_analisar_curriculo_salvo_de_outro_usuario_lanca_erro():
             id_vaga=vaga.id_vaga,
             id_curriculo=curriculo.id_curriculo,
         )
+
+
+def test_interpretar_resultado_ia_preserva_estrutura_completa_ats():
+    service, _ = _criar_service_com_fake()
+    payload_ia = json.dumps({
+        "pontuacao": 85,
+        "resumo": "Alta compatibilidade com os requisitos técnicos.",
+        "observacoes": "Currículo bem estruturado.",
+        "palavras_chave": {
+            "correspondentes": ["Python", "FastAPI"],
+            "ausentes": ["Kubernetes"],
+        },
+        "diagnostico_ats": {
+            "pontos_fortes": ["Experiência sólida"],
+            "o_que_reorganizar": ["Mover resumo para o topo"],
+            "o_que_retirar": ["Clichês genéricos"],
+        },
+        "sugestoes_reescrita": [
+            {
+                "trecho_original": "Fiz deploy de backend",
+                "sugestao_otimizada": "Orquestrei implantações de microsserviços",
+                "motivo": "Uso de verbo de ação",
+            }
+        ],
+    })
+
+    pontuacao, observacoes = service._interpretar_resultado_ia(payload_ia)
+
+    assert pontuacao == 85.0
+    dados_interpretados = json.loads(observacoes)
+    assert dados_interpretados["pontuacao"] == 85
+    assert dados_interpretados["palavras_chave"]["correspondentes"] == ["Python", "FastAPI"]
+    assert len(dados_interpretados["sugestoes_reescrita"]) == 1
 

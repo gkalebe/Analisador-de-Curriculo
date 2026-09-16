@@ -11,6 +11,8 @@ class AnaliseResponse(BaseModel):
     pontuacao: float | None
     observacoes: str | None
     data_analise: datetime
+    titulo_vaga: str | None = None
+    nome_curriculo: str | None = None
 
     model_config = {"from_attributes": True}
 
