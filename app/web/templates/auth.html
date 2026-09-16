@@ -183,8 +183,7 @@
                 if (resposta.status === 200) {
                     localStorage.setItem('access_token', corpo.access_token);
                     localStorage.setItem('usuario_nome', corpo.usuario.nome);
-                    localStorage.setItem('usuario_email', corpo.usuario.email);
-                    window.location.href = '/painel';
+                    window.location.href = '/analises/vagas/nova?email=' + encodeURIComponent(corpo.usuario.email);
                     return;
                 }
 
