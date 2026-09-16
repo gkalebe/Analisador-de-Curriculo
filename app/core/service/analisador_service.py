@@ -198,7 +198,10 @@ class AnalisadorService:
             dados = json.loads(texto)
             pontuacao_bruta = dados.get("pontuacao")
             pontuacao = float(pontuacao_bruta) if pontuacao_bruta is not None else None
-            observacoes = str(dados.get("observacoes") or resultado_ia)
+            if any(k in dados for k in ("palavras_chave", "diagnostico_ats", "sugestoes_reescrita", "resumo")):
+                observacoes = json.dumps(dados, ensure_ascii=False)
+            else:
+                observacoes = str(dados.get("observacoes") or resultado_ia)
             return pontuacao, observacoes
         except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
             return None, resultado_ia
