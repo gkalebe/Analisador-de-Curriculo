@@ -55,6 +55,22 @@ docker compose down
 
 O serviço `frontend` compila a SPA React e a serve com Nginx. As portas são publicadas explicitamente em IPv4 para evitar travamentos do `localhost` via IPv6 no Windows/Docker Desktop.
 
+Para desenvolver com hot reload usando Docker, use o Compose de desenvolvimento:
+
+```
+docker compose -f docker-compose.dev.yml up --build
+```
+
+Nesse modo, alterações em `app/` reiniciam o Uvicorn automaticamente e alterações em `frontend/src/` atualizam pelo HMR do Vite. A aplicação fica em `http://127.0.0.1:5173`.
+
+Para parar o ambiente de desenvolvimento:
+
+```
+docker compose -f docker-compose.dev.yml down
+```
+
+O Compose padrão continua usando o build React + Nginx, sem hot reload, para simular a execução empacotada.
+
 ## Testes
 
 ```

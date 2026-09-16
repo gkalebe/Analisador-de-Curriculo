@@ -12,6 +12,18 @@ docker compose up --build
 
 A SPA ficará disponível em `http://127.0.0.1:5173`.
 
+Para desenvolvimento com hot reload dentro do Docker, execute na raiz do projeto:
+
+```
+docker compose -f docker-compose.dev.yml up --build
+```
+
+O Vite observa `frontend/src/` e o Uvicorn observa `app/`. Para parar:
+
+```
+docker compose -f docker-compose.dev.yml down
+```
+
 Para desenvolvimento isolado do frontend:
 
 ```
