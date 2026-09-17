@@ -133,10 +133,10 @@ export default function ChatBot() {
   const temRecursos = curriculosSalvos.length > 0 || vagasSalvas.length > 0;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
+    <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
       <Sidebar email={emailInicial} ativo="chatbot" />
 
-      <main className="flex-1 p-6 flex flex-col gap-6">
+      <main className="flex-1 p-6 flex flex-col gap-6 md:h-screen md:overflow-y-auto">
         <div>
           <h1 className="font-brand text-[32px] font-bold text-black">ChatBOT</h1>
           <p className="mt-1 text-lg font-semibold text-[#727272]">

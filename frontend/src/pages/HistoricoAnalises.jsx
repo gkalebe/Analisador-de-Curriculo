@@ -94,10 +94,10 @@ export default function HistoricoAnalises() {
     : 0;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
+    <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
       <Sidebar email={emailInicial} ativo="historico" />
 
-      <main className="flex-1 p-6 space-y-6 max-w-7xl">
+      <main className="flex-1 p-6 space-y-6 max-w-7xl md:h-screen md:overflow-y-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="font-brand text-[32px] font-bold text-black">Histórico de análises</h1>

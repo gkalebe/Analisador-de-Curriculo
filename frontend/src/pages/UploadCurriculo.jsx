@@ -91,10 +91,10 @@ export default function UploadCurriculo() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
+    <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
       <Sidebar email={emailInicial} ativo="curriculo" />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-6 space-y-6 md:h-screen md:overflow-y-auto">
         <div>
           <h1 className="font-brand text-[32px] font-bold text-black">Enviar currículo</h1>
           <p className="mt-1 text-lg font-semibold text-[#727272]">
