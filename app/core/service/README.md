@@ -62,6 +62,8 @@ A lista `TEMPLATES` (3 templates fixos: `moderno`, `classico`, `minimalista`, ca
 
 Erros tratados no router (`templates_router.py`): `NenhumaAnaliseEncontradaError` → `403`, `CurriculoNaoEncontradoError`/`TemplateNaoEncontradoError` → `404`, `FormatoExportacaoInvalidoError` → `400`. Testes: `tests/unit/test_template_service.py` e `tests/unit/test_templates_router.py`.
 
+**Redesign dos templates (17/09):** os 3 templates em `CurriculoExporter` foram redesenhados (marcadores de lista reais, no máximo 1 cor de destaque por template, layout sempre em coluna única) a partir de uma pesquisa sobre o que recrutadores e ATS priorizam — detalhes e fontes em `app/adapters/README.md`. Nenhuma mudança de contrato aqui: `TemplateService`/`templates_router.py` continuam iguais, só a geração visual do arquivo mudou.
+
 ## US-016 (back) — Histórico de análises e lacunas recorrentes (concluída)
 
 Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) atribuída a ele no kanban.
