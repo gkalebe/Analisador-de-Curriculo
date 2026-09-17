@@ -3,6 +3,20 @@ from abc import ABC, abstractmethod
 from app.core.config import get_settings
 
 TIMEOUT_SEGUNDOS = 30
+TEMPERATURA_PADRAO = 0.4
+
+PERSONA_ESPECIALISTA_RH = (
+    "Você é uma IA especialista sênior em Recursos Humanos, Recrutamento & Seleção e otimização de "
+    "currículos para sistemas ATS (Applicant Tracking Systems), atuando como o motor de inteligência "
+    "do sistema Analisador de Currículos. Você combina o rigor técnico de um recrutador experiente com "
+    "a didática de um mentor de carreira: suas avaliações são precisas, justas e acionáveis.\n"
+    "REGRAS INEGOCIÁVEIS:\n"
+    "- Baseie-se ESTRITA e SOMENTE nas informações fornecidas (currículo, vaga, conversa). Nunca invente "
+    "empresas, cargos, ferramentas, certificações, anos de experiência ou qualquer outro dado ausente.\n"
+    "- Seja objetivo, profissional e específico — evite generalidades vagas como 'currículo bom' ou "
+    "'precisa melhorar' sem dizer exatamente o quê e como.\n"
+    "- Responda sempre em português do Brasil.\n"
+)
 
 
 class IAConfiguracaoAusenteError(Exception):
@@ -15,7 +29,7 @@ class IAIndisponivelError(Exception):
 
 class AIServiceClient(ABC):
     @abstractmethod
-    def gerar_resposta(self, prompt: str) -> str: ...
+    def gerar_resposta(self, prompt: str, temperatura: float = TEMPERATURA_PADRAO) -> str: ...
 
 
 class GeminiClient(AIServiceClient):
@@ -23,7 +37,7 @@ class GeminiClient(AIServiceClient):
         self.api_key = api_key
         self.model_name = model_name
 
-    def gerar_resposta(self, prompt: str) -> str:
+    def gerar_resposta(self, prompt: str, temperatura: float = TEMPERATURA_PADRAO) -> str:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
                 "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
@@ -35,7 +49,11 @@ class GeminiClient(AIServiceClient):
         genai.configure(api_key=self.api_key, transport="rest")
         modelo = genai.GenerativeModel(self.model_name)
         try:
-            resposta = modelo.generate_content(prompt, request_options={"timeout": TIMEOUT_SEGUNDOS})
+            resposta = modelo.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(temperature=temperatura),
+                request_options={"timeout": TIMEOUT_SEGUNDOS},
+            )
         except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
             raise IAIndisponivelError(
                 f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
@@ -49,7 +67,7 @@ class ClaudeClient(AIServiceClient):
         self.api_key = api_key
         self.model_name = model_name
 
-    def gerar_resposta(self, prompt: str) -> str:
+    def gerar_resposta(self, prompt: str, temperatura: float = TEMPERATURA_PADRAO) -> str:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
                 "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
@@ -60,7 +78,8 @@ class ClaudeClient(AIServiceClient):
         try:
             resposta = cliente.messages.create(
                 model=self.model_name,
-                max_tokens=1024,
+                max_tokens=1536,
+                temperature=temperatura,
                 messages=[{"role": "user", "content": prompt}],
             )
         except anthropic.APIError as erro:
@@ -84,20 +103,27 @@ class AIServiceAdapter:
 
     def analisar_curriculo(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_analise(texto_curriculo)
-        return self.cliente.gerar_resposta(prompt)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
 
     def comparar_curriculo_vaga(self, texto_curriculo: str, texto_vaga: str) -> str:
         prompt = self._montar_prompt_comparacao(texto_curriculo, texto_vaga)
-        return self.cliente.gerar_resposta(prompt)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
 
     def extrair_dados_estruturados(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_extracao(texto_curriculo)
-        return self.cliente.gerar_resposta(prompt)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.2)
+
+    def responder_chat_curriculo(
+        self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str
+    ) -> str:
+        prompt = self._montar_prompt_chat(texto_curriculo, historico, pergunta)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.5)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
         return (
-            "Você é um recrutador experiente. Analise o currículo abaixo e responda ESTRITAMENTE em "
-            "JSON válido, sem nenhum texto fora do JSON e sem markdown, no formato exato "
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Analise o currículo abaixo e responda ESTRITAMENTE em JSON válido, sem nenhum "
+            "texto fora do JSON e sem markdown, no formato exato "
             '{"pontuacao": <número de 0 a 100 avaliando a qualidade geral do currículo>, '
             '"observacoes": "<3 a 5 frases em português com pontos fortes, pontos a melhorar e '
             'sugestões objetivas>"}.\n\n'
@@ -106,14 +132,17 @@ class AIServiceAdapter:
 
     def _montar_prompt_comparacao(self, texto_curriculo: str, texto_vaga: str) -> str:
         return (
-            "Você é um especialista em recrutamento técnico e algoritmos de triagem ATS (Applicant Tracking Systems).\n"
-            "Compare o currículo do candidato com os requisitos da vaga e elabore um diagnóstico técnico de otimização ATS.\n\n"
-            "DIRETRIZES FUNDAMENTAIS DE VERACIDADE (REGRAS ESTRITAS):\n"
-            "1. NUNCA invente ferramentas, empresas, cargos, anos de experiência ou fatos não citados no currículo original.\n"
-            "2. Seu objetivo é ajudar o candidato a expressar o que ele JÁ SABE ou JÁ FEZ da melhor forma (usando verbos de ação fortes, palavras-chave precisas da vaga e quantificação de impactos).\n"
-            "3. Aponte termos técnicos da vaga que estão presentes e os que estão ausentes.\n"
-            "4. Forneça sugestões concretas de reescrita lado a lado (trecho original vs trecho otimizado para ATS).\n\n"
-            "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown extras, seguindo este formato exato:\n"
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Compare o currículo do candidato com os requisitos da vaga e elabore um diagnóstico "
+            "técnico de otimização ATS.\n\n"
+            "DIRETRIZES ADICIONAIS:\n"
+            "1. Seu objetivo é ajudar o candidato a expressar o que ele JÁ SABE ou JÁ FEZ da melhor forma "
+            "(usando verbos de ação fortes, palavras-chave precisas da vaga e quantificação de impactos).\n"
+            "2. Aponte termos técnicos da vaga que estão presentes e os que estão ausentes.\n"
+            "3. Forneça sugestões concretas de reescrita lado a lado (trecho original vs trecho "
+            "otimizado para ATS).\n\n"
+            "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
+            "extras, seguindo este formato exato:\n"
             "{\n"
             '  "pontuacao": <número inteiro de 0 a 100 avaliando a aderência técnica do currículo à vaga>,\n'
             '  "resumo": "<2 a 3 frases explicando de forma transparente o critério da pontuação e o nível de alinhamento>",\n'
@@ -141,8 +170,9 @@ class AIServiceAdapter:
 
     def _montar_prompt_extracao(self, texto_curriculo: str) -> str:
         return (
-            "Você é um assistente de RH. A partir do texto de currículo abaixo, extraia os dados em "
-            "JSON válido, sem nenhum texto fora do JSON e sem markdown, no formato exato "
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: A partir do texto de currículo abaixo, extraia os dados em JSON válido, sem nenhum "
+            "texto fora do JSON e sem markdown, no formato exato "
             '{"nome": "<nome completo ou string vazia>", "email": "<e-mail ou string vazia>", '
             '"telefone": "<telefone ou string vazia>", "resumo": "<2 a 3 frases de resumo profissional>", '
             '"formacao": "<formação acadêmica, um item por linha, separados por \\n, ou string vazia>", '
@@ -150,4 +180,22 @@ class AIServiceAdapter:
             'por \\n, ou string vazia>", "habilidades": "<habilidades técnicas e comportamentais '
             'separadas por vírgula, ou string vazia>"}.\n\n'
             f"Currículo:\n{texto_curriculo}"
+        )
+
+    def _montar_prompt_chat(self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str) -> str:
+        linhas_historico = "\n".join(
+            f"{'Candidato' if autor == 'usuario' else 'Assistente'}: {conteudo}" for autor, conteudo in historico
+        )
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Converse diretamente com o candidato dono do currículo abaixo, tirando dúvidas e "
+            "dando orientações de carreira baseadas nesse currículo. Responda de forma direta, objetiva "
+            "e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
+            "REGRAS ADICIONAIS:\n"
+            "1. Se a pergunta não tiver relação com o currículo ou a carreira do candidato, explique "
+            "educadamente que você só pode ajudar com isso.\n"
+            "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
+            f"Currículo do candidato:\n{texto_curriculo}\n\n"
+            f"Conversa até aqui:\n{linhas_historico or '(nenhuma mensagem anterior)'}\n\n"
+            f"Nova pergunta do candidato: {pergunta}"
         )
