@@ -1,4 +1,4 @@
-import { requisitar, requisitarComArquivo, API_URL } from "./client.js";
+import { requisitar, requisitarArquivo, requisitarComArquivo, API_URL } from "./client.js";
 
 export function enviarCurriculo(email, file) {
   const formData = new FormData();
@@ -19,5 +19,9 @@ export function obterUrlDownloadCurriculo(idCurriculo, email) {
   const url = new URL(`/analises/curriculos/${idCurriculo}/download`, API_URL);
   url.searchParams.set("email", email);
   return url.toString();
+}
+
+export function baixarArquivoCurriculo(idCurriculo, email) {
+  return requisitarArquivo(`/analises/curriculos/${idCurriculo}/download`, { params: { email } });
 }
 

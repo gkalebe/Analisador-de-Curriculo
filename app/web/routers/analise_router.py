@@ -273,9 +273,11 @@ def baixar_arquivo_curriculo(
             detail="Arquivo físico do currículo não encontrado.",
         ) from erro
 
-    media_type = "application/pdf" if nome_arquivo.lower().endswith(".pdf") else "application/octet-stream"
+    eh_pdf = nome_arquivo.lower().endswith(".pdf")
+    media_type = "application/pdf" if eh_pdf else "application/octet-stream"
+    disposicao = "inline" if eh_pdf else "attachment"
     return Response(
         content=conteudo_arquivo,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+        headers={"Content-Disposition": f'{disposicao}; filename="{nome_arquivo}"'},
     )
