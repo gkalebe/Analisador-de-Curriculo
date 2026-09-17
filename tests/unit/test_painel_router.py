@@ -2,7 +2,7 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from app.core.persistencia.models import Usuario
+from app.core.persistencia.models.usuario import Usuario
 from app.main import app
 from app.web.routers.painel_router import get_plano_service, get_usuario_repository
 

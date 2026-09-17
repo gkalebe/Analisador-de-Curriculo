@@ -3,7 +3,9 @@ import uuid
 
 import pytest
 
-from app.core.persistencia.models import Analise, Curriculo, Vaga
+from app.core.persistencia.models.analise import Analise
+from app.core.persistencia.models.curriculo import Curriculo
+from app.core.persistencia.models.vaga import Vaga
 from app.core.service.analisador_service import (
     AnalisadorService,
     CurriculoNaoEncontradoError,

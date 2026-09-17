@@ -11,7 +11,7 @@ Sprint 0: participação no kickoff técnico coletivo (repositório, estrutura d
 
 Você entrou já na Sprint 1 assumindo a fatia que seria de Carlos (US-004 + apoio de infraestrutura); Carlos volta a partir da Sprint 2 com o que já estava previsto para ele, sem nenhuma outra mudança no plano.
 
-A migração inicial do Alembic (`alembic revision --autogenerate -m "..."` a partir de `core/persistencia/models.py`, que já está completo) e a validação do `docker-compose.yml`/CI são a sua entrega de infraestrutura desta sprint — sem elas, ninguém do time consegue rodar migração real contra o Postgres em nuvem.
+A migração inicial do Alembic (`alembic revision --autogenerate -m "..."` a partir de `core/persistencia/models/`, que já está completo) e a validação do `docker-compose.yml`/CI são a sua entrega de infraestrutura desta sprint — sem elas, ninguém do time consegue rodar migração real contra o Postgres em nuvem.
 
 ## Sprint 2 (Semanas 3-4)
 

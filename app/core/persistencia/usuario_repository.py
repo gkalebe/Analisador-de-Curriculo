@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.persistencia.models import Usuario
+from app.core.persistencia.models.usuario import Usuario
 
 
 class UsuarioRepository:

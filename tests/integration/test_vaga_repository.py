@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 from app.core.database import Base
-from app.core.persistencia.models import Usuario, Vaga
+from app.core.persistencia.models.usuario import Usuario
+from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
 
 

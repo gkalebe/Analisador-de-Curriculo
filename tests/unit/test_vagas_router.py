@@ -3,7 +3,8 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
-from app.core.persistencia.models import Usuario, Vaga
+from app.core.persistencia.models.usuario import Usuario
+from app.core.persistencia.models.vaga import Vaga
 from app.core.service.analisador_service import (
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,

@@ -3,7 +3,8 @@ import uuid
 import pytest
 
 from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
-from app.core.persistencia.models import Analise, Curriculo
+from app.core.persistencia.models.analise import Analise
+from app.core.persistencia.models.curriculo import Curriculo
 from app.core.service.template_service import (
     TEMPLATES,
     CurriculoNaoEncontradoError,

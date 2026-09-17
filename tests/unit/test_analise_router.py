@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.adapters.curriculo_parser.curriculo_parser import FormatoNaoSuportadoError
-from app.core.persistencia.models import Usuario
+from app.core.persistencia.models.usuario import Usuario
 from app.core.service.analisador_service import (
     CurriculoNaoEncontradoError,
     VagaNaoEncontradaError,

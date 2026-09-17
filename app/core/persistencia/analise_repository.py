@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.persistencia.models import Analise
+from app.core.persistencia.models.analise import Analise
 
 
 class AnaliseRepository:

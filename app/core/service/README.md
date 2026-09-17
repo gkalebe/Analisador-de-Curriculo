@@ -32,7 +32,7 @@ Referência de critérios de aceite (DADO/QUANDO/ENTÃO) por US: Levantamento de
 
 ## US-003 — Recuperar senha via e-mail (concluída)
 
-`AuthService` ganhou `solicitar_recuperacao_senha(email)` e `redefinir_senha(token, nova_senha)`, além das exceções `TokenRecuperacaoInvalidoError` e `UsuarioNaoEncontradoError`. Abordagem escolhida: token assinado (JWT, `python-jose`, expira em `password_reset_expire_minutes` — configurável em `app/core/config.py`) em vez de gravar um campo novo em `models.py`. Isso evita mexer no schema (área sensível, ver Plano de Ação Seção 1.4) e mantém a validação sem estado — quem quiser trocar por token opaco persistido no banco mais adiante, avise o time antes de alterar `Usuario`.
+`AuthService` ganhou `solicitar_recuperacao_senha(email)` e `redefinir_senha(token, nova_senha)`, além das exceções `TokenRecuperacaoInvalidoError` e `UsuarioNaoEncontradoError`. Abordagem escolhida: token assinado (JWT, `python-jose`, expira em `password_reset_expire_minutes` — configurável em `app/core/config.py`) em vez de gravar um campo novo em `models/`. Isso evita mexer no schema (área sensível, ver Plano de Ação Seção 1.4) e mantém a validação sem estado — quem quiser trocar por token opaco persistido no banco mais adiante, avise o time antes de alterar `Usuario`.
 
 Provedor de e-mail transacional definido: SendGrid (`app/adapters/email/`), com fallback para SMTP puro ou log local quando `SENDGRID_API_KEY` não está configurada.
 

@@ -7,7 +7,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
 from app.core.persistencia.curriculo_repository import CurriculoRepository
-from app.core.persistencia.models import Curriculo, Usuario
+from app.core.persistencia.models.curriculo import Curriculo
+from app.core.persistencia.models.usuario import Usuario
 
 
 @pytest.fixture

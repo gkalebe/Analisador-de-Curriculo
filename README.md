@@ -109,7 +109,7 @@ Cada pasta abaixo tem seu próprio `README.md` com a tabela de quem implementa o
 - [`app/core/persistencia/README.md`](app/core/persistencia/README.md)
 - [`app/adapters/README.md`](app/adapters/README.md)
 
-A Sprint 0 entregou só a estrutura: assinatura de classes e métodos, `models.py` completo (é o schema já acordado no Documento de Arquitetura, não lógica de negócio) e o wiring entre camadas. Os métodos de repositório e as implementações dos adapters propositalmente lançavam `NotImplementedError` — implementar isso é o trabalho de cada US nas Sprints 1 a 4; várias US já foram implementadas desde então (ver os READMEs de cada pasta).
+A Sprint 0 entregou só a estrutura: assinatura de classes e métodos, os models ORM completos (o schema já acordado no Documento de Arquitetura, não lógica de negócio) e o wiring entre camadas. Os métodos de repositório e as implementações dos adapters propositalmente lançavam `NotImplementedError` — implementar isso é o trabalho de cada US nas Sprints 1 a 4; várias US já foram implementadas desde então (ver os READMEs de cada pasta).
 
 ## Fluxo de contribuição
 
