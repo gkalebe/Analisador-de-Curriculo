@@ -78,6 +78,10 @@ pytest
 ruff check .
 ```
 
+## Dependências
+
+`requirements.txt` passa por auditoria periódica: cada biblioteca listada precisa estar de fato em uso (import direto) ou ser um requisito real de outra que está (ex.: `python-multipart` para `UploadFile`/`File` do FastAPI, `email-validator` para `EmailStr` do Pydantic, `python-dotenv` para o `env_file` do `pydantic-settings`). Em 17/09, `jinja2` foi removida — sobrava de antes da migração para a SPA React, sem nenhum router ou template usando Jinja2 há tempos (`app/web/README.md` já registrava isso como obsoleto). O front (`frontend/package.json`) já estava enxuto: `react`, `react-dom`, `react-router-dom` e as duas devDependencies do Vite, todas em uso.
+
 ## Estrutura de pastas
 
 ```
