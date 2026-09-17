@@ -11,6 +11,7 @@ import NovaAnalise from "./pages/NovaAnalise.jsx";
 import HistoricoAnalises from "./pages/HistoricoAnalises.jsx";
 import GaleriaTemplates from "./pages/GaleriaTemplates.jsx";
 import PreviewExportarCurriculo from "./pages/PreviewExportarCurriculo.jsx";
+import ChatBot from "./pages/ChatBot.jsx";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
       <Route path="/analises/historico" element={<HistoricoAnalises />} />
       <Route path="/analises/vagas/nova" element={<NovaVaga />} />
       <Route path="/analises/upload" element={<UploadCurriculo />} />
+      <Route path="/analises/chat" element={<ChatBot />} />
       <Route path="/templates" element={<GaleriaTemplates />} />
       <Route path="/templates/exportar" element={<PreviewExportarCurriculo />} />
     </Routes>

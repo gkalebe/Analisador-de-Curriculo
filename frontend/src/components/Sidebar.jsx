@@ -7,6 +7,7 @@ const ITENS = [
   { chave: "vaga", rotulo: "Cadastrar vaga", icone: "ti-briefcase", rota: "/analises/vagas/nova" },
   { chave: "curriculo", rotulo: "Currículo", icone: "ti-file-text", rota: "/analises/upload" },
   { chave: "templates", rotulo: "Templates ATS", icone: "ti-layout-grid", rota: "/templates" },
+  { chave: "chatbot", rotulo: "ChatBOT", icone: "ti-robot", rota: "/analises/chat" },
 ];
 
 export default function Sidebar({ email, ativo }) {
@@ -46,9 +47,6 @@ export default function Sidebar({ email, ativo }) {
             </a>
           )
         )}
-        <a href="#" className="flex items-center gap-3 rounded-lg px-3 py-3 font-brand text-lg text-white/90 hover:bg-white/5">
-          <i className="ti ti-robot"></i> ChatBOT
-        </a>
       </nav>
 
       <div className="mt-auto flex flex-col gap-3">

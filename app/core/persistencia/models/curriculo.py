@@ -11,6 +11,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from .analise import Analise
     from .candidato import Candidato
+    from .mensagem_chat import MensagemChat
     from .usuario import Usuario
 
 
@@ -30,3 +31,6 @@ class Curriculo(Base):
         back_populates="curriculo", uselist=False, cascade="all, delete-orphan"
     )
     analises: Mapped[list["Analise"]] = relationship(back_populates="curriculo", cascade="all, delete-orphan")
+    mensagens_chat: Mapped[list["MensagemChat"]] = relationship(
+        back_populates="curriculo", cascade="all, delete-orphan"
+    )
