@@ -30,12 +30,13 @@ class GeminiClient(AIServiceClient):
             )
         import google.api_core.exceptions
         import google.generativeai as genai
+        import requests.exceptions
 
         genai.configure(api_key=self.api_key, transport="rest")
         modelo = genai.GenerativeModel(self.model_name)
         try:
             resposta = modelo.generate_content(prompt, request_options={"timeout": TIMEOUT_SEGUNDOS})
-        except google.api_core.exceptions.GoogleAPICallError as erro:
+        except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
             raise IAIndisponivelError(
                 f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
                 "Tente novamente em instantes."
