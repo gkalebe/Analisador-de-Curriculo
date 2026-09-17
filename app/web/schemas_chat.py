@@ -7,6 +7,8 @@ from pydantic import BaseModel, EmailStr, Field
 class ChatMensagemRequest(BaseModel):
     email: EmailStr
     pergunta: str = Field(min_length=1)
+    id_curriculo: uuid.UUID | None = None
+    id_vaga: uuid.UUID | None = None
 
 
 class MensagemChatResponse(BaseModel):
@@ -14,6 +16,8 @@ class MensagemChatResponse(BaseModel):
     autor: str
     conteudo: str
     data_envio: datetime
+    id_curriculo: uuid.UUID | None = None
+    id_vaga: uuid.UUID | None = None
 
     model_config = {"from_attributes": True}
 

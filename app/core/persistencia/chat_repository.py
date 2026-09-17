@@ -16,10 +16,28 @@ class ChatRepository:
         self.db.refresh(mensagem)
         return mensagem
 
-    def listar_por_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> list[MensagemChat]:
-        stmt = (
-            select(MensagemChat)
-            .where(MensagemChat.id_usuario == id_usuario, MensagemChat.id_curriculo == id_curriculo)
-            .order_by(MensagemChat.data_envio.asc())
-        )
+    def listar(
+        self,
+        id_usuario: uuid.UUID,
+        id_curriculo: uuid.UUID | None = None,
+        id_vaga: uuid.UUID | None = None,
+    ) -> list[MensagemChat]:
+        condicoes = [MensagemChat.id_usuario == id_usuario]
+        if id_curriculo is not None and id_vaga is not None:
+            condicoes.append(MensagemChat.id_curriculo == id_curriculo)
+            condicoes.append(MensagemChat.id_vaga == id_vaga)
+        elif id_curriculo is not None:
+            condicoes.append(MensagemChat.id_curriculo == id_curriculo)
+            condicoes.append(MensagemChat.id_vaga.is_(None))
+        elif id_vaga is not None:
+            condicoes.append(MensagemChat.id_vaga == id_vaga)
+            condicoes.append(MensagemChat.id_curriculo.is_(None))
+
+        stmt = select(MensagemChat).where(*condicoes).order_by(MensagemChat.data_envio.asc())
         return list(self.db.execute(stmt).scalars().all())
+
+    def listar_por_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> list[MensagemChat]:
+        return self.listar(id_usuario, id_curriculo=id_curriculo, id_vaga=None)
+
+    def listar_por_vaga(self, id_usuario: uuid.UUID, id_vaga: uuid.UUID) -> list[MensagemChat]:
+        return self.listar(id_usuario, id_curriculo=None, id_vaga=id_vaga)

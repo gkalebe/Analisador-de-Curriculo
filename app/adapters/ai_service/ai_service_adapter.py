@@ -113,11 +113,20 @@ class AIServiceAdapter:
         prompt = self._montar_prompt_extracao(texto_curriculo)
         return self.cliente.gerar_resposta(prompt, temperatura=0.2)
 
+    def responder_chat(
+        self,
+        texto_curriculo: str | None,
+        historico: list[tuple[str, str]],
+        pergunta: str,
+        texto_vaga: str | None = None,
+    ) -> str:
+        prompt = self._montar_prompt_chat(texto_curriculo, historico, pergunta, texto_vaga=texto_vaga)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.5)
+
     def responder_chat_curriculo(
         self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str
     ) -> str:
-        prompt = self._montar_prompt_chat(texto_curriculo, historico, pergunta)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.5)
+        return self.responder_chat(texto_curriculo, historico, pergunta, texto_vaga=None)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
         return (
@@ -182,20 +191,62 @@ class AIServiceAdapter:
             f"Currículo:\n{texto_curriculo}"
         )
 
-    def _montar_prompt_chat(self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str) -> str:
+    def _montar_prompt_chat(
+        self,
+        texto_curriculo: str | None,
+        historico: list[tuple[str, str]],
+        pergunta: str,
+        texto_vaga: str | None = None,
+    ) -> str:
         linhas_historico = "\n".join(
             f"{'Candidato' if autor == 'usuario' else 'Assistente'}: {conteudo}" for autor, conteudo in historico
         )
-        return (
-            f"{PERSONA_ESPECIALISTA_RH}\n"
-            "TAREFA: Converse diretamente com o candidato dono do currículo abaixo, tirando dúvidas e "
-            "dando orientações de carreira baseadas nesse currículo. Responda de forma direta, objetiva "
-            "e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
-            "REGRAS ADICIONAIS:\n"
-            "1. Se a pergunta não tiver relação com o currículo ou a carreira do candidato, explique "
-            "educadamente que você só pode ajudar com isso.\n"
-            "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
-            f"Currículo do candidato:\n{texto_curriculo}\n\n"
+        historico_formatado = (
             f"Conversa até aqui:\n{linhas_historico or '(nenhuma mensagem anterior)'}\n\n"
             f"Nova pergunta do candidato: {pergunta}"
         )
+
+        if texto_curriculo and texto_vaga:
+            return (
+                f"{PERSONA_ESPECIALISTA_RH}\n"
+                "TAREFA: Converse diretamente com o candidato dono do currículo abaixo sobre a vaga de "
+                "interesse informada. Oriente-o de forma personalizada correlacionando o perfil dele com os "
+                "requisitos e qualificações da vaga. Aponte pontos fortes, competências ausentes ou que precisam "
+                "ser desenvolvidas, sugestões de como destacar suas experiências para esta vaga específica e "
+                "possíveis perguntas técnicas e comportamentais que ele poderá enfrentar no processo seletivo.\n"
+                "Responda de forma direta, encorajadora, objetiva e natural, como em uma conversa de chat.\n\n"
+                "REGRAS ADICIONAIS:\n"
+                "1. Se a pergunta não tiver relação com o currículo, a vaga selecionada ou a carreira do candidato, "
+                "explique educadamente que você só pode orientar sobre esta oportunidade e a preparação profissional dele.\n"
+                "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos de código markdown desnecessários.\n\n"
+                f"Currículo do candidato:\n{texto_curriculo}\n\n"
+                f"Vaga de interesse:\n{texto_vaga}\n\n"
+                f"{historico_formatado}"
+            )
+        elif texto_vaga:
+            return (
+                f"{PERSONA_ESPECIALISTA_RH}\n"
+                "TAREFA: Converse diretamente com o candidato tirando dúvidas sobre a vaga de emprego cadastrada abaixo. "
+                "Esclareça o perfil ideal exigido pela empresa, os principais requisitos e tecnologias, responsabilidades "
+                "do cargo e forneça dicas estratégicas de como o candidato deve se preparar para o processo seletivo dessa vaga.\n"
+                "Responda de forma direta, objetiva e natural, como em uma conversa de chat.\n\n"
+                "REGRAS ADICIONAIS:\n"
+                "1. Se a pergunta não tiver relação com a vaga cadastrada ou processos seletivos nessa área, explique "
+                "educadamente que você está disponível para tirar dúvidas sobre essa oportunidade de carreira.\n"
+                "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown desnecessários.\n\n"
+                f"Vaga cadastrada:\n{texto_vaga}\n\n"
+                f"{historico_formatado}"
+            )
+        else:
+            return (
+                f"{PERSONA_ESPECIALISTA_RH}\n"
+                "TAREFA: Converse diretamente com o candidato dono do currículo abaixo, tirando dúvidas e "
+                "dando orientações de carreira baseadas nesse currículo. Responda de forma direta, objetiva "
+                "e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
+                "REGRAS ADICIONAIS:\n"
+                "1. Se a pergunta não tiver relação com o currículo ou a carreira do candidato, explique "
+                "educadamente que você só pode ajudar com isso.\n"
+                "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
+                f"Currículo do candidato:\n{texto_curriculo or ''}\n\n"
+                f"{historico_formatado}"
+            )

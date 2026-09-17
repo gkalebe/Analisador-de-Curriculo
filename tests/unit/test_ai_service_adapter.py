@@ -15,7 +15,7 @@ class AIServiceClientFalso:
         self.resposta = resposta
         self.prompts_recebidos: list[str] = []
 
-    def gerar_resposta(self, prompt: str) -> str:
+    def gerar_resposta(self, prompt: str, **kwargs) -> str:
         self.prompts_recebidos.append(prompt)
         return self.resposta
 
@@ -59,10 +59,10 @@ def test_gemini_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
     import google.generativeai as genai
 
     class ModeloFalso:
-        def generate_content(self, prompt, request_options=None):
+        def generate_content(self, prompt, **kwargs):
             raise google.api_core.exceptions.DeadlineExceeded("tempo esgotado")
 
-    monkeypatch.setattr(genai, "configure", lambda api_key: None)
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
     monkeypatch.setattr(genai, "GenerativeModel", lambda model_name: ModeloFalso())
 
     cliente = GeminiClient(api_key="chave-qualquer")
@@ -75,7 +75,7 @@ def test_claude_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
     import anthropic
 
     class MensagensFalso:
-        def create(self, model, max_tokens, messages):
+        def create(self, model, max_tokens, messages, **kwargs):
             requisicao_falsa = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
             raise anthropic.APIError("tempo esgotado", request=requisicao_falsa, body=None)
 
