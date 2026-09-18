@@ -1,4 +1,5 @@
 import logging
+import time
 from abc import ABC, abstractmethod
 
 from app.core.config import get_settings
@@ -7,6 +8,8 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 30
 TEMPERATURA_PADRAO = 0.4
+MAX_TENTATIVAS_GEMINI = 2
+ESPERA_ENTRE_TENTATIVAS_SEGUNDOS = 2
 
 PERSONA_ESPECIALISTA_RH = (
     "Você é uma IA especialista sênior em Recursos Humanos, Recrutamento & Seleção e otimização de "
@@ -59,19 +62,45 @@ class GeminiClient(AIServiceClient):
 
         genai.configure(api_key=self.api_key, transport="rest")
         modelo = genai.GenerativeModel(self.model_name)
-        try:
-            resposta = modelo.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(temperature=temperatura),
-                request_options={"timeout": TIMEOUT_SEGUNDOS, "retry": None},
-            )
-        except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
-            logger.error("Falha ao chamar a API do Gemini: %r", erro, exc_info=True)
-            raise IAIndisponivelError(
-                f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
-                "Tente novamente em instantes."
-            ) from erro
-        return resposta.text
+
+        ultimo_erro: Exception | None = None
+        for tentativa in range(1, MAX_TENTATIVAS_GEMINI + 1):
+            try:
+                resposta = modelo.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(temperature=temperatura),
+                    request_options={"timeout": TIMEOUT_SEGUNDOS, "retry": None},
+                )
+                return resposta.text
+            except (
+                google.api_core.exceptions.ServiceUnavailable,
+                google.api_core.exceptions.TooManyRequests,
+            ) as erro:
+                # Erros transitórios de sobrecarga momentânea do modelo: vale uma nova tentativa rápida.
+                ultimo_erro = erro
+                logger.warning(
+                    "Gemini indisponível (tentativa %d/%d): %r", tentativa, MAX_TENTATIVAS_GEMINI, erro
+                )
+                if tentativa < MAX_TENTATIVAS_GEMINI:
+                    time.sleep(ESPERA_ENTRE_TENTATIVAS_SEGUNDOS)
+            except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
+                # Demais erros (chave inválida, rede fora do ar etc.) não se beneficiam de retry: falha já.
+                logger.error("Falha ao chamar a API do Gemini: %r", erro, exc_info=True)
+                raise IAIndisponivelError(
+                    f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
+                    "Tente novamente em instantes."
+                ) from erro
+
+        logger.error(
+            "Falha ao chamar a API do Gemini após %d tentativas: %r",
+            MAX_TENTATIVAS_GEMINI,
+            ultimo_erro,
+            exc_info=True,
+        )
+        raise IAIndisponivelError(
+            f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
+            "Tente novamente em instantes."
+        ) from ultimo_erro
 
 
 class ClaudeClient(AIServiceClient):

@@ -71,6 +71,64 @@ def test_gemini_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
         cliente.gerar_resposta("prompt qualquer")
 
 
+def test_gemini_client_tenta_novamente_e_recupera_apos_indisponibilidade_transitoria(monkeypatch):
+    import google.api_core.exceptions
+    import google.generativeai as genai
+
+    from app.adapters.ai_service import ai_service_adapter
+
+    class RespostaFalsa:
+        text = '{"pontuacao": 90, "observacoes": "ok"}'
+
+    class ModeloFalso:
+        def __init__(self):
+            self.chamadas = 0
+
+        def generate_content(self, prompt, **kwargs):
+            self.chamadas += 1
+            if self.chamadas == 1:
+                raise google.api_core.exceptions.ServiceUnavailable("modelo sobrecarregado")
+            return RespostaFalsa()
+
+    modelo_falso = ModeloFalso()
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", lambda model_name: modelo_falso)
+    monkeypatch.setattr(ai_service_adapter.time, "sleep", lambda segundos: None)
+
+    cliente = GeminiClient(api_key="chave-qualquer")
+    resultado = cliente.gerar_resposta("prompt qualquer")
+
+    assert resultado == RespostaFalsa.text
+    assert modelo_falso.chamadas == 2
+
+
+def test_gemini_client_lanca_ia_indisponivel_apos_esgotar_tentativas_de_indisponibilidade(monkeypatch):
+    import google.api_core.exceptions
+    import google.generativeai as genai
+
+    from app.adapters.ai_service import ai_service_adapter
+
+    class ModeloFalso:
+        def __init__(self):
+            self.chamadas = 0
+
+        def generate_content(self, prompt, **kwargs):
+            self.chamadas += 1
+            raise google.api_core.exceptions.ServiceUnavailable("modelo sobrecarregado")
+
+    modelo_falso = ModeloFalso()
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", lambda model_name: modelo_falso)
+    monkeypatch.setattr(ai_service_adapter.time, "sleep", lambda segundos: None)
+
+    cliente = GeminiClient(api_key="chave-qualquer")
+
+    with pytest.raises(IAIndisponivelError):
+        cliente.gerar_resposta("prompt qualquer")
+
+    assert modelo_falso.chamadas == ai_service_adapter.MAX_TENTATIVAS_GEMINI
+
+
 def test_claude_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(monkeypatch):
     import anthropic
 
