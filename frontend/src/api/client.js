@@ -1,4 +1,8 @@
-export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const urlOriginal = import.meta.env.VITE_API_URL || "http://localhost:8000";
+export const API_URL =
+  urlOriginal && !urlOriginal.startsWith("http://") && !urlOriginal.startsWith("https://")
+    ? `https://${urlOriginal}`
+    : urlOriginal;
 
 export class ApiError extends Error {
   constructor(status, body) {

@@ -26,6 +26,15 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     sendgrid_api_key: str = ""
 
+    @property
+    def database_url_resolvida(self) -> str:
+        url = self.database_url
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+psycopg2://", 1)
+        if url.startswith("postgresql://") and not url.startswith("postgresql+psycopg2://"):
+            return url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        return url
+
 
 @lru_cache
 def get_settings() -> Settings:

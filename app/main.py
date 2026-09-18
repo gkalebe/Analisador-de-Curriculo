@@ -37,8 +37,8 @@ app = FastAPI(title="Analisador de Currículos", version="0.1.0", lifespan=lifes
 # desenvolvimento (http://localhost:5173). O FastAPI passa a ser só uma API JSON.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
