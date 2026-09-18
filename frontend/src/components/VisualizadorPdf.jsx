@@ -11,11 +11,15 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 const ESCALA_RENDERIZACAO = 1.4;
 
 /**
- * Renderiza o PDF original do currículo em canvases próprios (via pdfjs-dist),
- * em vez de delegar ao visualizador nativo do navegador (iframe/embed) — mantém
- * o conteúdo fiel ao arquivo enviado, dentro do design do site.
+ * Renderiza um PDF em canvases próprios (via pdfjs-dist), em vez de delegar ao
+ * visualizador nativo do navegador (iframe/embed) — mantém o conteúdo fiel ao
+ * arquivo, dentro do design do site.
+ *
+ * Aceita duas formas de fornecer o PDF: passe `blob` quando o arquivo já foi
+ * baixado/gerado (ex.: preview de exportação de template), ou `idCurriculo` +
+ * `email` para buscar o currículo original salvo do usuário.
  */
-export default function VisualizadorPdf({ idCurriculo, email }) {
+export default function VisualizadorPdf({ idCurriculo, email, blob }) {
   const containerRef = useRef(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -31,8 +35,8 @@ export default function VisualizadorPdf({ idCurriculo, email }) {
       if (containerRef.current) containerRef.current.innerHTML = "";
 
       try {
-        const { blob } = await baixarArquivoCurriculo(idCurriculo, email);
-        const dados = await blob.arrayBuffer();
+        const blobPdf = blob || (await baixarArquivoCurriculo(idCurriculo, email)).blob;
+        const dados = await blobPdf.arrayBuffer();
         if (cancelado) return;
 
         documentoPdf = await pdfjsLib.getDocument({ data: dados }).promise;
@@ -107,7 +111,7 @@ export default function VisualizadorPdf({ idCurriculo, email }) {
 
       if (containerRef.current) containerRef.current.innerHTML = "";
     };
-  }, [idCurriculo, email]);
+  }, [idCurriculo, email, blob]);
 
   return (
     <div className="w-full p-4">

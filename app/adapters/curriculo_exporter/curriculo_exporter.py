@@ -1,4 +1,5 @@
 import io
+import re
 
 import docx
 from docx.oxml import OxmlElement
@@ -32,7 +33,7 @@ class CurriculoExporter:
     sempre em preto/cinza escuro).
     """
 
-    TEMPLATES_SUPORTADOS = {"moderno", "classico", "minimalista"}
+    TEMPLATES_SUPORTADOS = {"moderno", "classico", "minimalista", "executivo", "criativo"}
 
     def gerar_pdf(self, dados: dict, id_template: str) -> bytes:
         self._validar_template(id_template)
@@ -41,23 +42,27 @@ class CurriculoExporter:
         pdf.set_auto_page_break(auto=True, margin=18)
         pdf.set_margins(18, 16, 18)
         pdf.add_page()
-        if id_template == "moderno":
-            self._renderizar_pdf_moderno(pdf, dados_seguros)
-        elif id_template == "classico":
-            self._renderizar_pdf_classico(pdf, dados_seguros)
-        else:
-            self._renderizar_pdf_minimalista(pdf, dados_seguros)
+        renderizadores_pdf = {
+            "moderno": self._renderizar_pdf_moderno,
+            "classico": self._renderizar_pdf_classico,
+            "minimalista": self._renderizar_pdf_minimalista,
+            "executivo": self._renderizar_pdf_executivo,
+            "criativo": self._renderizar_pdf_criativo,
+        }
+        renderizadores_pdf[id_template](pdf, dados_seguros)
         return bytes(pdf.output())
 
     def gerar_docx(self, dados: dict, id_template: str) -> bytes:
         self._validar_template(id_template)
         documento = docx.Document()
-        if id_template == "moderno":
-            self._renderizar_docx_moderno(documento, dados)
-        elif id_template == "classico":
-            self._renderizar_docx_classico(documento, dados)
-        else:
-            self._renderizar_docx_minimalista(documento, dados)
+        renderizadores_docx = {
+            "moderno": self._renderizar_docx_moderno,
+            "classico": self._renderizar_docx_classico,
+            "minimalista": self._renderizar_docx_minimalista,
+            "executivo": self._renderizar_docx_executivo,
+            "criativo": self._renderizar_docx_criativo,
+        }
+        renderizadores_docx[id_template](documento, dados)
         buffer = io.BytesIO()
         documento.save(buffer)
         return buffer.getvalue()
@@ -86,7 +91,22 @@ class CurriculoExporter:
         }
         for original, novo in substituicoes.items():
             texto = texto.replace(original, novo)
+        # A fonte padrão do PDF (Helvetica/Times) só desenha caracteres Latin-1. Em vez de
+        # substituir cada caractere fora desse conjunto (ex.: emojis usados como marcador
+        # decorativo) por "?" — o que aparecia no PDF exportado como um glifo quebrado —,
+        # removemos esses caracteres e normalizamos os espaços que sobram no lugar deles.
+        texto = "".join(caractere for caractere in texto if self._codificavel_latin1(caractere))
+        texto = re.sub(r"[^\S\n]{2,}", " ", texto)
+        texto = re.sub(r"(?m)^[ \t]+|[ \t]+$", "", texto)
         return texto.encode("latin-1", errors="replace").decode("latin-1")
+
+    @staticmethod
+    def _codificavel_latin1(caractere: str) -> bool:
+        try:
+            caractere.encode("latin-1")
+            return True
+        except UnicodeEncodeError:
+            return False
 
     def _secoes(self, dados: dict) -> list[tuple[str, str]]:
         possui_dados_estruturados = any(
@@ -152,6 +172,46 @@ class CurriculoExporter:
         pdf.set_text_color(*cor_texto)
         pdf.multi_cell(0, 6, "   ·   ".join(itens))
         pdf.ln(1)
+
+    def _titulo_secao_barra_pdf(self, pdf: FPDF, titulo: str, cor_fundo: tuple[int, int, int]) -> None:
+        """Título de seção com fundo sólido (usado no template 'executivo')."""
+        pdf.set_fill_color(*cor_fundo)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(0, 8, f"  {titulo.upper()}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
+
+    def _titulo_secao_tick_pdf(
+        self, pdf: FPDF, titulo: str, cor_destaque: tuple[int, int, int], cor_texto: tuple[int, int, int]
+    ) -> None:
+        """Título de seção com marcador vertical colorido à esquerda (usado no template 'criativo')."""
+        y = pdf.get_y()
+        pdf.set_fill_color(*cor_destaque)
+        pdf.rect(pdf.l_margin, y + 1, 2.2, 6, style="F")
+        pdf.set_xy(pdf.l_margin + 5.5, y)
+        pdf.set_text_color(*cor_texto)
+        pdf.cell(0, 8, titulo.upper(), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_x(pdf.l_margin)
+
+    def _renderizar_habilidades_pills_pdf(
+        self, pdf: FPDF, itens: list[str], cor_fundo: tuple[int, int, int], cor_texto: tuple[int, int, int]
+    ) -> None:
+        """Habilidades como tags arredondadas (usado no template 'criativo')."""
+        pdf.set_font_size(9.5)
+        altura = 7.2
+        espaco = 2.5
+        x, y = pdf.l_margin, pdf.get_y()
+        limite_direito = pdf.w - pdf.r_margin
+        for item in itens:
+            largura = pdf.get_string_width(item) + 6.5
+            if x + largura > limite_direito and x > pdf.l_margin:
+                x = pdf.l_margin
+                y += altura + espaco
+            pdf.set_fill_color(*cor_fundo)
+            pdf.rect(x, y, largura, altura, style="F", round_corners=True, corner_radius=altura / 2)
+            pdf.set_text_color(*cor_texto)
+            pdf.set_xy(x, y + 1.4)
+            pdf.cell(largura, altura - 2, item, align="C")
+            x += largura + espaco
+        pdf.set_xy(pdf.l_margin, y + altura + 3)
 
     # ---------- PDF: templates ----------
 
@@ -262,6 +322,65 @@ class CurriculoExporter:
                 pdf.multi_cell(0, 5.5, conteudo)
             pdf.ln(4.5)
 
+    def _renderizar_pdf_executivo(self, pdf: FPDF, dados: dict) -> None:
+        cor_destaque = (30, 58, 95)
+        cor_texto = (30, 30, 30)
+        cor_secundaria = (90, 90, 90)
+
+        pdf.set_font("Helvetica", "B", 23)
+        pdf.set_text_color(*cor_destaque)
+        pdf.cell(0, 10, (dados.get("nome") or "Currículo").upper(), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", "", 10.5)
+        pdf.set_text_color(*cor_secundaria)
+        pdf.cell(0, 6, self._cabecalho_contato(dados), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(5)
+
+        for titulo, conteudo in self._secoes(dados):
+            modo = MODOS_SECAO.get(titulo, "paragrafo")
+            self._titulo_secao_barra_pdf(pdf, titulo, cor_destaque)
+            pdf.ln(3.5)
+            pdf.set_font("Helvetica", "", 11)
+            if modo == "lista":
+                self._renderizar_lista_pdf(pdf, self._dividir_itens(conteudo), cor_texto, cor_destaque)
+            elif modo == "habilidades":
+                self._renderizar_habilidades_pdf(pdf, self._dividir_habilidades(conteudo), cor_texto)
+            else:
+                pdf.set_text_color(*cor_texto)
+                pdf.multi_cell(0, 6, conteudo)
+            pdf.ln(4)
+
+    def _renderizar_pdf_criativo(self, pdf: FPDF, dados: dict) -> None:
+        cor_destaque = (196, 90, 60)
+        cor_texto = (40, 40, 40)
+
+        pdf.set_font("Helvetica", "B", 22)
+        pdf.set_text_color(*cor_texto)
+        pdf.cell(0, 10, dados.get("nome") or "Currículo", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", "", 10.5)
+        pdf.set_text_color(*cor_destaque)
+        pdf.cell(0, 6, self._cabecalho_contato(dados), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(2)
+        pdf.set_draw_color(*cor_destaque)
+        pdf.set_line_width(1.1)
+        self._linha_completa_pdf(pdf)
+        pdf.ln(6)
+
+        for titulo, conteudo in self._secoes(dados):
+            modo = MODOS_SECAO.get(titulo, "paragrafo")
+            self._titulo_secao_tick_pdf(pdf, titulo, cor_destaque, cor_texto)
+            pdf.ln(2.5)
+            pdf.set_font("Helvetica", "", 11)
+            if modo == "lista":
+                self._renderizar_lista_pdf(pdf, self._dividir_itens(conteudo), cor_texto, cor_destaque)
+            elif modo == "habilidades":
+                self._renderizar_habilidades_pills_pdf(
+                    pdf, self._dividir_habilidades(conteudo), cor_destaque, (255, 255, 255)
+                )
+            else:
+                pdf.set_text_color(*cor_texto)
+                pdf.multi_cell(0, 6, conteudo)
+            pdf.ln(4)
+
     # ---------- DOCX: helpers compartilhados ----------
 
     def _adicionar_borda_inferior_docx(self, paragrafo, cor_hex: str, espessura: str = "10") -> None:
@@ -273,6 +392,27 @@ class CurriculoExporter:
         inferior.set(qn("w:space"), "6")
         inferior.set(qn("w:color"), cor_hex)
         borda.append(inferior)
+        p_pr.append(borda)
+
+    def _adicionar_fundo_paragrafo_docx(self, paragrafo, cor_hex: str) -> None:
+        """Preenche o fundo de um parágrafo inteiro (usado no título de seção do 'executivo')."""
+        p_pr = paragrafo._p.get_or_add_pPr()
+        fundo = OxmlElement("w:shd")
+        fundo.set(qn("w:val"), "clear")
+        fundo.set(qn("w:color"), "auto")
+        fundo.set(qn("w:fill"), cor_hex)
+        p_pr.append(fundo)
+
+    def _adicionar_borda_lateral_docx(self, paragrafo, cor_hex: str, espessura: str = "18") -> None:
+        """Borda vertical à esquerda de um parágrafo (usado no título de seção do 'criativo')."""
+        p_pr = paragrafo._p.get_or_add_pPr()
+        borda = OxmlElement("w:pBdr")
+        esquerda = OxmlElement("w:left")
+        esquerda.set(qn("w:val"), "single")
+        esquerda.set(qn("w:sz"), espessura)
+        esquerda.set(qn("w:space"), "4")
+        esquerda.set(qn("w:color"), cor_hex)
+        borda.append(esquerda)
         p_pr.append(borda)
 
     def _adicionar_lista_docx(self, documento: docx.Document, itens: list[str], cor: RGBColor | None = None) -> None:
@@ -372,3 +512,52 @@ class CurriculoExporter:
                 paragrafo_corpo = documento.add_paragraph(conteudo)
                 for run in paragrafo_corpo.runs:
                     run.font.color.rgb = cor_texto
+
+    def _renderizar_docx_executivo(self, documento: docx.Document, dados: dict) -> None:
+        cor_destaque = RGBColor(0x1E, 0x3A, 0x5F)
+        cor_texto = RGBColor(0x1E, 0x1E, 0x1E)
+        titulo = documento.add_heading(dados.get("nome") or "Currículo", level=0)
+        if titulo.runs:
+            titulo.runs[0].font.color.rgb = cor_destaque
+        paragrafo_contato = documento.add_paragraph()
+        run_contato = paragrafo_contato.add_run(self._cabecalho_contato(dados))
+        run_contato.font.size = Pt(10)
+        run_contato.font.color.rgb = RGBColor(0x5A, 0x5A, 0x5A)
+        for titulo_secao, conteudo in self._secoes(dados):
+            cabecalho = documento.add_paragraph()
+            run_cabecalho = cabecalho.add_run(f" {titulo_secao.upper()} ")
+            run_cabecalho.bold = True
+            run_cabecalho.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+            self._adicionar_fundo_paragrafo_docx(cabecalho, "1E3A5F")
+            modo = MODOS_SECAO.get(titulo_secao, "paragrafo")
+            if modo == "lista":
+                self._adicionar_lista_docx(documento, self._dividir_itens(conteudo), cor_texto)
+            elif modo == "habilidades":
+                self._adicionar_habilidades_docx(documento, self._dividir_habilidades(conteudo), cor_texto)
+            else:
+                documento.add_paragraph(conteudo)
+
+    def _renderizar_docx_criativo(self, documento: docx.Document, dados: dict) -> None:
+        cor_destaque = RGBColor(0xC4, 0x5A, 0x3C)
+        cor_texto = RGBColor(0x28, 0x28, 0x28)
+        titulo = documento.add_heading(dados.get("nome") or "Currículo", level=0)
+        if titulo.runs:
+            titulo.runs[0].font.color.rgb = cor_texto
+        paragrafo_contato = documento.add_paragraph()
+        run_contato = paragrafo_contato.add_run(self._cabecalho_contato(dados))
+        run_contato.bold = True
+        run_contato.font.color.rgb = cor_destaque
+        self._adicionar_borda_inferior_docx(paragrafo_contato, "C45A3C", espessura="14")
+        for titulo_secao, conteudo in self._secoes(dados):
+            cabecalho = documento.add_paragraph()
+            run_cabecalho = cabecalho.add_run(titulo_secao.upper())
+            run_cabecalho.bold = True
+            run_cabecalho.font.color.rgb = cor_texto
+            self._adicionar_borda_lateral_docx(cabecalho, "C45A3C")
+            modo = MODOS_SECAO.get(titulo_secao, "paragrafo")
+            if modo == "lista":
+                self._adicionar_lista_docx(documento, self._dividir_itens(conteudo), cor_texto)
+            elif modo == "habilidades":
+                self._adicionar_habilidades_docx(documento, self._dividir_habilidades(conteudo), cor_destaque)
+            else:
+                documento.add_paragraph(conteudo)

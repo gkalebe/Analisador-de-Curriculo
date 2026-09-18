@@ -23,6 +23,18 @@ const ESTILOS_CARTAO = {
     secao: "text-gray-400 text-xs font-medium uppercase mt-3",
     corpo: "text-sm text-gray-600",
   },
+  executivo: {
+    borda: "border-[#1e3a5f]",
+    nome: "text-[#1e3a5f] font-brand text-xl font-bold uppercase tracking-wide",
+    secao: "text-white bg-[#1e3a5f] text-xs font-bold uppercase tracking-wide mt-3 px-2 py-1 inline-block",
+    corpo: "text-sm text-gray-700",
+  },
+  criativo: {
+    borda: "border-[#c45a3c]",
+    nome: "text-gray-900 font-brand text-xl font-bold",
+    secao: "text-gray-900 text-xs font-bold uppercase tracking-wide mt-3 border-l-[3px] border-[#c45a3c] pl-2",
+    corpo: "text-sm text-gray-700",
+  },
 };
 
 export default function GaleriaTemplates() {
@@ -110,7 +122,7 @@ export default function GaleriaTemplates() {
               return (
                 <div
                   key={template.id_template}
-                  className={`flex flex-col rounded-lg border-[1.5px] ${estilo.borda} bg-white p-5 shadow-sm`}
+                  className={`flex flex-col rounded-lg border-2 ${estilo.borda} bg-white p-5 shadow-sm`}
                 >
                   <div className="mb-4">
                     <p className={estilo.nome}>{preview.nome}</p>

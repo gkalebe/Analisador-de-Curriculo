@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import { criarVaga, listarVagas } from "../api/vagasApi.js";
 import { novoFormularioVaga, preencherFormularioComVaga } from "../models/vaga.js";
@@ -9,11 +9,9 @@ import { ApiError } from "../api/client.js";
 const LIMITE_DESCRICAO_PADRAO = 5000;
 
 export default function NovaVaga() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
 
-  const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [form, setForm] = useState(novoFormularioVaga(emailInicial));
   const [vagasSalvas, setVagasSalvas] = useState([]);
   const [erro, setErro] = useState("");
@@ -31,11 +29,6 @@ export default function NovaVaga() {
         }
       });
   }, [emailInicial]);
-
-  function entrarComEmail(evento) {
-    evento.preventDefault();
-    setSearchParams({ email: emailCampo });
-  }
 
   function reutilizarVaga(vaga) {
     setForm((atual) => preencherFormularioComVaga(atual, vaga));
@@ -75,21 +68,6 @@ export default function NovaVaga() {
         {sucesso && (
           <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">{sucesso}</div>
         )}
-
-        <form onSubmit={entrarComEmail} className="flex gap-2 rounded-lg border-[0.5px] border-black bg-white p-4">
-          <input
-            type="email"
-            value={emailCampo}
-            onChange={(e) => setEmailCampo(e.target.value)}
-            placeholder="Seu e-mail cadastrado"
-            required
-            className="flex-1 rounded border border-[#dfdfe0] px-3 py-2 text-sm text-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
-          />
-          <button type="submit" className="rounded bg-[#1e5e3f] px-4 py-2 font-bold text-white hover:bg-[#174a32]">
-            Entrar
-          </button>
-        </form>
-        <p className="-mt-2 text-xs text-gray-400">Identificação temporária por e-mail, até a tela de login (US-002) estar pronta.</p>
 
         <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-6">
           <div className="flex items-center gap-3">

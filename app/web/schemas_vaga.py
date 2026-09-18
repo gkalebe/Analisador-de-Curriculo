@@ -8,7 +8,7 @@ class VagaCreateRequest(BaseModel):
     email: EmailStr
     titulo: str = Field(default="", max_length=200)
     descricao: str = Field(min_length=1)
-    requisitos: str = Field(default="")
+    requisitos: str = Field(default="", max_length=5000)
     area: str = Field(default="", max_length=100)
 
     @field_validator("descricao")

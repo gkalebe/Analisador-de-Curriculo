@@ -332,20 +332,20 @@ export default function NovaAnalise() {
                         )}
                       </div>
                       <p className="text-[11px] text-amber-800 leading-tight">
-                        * Inclua estes termos apenas se você tiver real vivência neles (RN-001: veracidade absoluta).
+                        * Inclua estes termos apenas se você tiver real vivência neles (veracidade absoluta).
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Diagnóstico Estrutural ATS (US-008) */}
+              {/* Diagnóstico Estrutural ATS */}
               {dadosAts?.diagnostico_ats && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <i className="ti ti-layout-grid text-[22px] text-[#1e5e3f]"></i>
                     <h3 className="font-brand text-xl font-bold text-black">
-                      Diagnóstico Crítico da Estrutura (US-008)
+                      Diagnóstico Crítico da Estrutura
                     </h3>
                   </div>
 
@@ -401,18 +401,18 @@ export default function NovaAnalise() {
                 </div>
               )}
 
-              {/* Sugestões de Reescrita Lado a Lado (US-009 & RN-001) */}
+              {/* Sugestões de Reescrita Lado a Lado */}
               {dadosAts?.sugestoes_reescrita && dadosAts.sugestoes_reescrita.length > 0 && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <i className="ti ti-writing text-[22px] text-[#1e5e3f]"></i>
                       <h3 className="font-brand text-xl font-bold text-black">
-                        Sugestões de Reescrita Lado a Lado (US-009)
+                        Sugestões de Reescrita Lado a Lado
                       </h3>
                     </div>
                     <span className="text-xs text-gray-500 hidden sm:inline">
-                      Sem inventar qualificações (RN-001)
+                      Sem inventar qualificações
                     </span>
                   </div>
 

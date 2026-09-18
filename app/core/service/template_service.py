@@ -80,6 +80,46 @@ TEMPLATES = [
             "habilidades": "Adobe Illustrator, Photoshop, Figma, branding",
         },
     },
+    {
+        "id_template": "executivo",
+        "nome": "Executivo",
+        "descricao": (
+            "Layout de alto contraste com títulos de seção em barra sólida azul-marinho — indicado para cargos "
+            "de liderança e gestão."
+        ),
+        "preview_ficticio": {
+            "nome": "Rafael Menezes Costa",
+            "email": "rafael.costa@email.com",
+            "telefone": "(61) 96666-0000",
+            "resumo": "Gerente de Operações com 10 anos de experiência liderando equipes multidisciplinares.",
+            "experiencia_profissional": (
+                "Gerente de Operações — Empresa Prisma (2021-atual)\n"
+                "Coordenador de Operações — Empresa Vetor (2016-2021)"
+            ),
+            "formacao": "MBA em Gestão Empresarial — Universidade Exemplo (2015-2016)",
+            "habilidades": "Gestão de equipes, planejamento estratégico, KPIs, negociação",
+        },
+    },
+    {
+        "id_template": "criativo",
+        "nome": "Criativo",
+        "descricao": (
+            "Layout com barra de destaque na lateral e habilidades em tags coloridas — indicado para marketing "
+            "e comunicação."
+        ),
+        "preview_ficticio": {
+            "nome": "Juliana Prado Martins",
+            "email": "juliana.prado@email.com",
+            "telefone": "(61) 95555-0000",
+            "resumo": "Analista de Marketing com foco em redes sociais e campanhas de performance.",
+            "experiencia_profissional": (
+                "Analista de Marketing Pleno — Empresa Vívido (2022-atual)\n"
+                "Analista de Marketing Júnior — Agência Nexo (2020-2022)"
+            ),
+            "formacao": "Bacharelado em Publicidade e Propaganda — Universidade Exemplo (2016-2020)",
+            "habilidades": "Redes sociais, Google Ads, copywriting, análise de métricas",
+        },
+    },
 ]
 
 TEMPLATES_POR_ID = {template["id_template"]: template for template in TEMPLATES}

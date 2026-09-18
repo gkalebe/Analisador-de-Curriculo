@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { lerSessao } from "../models/usuario.js";
+import { lerSessao, limparSessao } from "../models/usuario.js";
 
 const ITENS = [
   { chave: "analise", rotulo: "Nova análise", icone: "ti-search", rota: "/analises/nova" },
@@ -16,6 +16,11 @@ export default function Sidebar({ email, ativo }) {
 
   function irPara(rota) {
     navigate(emailAtivo ? `${rota}?email=${encodeURIComponent(emailAtivo)}` : rota);
+  }
+
+  function sair() {
+    limparSessao();
+    navigate("/login");
   }
 
   return (
@@ -62,10 +67,10 @@ export default function Sidebar({ email, ativo }) {
           </div>
         )}
         <button
-          onClick={() => navigate("/painel")}
+          onClick={sair}
           className="flex items-center gap-3 rounded-lg px-3 py-2 font-brand text-sm text-white/80 hover:text-white hover:bg-white/5 text-left transition-colors"
         >
-          <i className="ti ti-arrow-left"></i> Voltar ao painel
+          <i className="ti ti-logout"></i> Sair
         </button>
       </div>
     </aside>
