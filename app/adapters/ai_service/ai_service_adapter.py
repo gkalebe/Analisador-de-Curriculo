@@ -1,18 +1,29 @@
+import logging
 from abc import ABC, abstractmethod
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 30
 TEMPERATURA_PADRAO = 0.4
 
 PERSONA_ESPECIALISTA_RH = (
     "Você é uma IA especialista sênior em Recursos Humanos, Recrutamento & Seleção e otimização de "
-    "currículos para sistemas ATS (Applicant Tracking Systems), atuando como o motor de inteligência "
-    "do sistema Analisador de Currículos. Você combina o rigor técnico de um recrutador experiente com "
-    "a didática de um mentor de carreira: suas avaliações são precisas, justas e acionáveis.\n"
+    "currículos para sistemas ATS (Applicant Tracking Systems), com o equivalente a mais de 15 anos de "
+    "vivência avaliando currículos e conduzindo processos seletivos, atuando como o motor de "
+    "inteligência do sistema Analisador de Currículos. Você combina o rigor técnico de um recrutador "
+    "experiente com a didática de um mentor de carreira: suas avaliações são precisas, justas e "
+    "acionáveis.\n"
     "REGRAS INEGOCIÁVEIS:\n"
     "- Baseie-se ESTRITA e SOMENTE nas informações fornecidas (currículo, vaga, conversa). Nunca invente "
     "empresas, cargos, ferramentas, certificações, anos de experiência ou qualquer outro dado ausente.\n"
+    "- Toda sugestão de melhoria ou reescrita deve ser algo que o candidato consiga DEFENDER com "
+    "segurança numa entrevista — nunca sugira embelezar o currículo com algo que ele não saiba explicar "
+    "na prática.\n"
+    "- Seja honesto mesmo quando a avaliação não for positiva: se o currículo estiver fraco ou pouco "
+    "aderente à vaga, diga isso claramente e com justificativa. Elogio vazio não ajuda o candidato a "
+    "conseguir a vaga.\n"
     "- Seja objetivo, profissional e específico — evite generalidades vagas como 'currículo bom' ou "
     "'precisa melhorar' sem dizer exatamente o quê e como.\n"
     "- Responda sempre em português do Brasil.\n"
@@ -52,9 +63,10 @@ class GeminiClient(AIServiceClient):
             resposta = modelo.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(temperature=temperatura),
-                request_options={"timeout": TIMEOUT_SEGUNDOS},
+                request_options={"timeout": TIMEOUT_SEGUNDOS, "retry": None},
             )
         except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
+            logger.error("Falha ao chamar a API do Gemini: %r", erro, exc_info=True)
             raise IAIndisponivelError(
                 f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
                 "Tente novamente em instantes."
@@ -74,7 +86,7 @@ class ClaudeClient(AIServiceClient):
             )
         import anthropic
 
-        cliente = anthropic.Anthropic(api_key=self.api_key, timeout=TIMEOUT_SEGUNDOS)
+        cliente = anthropic.Anthropic(api_key=self.api_key, timeout=TIMEOUT_SEGUNDOS, max_retries=0)
         try:
             resposta = cliente.messages.create(
                 model=self.model_name,
@@ -83,6 +95,7 @@ class ClaudeClient(AIServiceClient):
                 messages=[{"role": "user", "content": prompt}],
             )
         except anthropic.APIError as erro:
+            logger.error("Falha ao chamar a API do Claude: %r", erro, exc_info=True)
             raise IAIndisponivelError(
                 f"O serviço de IA (Claude) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
                 "Tente novamente em instantes."
@@ -113,20 +126,11 @@ class AIServiceAdapter:
         prompt = self._montar_prompt_extracao(texto_curriculo)
         return self.cliente.gerar_resposta(prompt, temperatura=0.2)
 
-    def responder_chat(
-        self,
-        texto_curriculo: str | None,
-        historico: list[tuple[str, str]],
-        pergunta: str,
-        texto_vaga: str | None = None,
-    ) -> str:
-        prompt = self._montar_prompt_chat(texto_curriculo, historico, pergunta, texto_vaga=texto_vaga)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.5)
-
     def responder_chat_curriculo(
         self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str
     ) -> str:
-        return self.responder_chat(texto_curriculo, historico, pergunta, texto_vaga=None)
+        prompt = self._montar_prompt_chat(texto_curriculo, historico, pergunta)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.5)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
         return (
@@ -191,62 +195,20 @@ class AIServiceAdapter:
             f"Currículo:\n{texto_curriculo}"
         )
 
-    def _montar_prompt_chat(
-        self,
-        texto_curriculo: str | None,
-        historico: list[tuple[str, str]],
-        pergunta: str,
-        texto_vaga: str | None = None,
-    ) -> str:
+    def _montar_prompt_chat(self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str) -> str:
         linhas_historico = "\n".join(
             f"{'Candidato' if autor == 'usuario' else 'Assistente'}: {conteudo}" for autor, conteudo in historico
         )
-        historico_formatado = (
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Converse diretamente com o candidato dono do currículo abaixo, tirando dúvidas e "
+            "dando orientações de carreira baseadas nesse currículo. Responda de forma direta, objetiva "
+            "e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
+            "REGRAS ADICIONAIS:\n"
+            "1. Se a pergunta não tiver relação com o currículo ou a carreira do candidato, explique "
+            "educadamente que você só pode ajudar com isso.\n"
+            "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
+            f"Currículo do candidato:\n{texto_curriculo}\n\n"
             f"Conversa até aqui:\n{linhas_historico or '(nenhuma mensagem anterior)'}\n\n"
             f"Nova pergunta do candidato: {pergunta}"
         )
-
-        if texto_curriculo and texto_vaga:
-            return (
-                f"{PERSONA_ESPECIALISTA_RH}\n"
-                "TAREFA: Converse diretamente com o candidato dono do currículo abaixo sobre a vaga de "
-                "interesse informada. Oriente-o de forma personalizada correlacionando o perfil dele com os "
-                "requisitos e qualificações da vaga. Aponte pontos fortes, competências ausentes ou que precisam "
-                "ser desenvolvidas, sugestões de como destacar suas experiências para esta vaga específica e "
-                "possíveis perguntas técnicas e comportamentais que ele poderá enfrentar no processo seletivo.\n"
-                "Responda de forma direta, encorajadora, objetiva e natural, como em uma conversa de chat.\n\n"
-                "REGRAS ADICIONAIS:\n"
-                "1. Se a pergunta não tiver relação com o currículo, a vaga selecionada ou a carreira do candidato, "
-                "explique educadamente que você só pode orientar sobre esta oportunidade e a preparação profissional dele.\n"
-                "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos de código markdown desnecessários.\n\n"
-                f"Currículo do candidato:\n{texto_curriculo}\n\n"
-                f"Vaga de interesse:\n{texto_vaga}\n\n"
-                f"{historico_formatado}"
-            )
-        elif texto_vaga:
-            return (
-                f"{PERSONA_ESPECIALISTA_RH}\n"
-                "TAREFA: Converse diretamente com o candidato tirando dúvidas sobre a vaga de emprego cadastrada abaixo. "
-                "Esclareça o perfil ideal exigido pela empresa, os principais requisitos e tecnologias, responsabilidades "
-                "do cargo e forneça dicas estratégicas de como o candidato deve se preparar para o processo seletivo dessa vaga.\n"
-                "Responda de forma direta, objetiva e natural, como em uma conversa de chat.\n\n"
-                "REGRAS ADICIONAIS:\n"
-                "1. Se a pergunta não tiver relação com a vaga cadastrada ou processos seletivos nessa área, explique "
-                "educadamente que você está disponível para tirar dúvidas sobre essa oportunidade de carreira.\n"
-                "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown desnecessários.\n\n"
-                f"Vaga cadastrada:\n{texto_vaga}\n\n"
-                f"{historico_formatado}"
-            )
-        else:
-            return (
-                f"{PERSONA_ESPECIALISTA_RH}\n"
-                "TAREFA: Converse diretamente com o candidato dono do currículo abaixo, tirando dúvidas e "
-                "dando orientações de carreira baseadas nesse currículo. Responda de forma direta, objetiva "
-                "e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
-                "REGRAS ADICIONAIS:\n"
-                "1. Se a pergunta não tiver relação com o currículo ou a carreira do candidato, explique "
-                "educadamente que você só pode ajudar com isso.\n"
-                "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
-                f"Currículo do candidato:\n{texto_curriculo or ''}\n\n"
-                f"{historico_formatado}"
-            )

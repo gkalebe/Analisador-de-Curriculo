@@ -80,7 +80,7 @@ def test_claude_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
             raise anthropic.APIError("tempo esgotado", request=requisicao_falsa, body=None)
 
     class ClienteAnthropicFalso:
-        def __init__(self, api_key=None, timeout=None):
+        def __init__(self, api_key=None, timeout=None, max_retries=None):
             self.messages = MensagensFalso()
 
     monkeypatch.setattr(anthropic, "Anthropic", ClienteAnthropicFalso)
