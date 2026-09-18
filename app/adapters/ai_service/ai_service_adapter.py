@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 30
 TEMPERATURA_PADRAO = 0.4
-MAX_TENTATIVAS_GEMINI = 2
-ESPERA_ENTRE_TENTATIVAS_SEGUNDOS = 2
+MAX_TENTATIVAS_GEMINI = 3
+ESPERA_ENTRE_TENTATIVAS_SEGUNDOS = 3
 
 PERSONA_ESPECIALISTA_RH = (
     "Você é uma IA especialista sênior em Recursos Humanos, Recrutamento & Seleção e otimização de "
@@ -82,7 +82,7 @@ class GeminiClient(AIServiceClient):
                     "Gemini indisponível (tentativa %d/%d): %r", tentativa, MAX_TENTATIVAS_GEMINI, erro
                 )
                 if tentativa < MAX_TENTATIVAS_GEMINI:
-                    time.sleep(ESPERA_ENTRE_TENTATIVAS_SEGUNDOS)
+                    time.sleep(ESPERA_ENTRE_TENTATIVAS_SEGUNDOS * tentativa)
             except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
                 # Demais erros (chave inválida, rede fora do ar etc.) não se beneficiam de retry: falha já.
                 logger.error("Falha ao chamar a API do Gemini: %r", erro, exc_info=True)
