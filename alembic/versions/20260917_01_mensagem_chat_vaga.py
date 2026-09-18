@@ -1,4 +1,4 @@
-"""add id_vaga to mensagem_chat and make id_curriculo nullable
+"""create mensagem_chat table
 
 Revision ID: 20260917_01
 Revises: 20260915_01
@@ -15,13 +15,21 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.alter_column("mensagem_chat", "id_curriculo", existing_type=sa.UUID(), nullable=True)
-    op.add_column(
+    op.create_table(
         "mensagem_chat",
-        sa.Column("id_vaga", sa.UUID(), sa.ForeignKey("vaga.id_vaga", ondelete="CASCADE"), nullable=True),
+        sa.Column("id_mensagem", sa.UUID(), nullable=False),
+        sa.Column("id_usuario", sa.UUID(), nullable=False),
+        sa.Column("id_curriculo", sa.UUID(), nullable=True),
+        sa.Column("id_vaga", sa.UUID(), nullable=True),
+        sa.Column("autor", sa.String(length=20), nullable=False),
+        sa.Column("conteudo", sa.Text(), nullable=False),
+        sa.Column("data_envio", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["id_usuario"], ["usuario.id_usuario"]),
+        sa.ForeignKeyConstraint(["id_curriculo"], ["curriculo.id_curriculo"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["id_vaga"], ["vaga.id_vaga"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id_mensagem"),
     )
 
 
 def downgrade() -> None:
-    op.drop_column("mensagem_chat", "id_vaga")
-    op.alter_column("mensagem_chat", "id_curriculo", existing_type=sa.UUID(), nullable=False)
+    op.drop_table("mensagem_chat")
