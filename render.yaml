@@ -24,8 +24,9 @@ services:
         value: "5000"
 
   # 2. Frontend React SPA (Static Site 100% gratuito)
-  - type: static
+  - type: web
     name: analisador-curriculo-frontend
+    runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
     rootDir: frontend
