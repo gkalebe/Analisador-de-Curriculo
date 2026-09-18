@@ -12,6 +12,7 @@ from app.core.service.template_service import (
     NenhumaAnaliseEncontradaError,
     TemplateNaoEncontradoError,
     TemplateService,
+    VersaoExportacaoInvalidaError,
 )
 from app.web.schemas_template import TemplateListResponse
 
@@ -56,6 +57,7 @@ def exportar_curriculo(
     id_curriculo: uuid.UUID,
     id_template: str,
     formato: str,
+    versao: str = "original",
     usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
     template_service: TemplateService = Depends(get_template_service),
 ) -> Response:
@@ -72,6 +74,7 @@ def exportar_curriculo(
             id_curriculo=id_curriculo,
             id_template=id_template,
             formato=formato,
+            versao=versao,
         )
     except CurriculoNaoEncontradoError as erro:
         raise HTTPException(
@@ -87,6 +90,11 @@ def exportar_curriculo(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Formato de exportação inválido. Use 'pdf' ou 'docx'.",
+        ) from erro
+    except VersaoExportacaoInvalidaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Versão de exportação inválida. Use 'original' ou 'editada'.",
         ) from erro
 
     nome_arquivo_ascii = nome_arquivo.encode("ascii", "ignore").decode() or f"curriculo.{formato}"

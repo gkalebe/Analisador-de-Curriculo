@@ -41,3 +41,8 @@ class ChatRepository:
 
     def listar_por_vaga(self, id_usuario: uuid.UUID, id_vaga: uuid.UUID) -> list[MensagemChat]:
         return self.listar(id_usuario, id_curriculo=None, id_vaga=id_vaga)
+
+    def excluir(self, mensagens: list[MensagemChat]) -> None:
+        for mensagem in mensagens:
+            self.db.delete(mensagem)
+        self.db.commit()

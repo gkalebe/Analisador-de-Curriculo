@@ -12,6 +12,10 @@ from app.core.persistencia.models.analise import Analise
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
+from app.core.service.extracao_curriculo import (
+    extrair_dados_estruturados_curriculo,
+    normalizar_dados_editados,
+)
 
 
 class DescricaoVagaObrigatoriaError(Exception):
@@ -189,6 +193,81 @@ class AnalisadorService:
 
     def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
         return self.analise_repository.listar_por_usuario(id_usuario)
+
+    def obter_dados_edicao_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        if curriculo.dados_editados:
+            dados = normalizar_dados_editados(curriculo.dados_editados, curriculo.texto_extraido or "")
+        else:
+            dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, curriculo.texto_extraido or "")
+
+        return {
+            "id_curriculo": curriculo.id_curriculo,
+            "dados": dados,
+            "possui_edicao": curriculo.dados_editados is not None,
+            "editado_em": curriculo.editado_em,
+            "sugestoes": self._obter_sugestoes_mais_recentes(id_usuario, id_curriculo),
+        }
+
+    def salvar_edicao_estruturada_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, dados: dict) -> Curriculo:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        dados_completos = normalizar_dados_editados(dados, curriculo.texto_extraido or "")
+        return self.curriculo_repository.salvar_edicao(curriculo, dados_completos)
+
+    def salvar_edicao_texto_livre_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, texto: str) -> Curriculo:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto)
+        dados["texto_bruto"] = texto
+        return self.curriculo_repository.salvar_edicao(curriculo, dados)
+
+    def _obter_sugestoes_mais_recentes(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict | None:
+        # Mesma normalização de chaves usada em NovaAnalise.jsx/HistoricoAnalises.jsx: a IA
+        # (ver AIServiceAdapter._montar_prompt_comparacao) devolve "correspondentes"/"ausentes",
+        # "o_que_reorganizar"/"o_que_retirar" e "sugestao_otimizada"/"motivo" — normalizamos
+        # para os nomes amigáveis usados na tela de edição, com fallback para os nomes crus.
+        analise = self.analise_repository.buscar_mais_recente_por_curriculo(id_usuario, id_curriculo)
+        if analise is None or not analise.observacoes:
+            return None
+        try:
+            dados = json.loads(analise.observacoes)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(dados, dict):
+            return None
+
+        palavras_chave = dados.get("palavras_chave") or {}
+        diagnostico = dados.get("diagnostico_ats") or {}
+        sugestoes = dados.get("sugestoes_reescrita") or []
+        if not isinstance(sugestoes, list):
+            sugestoes = []
+
+        return {
+            "resumo": dados.get("resumo") or dados.get("explicacao_ats") or dados.get("observacoes"),
+            "palavras_chave_faltantes": palavras_chave.get("faltantes") or palavras_chave.get("ausentes") or [],
+            "diagnostico_ats": {
+                "pontos_fortes": diagnostico.get("pontos_fortes") or [],
+                "a_reorganizar": diagnostico.get("a_reorganizar") or diagnostico.get("o_que_reorganizar") or [],
+                "a_remover": diagnostico.get("a_remover") or diagnostico.get("o_que_retirar") or [],
+            },
+            "sugestoes_reescrita": [
+                {
+                    "trecho_original": s.get("trecho_original") or "",
+                    "versao_otimizada": s.get("versao_otimizada") or s.get("sugestao_otimizada") or "",
+                    "justificativa": s.get("justificativa") or s.get("motivo") or "",
+                }
+                for s in sugestoes
+                if isinstance(s, dict)
+            ],
+        }
 
     def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:
         texto = (resultado_ia or "").strip()

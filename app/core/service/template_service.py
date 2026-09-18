@@ -1,16 +1,15 @@
-import json
 import uuid
 
 from sqlalchemy.orm import Session
 
-from app.adapters.ai_service.ai_service_adapter import (
-    AIServiceAdapter,
-    IAConfiguracaoAusenteError,
-    IAIndisponivelError,
-)
+from app.adapters.ai_service.ai_service_adapter import AIServiceAdapter
 from app.adapters.curriculo_exporter.curriculo_exporter import CurriculoExporter
 from app.core.persistencia.analise_repository import AnaliseRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
+from app.core.service.extracao_curriculo import (
+    extrair_dados_estruturados_curriculo,
+    normalizar_dados_editados,
+)
 
 
 class NenhumaAnaliseEncontradaError(Exception):
@@ -26,6 +25,10 @@ class TemplateNaoEncontradoError(Exception):
 
 
 class FormatoExportacaoInvalidoError(Exception):
+    pass
+
+
+class VersaoExportacaoInvalidaError(Exception):
     pass
 
 
@@ -125,6 +128,7 @@ TEMPLATES = [
 TEMPLATES_POR_ID = {template["id_template"]: template for template in TEMPLATES}
 
 FORMATOS_SUPORTADOS = {"pdf", "docx"}
+VERSOES_SUPORTADAS = {"original", "editada"}
 
 
 class TemplateService:
@@ -146,17 +150,26 @@ class TemplateService:
         id_curriculo: uuid.UUID,
         id_template: str,
         formato: str,
+        versao: str = "original",
     ) -> tuple[bytes, str, str]:
         if id_template not in TEMPLATES_POR_ID:
             raise TemplateNaoEncontradoError(id_template)
         if formato not in FORMATOS_SUPORTADOS:
             raise FormatoExportacaoInvalidoError(formato)
+        if versao not in VERSOES_SUPORTADAS:
+            raise VersaoExportacaoInvalidaError(versao)
 
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        dados = self._extrair_dados_curriculo(curriculo.texto_extraido or "")
+        # "editada" usa os dados que o usuário revisou/ajustou na tela de edição (já
+        # incorporando as sugestões da análise), sem nova chamada à IA. Se ainda não existir
+        # edição salva, caímos graciosamente para o comportamento padrão ("original").
+        if versao == "editada" and curriculo.dados_editados:
+            dados = normalizar_dados_editados(curriculo.dados_editados, curriculo.texto_extraido or "")
+        else:
+            dados = self._extrair_dados_curriculo(curriculo.texto_extraido or "")
 
         if formato == "pdf":
             conteudo = self.curriculo_exporter.gerar_pdf(dados, id_template)
@@ -170,42 +183,4 @@ class TemplateService:
         return conteudo, nome_arquivo, media_type
 
     def _extrair_dados_curriculo(self, texto_extraido: str) -> dict:
-        dados_vazios = {
-            "nome": "",
-            "email": "",
-            "telefone": "",
-            "resumo": "",
-            "formacao": "",
-            "experiencia_profissional": "",
-            "habilidades": "",
-            "texto_bruto": texto_extraido,
-        }
-        if not texto_extraido.strip():
-            return dados_vazios
-
-        try:
-            resultado_ia = self.ai_service_adapter.extrair_dados_estruturados(texto_extraido)
-        except (IAConfiguracaoAusenteError, IAIndisponivelError):
-            return dados_vazios
-
-        texto = (resultado_ia or "").strip()
-        if texto.startswith("```"):
-            texto = texto.strip("`").strip()
-            if texto.lower().startswith("json"):
-                texto = texto[4:].strip()
-
-        try:
-            dados_ia = json.loads(texto)
-        except (json.JSONDecodeError, TypeError):
-            return dados_vazios
-
-        return {
-            "nome": str(dados_ia.get("nome") or ""),
-            "email": str(dados_ia.get("email") or ""),
-            "telefone": str(dados_ia.get("telefone") or ""),
-            "resumo": str(dados_ia.get("resumo") or ""),
-            "formacao": str(dados_ia.get("formacao") or ""),
-            "experiencia_profissional": str(dados_ia.get("experiencia_profissional") or ""),
-            "habilidades": str(dados_ia.get("habilidades") or ""),
-            "texto_bruto": texto_extraido,
-        }
+        return extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)

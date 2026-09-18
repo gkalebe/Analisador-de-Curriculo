@@ -16,6 +16,9 @@ from app.core.service.analisador_service import (
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     CurriculoDetalhesResponse,
+    CurriculoEdicaoEstruturadaRequest,
+    CurriculoEdicaoResponse,
+    CurriculoEdicaoTextoLivreRequest,
     CurriculoItemResponse,
     CurriculoListResponse,
     CurriculoResponse,
@@ -291,3 +294,88 @@ def baixar_arquivo_curriculo(
         media_type=media_type,
         headers={"Content-Disposition": f'{disposicao}; filename="{nome_arquivo}"'},
     )
+
+
+@router.get("/curriculos/{id_curriculo}/edicao", response_model=CurriculoEdicaoResponse)
+def obter_edicao_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+
+
+@router.put("/curriculos/{id_curriculo}/edicao", response_model=CurriculoEdicaoResponse)
+def salvar_edicao_estruturada_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    payload: CurriculoEdicaoEstruturadaRequest,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.salvar_edicao_estruturada_curriculo(
+            usuario.id_usuario, id_curriculo, payload.model_dump()
+        )
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+
+
+@router.post("/curriculos/{id_curriculo}/edicao/texto-livre", response_model=CurriculoEdicaoResponse)
+def salvar_edicao_texto_livre_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    payload: CurriculoEdicaoTextoLivreRequest,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.salvar_edicao_texto_livre_curriculo(usuario.id_usuario, id_curriculo, payload.texto)
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+    except IAConfiguracaoAusenteError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IAIndisponivelError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)

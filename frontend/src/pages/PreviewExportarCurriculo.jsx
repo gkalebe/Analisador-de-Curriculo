@@ -16,6 +16,7 @@ export default function PreviewExportarCurriculo() {
   const [templates, setTemplates] = useState([]);
   const [analises, setAnalises] = useState([]);
   const [idCurriculoSelecionado, setIdCurriculoSelecionado] = useState("");
+  const [versaoSelecionada, setVersaoSelecionada] = useState("original");
   const [blobPreview, setBlobPreview] = useState(null);
   const [mostrarPreview, setMostrarPreview] = useState(false);
   const [carregandoPreview, setCarregandoPreview] = useState(false);
@@ -44,7 +45,13 @@ export default function PreviewExportarCurriculo() {
     setErro("");
     setCarregandoPreview(true);
     try {
-      const { blob } = await exportarCurriculo(emailInicial, idCurriculoSelecionado, idTemplate, "pdf");
+      const { blob } = await exportarCurriculo(
+        emailInicial,
+        idCurriculoSelecionado,
+        idTemplate,
+        "pdf",
+        versaoSelecionada,
+      );
       setBlobPreview(blob);
       setMostrarPreview(true);
     } catch (e) {
@@ -63,7 +70,13 @@ export default function PreviewExportarCurriculo() {
     setErro("");
     setExportando(formato);
     try {
-      const { blob, nomeArquivo } = await exportarCurriculo(emailInicial, idCurriculoSelecionado, idTemplate, formato);
+      const { blob, nomeArquivo } = await exportarCurriculo(
+        emailInicial,
+        idCurriculoSelecionado,
+        idTemplate,
+        formato,
+        versaoSelecionada,
+      );
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -154,6 +167,7 @@ export default function PreviewExportarCurriculo() {
                         checked={idCurriculoSelecionado === analise.id_curriculo}
                         onChange={(e) => {
                           setIdCurriculoSelecionado(e.target.value);
+                          setVersaoSelecionada(analise.curriculo_possui_edicao ? "editada" : "original");
                           setMostrarPreview(false);
                           setBlobPreview(null);
                         }}
@@ -166,12 +180,52 @@ export default function PreviewExportarCurriculo() {
                         {analise.pontuacao != null && (
                           <p className="text-sm text-gray-500">Pontuação: {analise.pontuacao}</p>
                         )}
+                        {analise.curriculo_possui_edicao && (
+                          <p className="text-xs font-semibold text-[#1e5e3f]">Possui uma versão editada</p>
+                        )}
                       </div>
                     </label>
                   </li>
                 ))}
               </ul>
             )}
+
+            {idCurriculoSelecionado && (() => {
+              const analiseSelecionada = analises.find((a) => a.id_curriculo === idCurriculoSelecionado);
+              return (
+                analiseSelecionada?.curriculo_possui_edicao && (
+                  <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                    <span className="text-sm font-bold text-gray-700">Versão a exportar:</span>
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="versao"
+                        checked={versaoSelecionada === "editada"}
+                        onChange={() => {
+                          setVersaoSelecionada("editada");
+                          setMostrarPreview(false);
+                          setBlobPreview(null);
+                        }}
+                      />
+                      Editada
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="versao"
+                        checked={versaoSelecionada === "original"}
+                        onChange={() => {
+                          setVersaoSelecionada("original");
+                          setMostrarPreview(false);
+                          setBlobPreview(null);
+                        }}
+                      />
+                      Original
+                    </label>
+                  </div>
+                )
+              );
+            })()}
 
             {idCurriculoSelecionado && (
               <div className="flex flex-wrap gap-3">

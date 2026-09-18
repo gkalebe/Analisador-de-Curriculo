@@ -7,12 +7,6 @@ from fastapi.testclient import TestClient
 
 from app.core.persistencia.models.mensagem_chat import MensagemChat
 from app.core.persistencia.models.usuario import Usuario
-from app.core.service.chat_service import (
-    ContextoChatObrigatorioError,
-    CurriculoNaoEncontradoError,
-    PerguntaVaziaError,
-    VagaNaoEncontradaError,
-)
 from app.main import app
 from app.web.routers.chat_router import get_chat_service, get_usuario_repository
 

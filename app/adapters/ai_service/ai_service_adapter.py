@@ -155,10 +155,14 @@ class AIServiceAdapter:
         prompt = self._montar_prompt_extracao(texto_curriculo)
         return self.cliente.gerar_resposta(prompt, temperatura=0.2)
 
-    def responder_chat_curriculo(
-        self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str
+    def responder_chat(
+        self,
+        historico: list[tuple[str, str]],
+        pergunta: str,
+        texto_curriculo: str | None = None,
+        texto_vaga: str | None = None,
     ) -> str:
-        prompt = self._montar_prompt_chat(texto_curriculo, historico, pergunta)
+        prompt = self._montar_prompt_chat(historico, pergunta, texto_curriculo, texto_vaga)
         return self.cliente.gerar_resposta(prompt, temperatura=0.5)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
@@ -224,20 +228,36 @@ class AIServiceAdapter:
             f"Currículo:\n{texto_curriculo}"
         )
 
-    def _montar_prompt_chat(self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str) -> str:
+    def _montar_prompt_chat(
+        self,
+        historico: list[tuple[str, str]],
+        pergunta: str,
+        texto_curriculo: str | None = None,
+        texto_vaga: str | None = None,
+    ) -> str:
         linhas_historico = "\n".join(
             f"{'Candidato' if autor == 'usuario' else 'Assistente'}: {conteudo}" for autor, conteudo in historico
         )
+
+        blocos_contexto = []
+        if texto_curriculo:
+            blocos_contexto.append(f"Currículo do candidato:\n{texto_curriculo}")
+        if texto_vaga:
+            blocos_contexto.append(f"Vaga em discussão:\n{texto_vaga}")
+        contexto = "\n\n".join(blocos_contexto) if blocos_contexto else "(nenhum currículo ou vaga selecionado)"
+
         return (
             f"{PERSONA_ESPECIALISTA_RH}\n"
-            "TAREFA: Converse diretamente com o candidato dono do currículo abaixo, tirando dúvidas e "
-            "dando orientações de carreira baseadas nesse currículo. Responda de forma direta, objetiva "
-            "e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
+            "TAREFA: Converse diretamente com o candidato, tirando dúvidas e dando orientações de carreira "
+            "com base no contexto abaixo (currículo e/ou vaga, conforme disponível). Responda de forma "
+            "direta, objetiva e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
             "REGRAS ADICIONAIS:\n"
-            "1. Se a pergunta não tiver relação com o currículo ou a carreira do candidato, explique "
-            "educadamente que você só pode ajudar com isso.\n"
-            "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
-            f"Currículo do candidato:\n{texto_curriculo}\n\n"
+            "1. Se a pergunta não tiver relação com o currículo, a vaga ou a carreira do candidato, "
+            "explique educadamente que você só pode ajudar com isso.\n"
+            "2. Se houver currículo e vaga ao mesmo tempo, correlacione os dois na resposta quando fizer "
+            "sentido (aderência, lacunas, como se preparar).\n"
+            "3. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
+            f"{contexto}\n\n"
             f"Conversa até aqui:\n{linhas_historico or '(nenhuma mensagem anterior)'}\n\n"
             f"Nova pergunta do candidato: {pergunta}"
         )

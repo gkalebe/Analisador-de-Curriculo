@@ -12,6 +12,7 @@ from app.core.service.template_service import (
     NenhumaAnaliseEncontradaError,
     TemplateNaoEncontradoError,
     TemplateService,
+    VersaoExportacaoInvalidaError,
 )
 
 
@@ -197,3 +198,80 @@ def test_exportar_curriculo_com_formato_invalido_lanca_erro():
         service.exportar_curriculo(
             id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="moderno", formato="jpg"
         )
+
+
+def test_exportar_curriculo_com_versao_invalida_lanca_erro():
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=uuid.uuid4(), id_usuario=id_usuario, nome_arquivo="curriculo.pdf", texto_extraido="texto"
+    )
+    service = _criar_service_com_fakes(curriculos=[curriculo])
+
+    with pytest.raises(VersaoExportacaoInvalidaError):
+        service.exportar_curriculo(
+            id_usuario=id_usuario,
+            id_curriculo=curriculo.id_curriculo,
+            id_template="moderno",
+            formato="pdf",
+            versao="rascunho",
+        )
+
+
+def test_exportar_curriculo_versao_editada_usa_dados_editados_sem_chamar_ia():
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=uuid.uuid4(),
+        id_usuario=id_usuario,
+        nome_arquivo="curriculo.pdf",
+        texto_extraido="texto bruto do currículo",
+        dados_editados={
+            "nome": "Ana Silva Editada",
+            "email": "ana.editada@email.com",
+            "telefone": "",
+            "resumo": "Resumo revisado.",
+            "formacao": "",
+            "experiencia_profissional": "",
+            "habilidades": "Python",
+        },
+    )
+    exporter = CurriculoExporterFalso()
+    ai_adapter = AIServiceAdapterFalso(erro=AssertionError("IA não deveria ser chamada para versão editada"))
+    service = _criar_service_com_fakes(curriculos=[curriculo], exporter=exporter, ai_adapter=ai_adapter)
+
+    conteudo, nome_arquivo, _ = service.exportar_curriculo(
+        id_usuario=id_usuario,
+        id_curriculo=curriculo.id_curriculo,
+        id_template="moderno",
+        formato="pdf",
+        versao="editada",
+    )
+
+    assert conteudo == b"conteudo-pdf"
+    assert "Ana Silva Editada" in nome_arquivo
+    assert exporter.chamadas[0][1]["nome"] == "Ana Silva Editada"
+    assert exporter.chamadas[0][1]["resumo"] == "Resumo revisado."
+
+
+def test_exportar_curriculo_versao_editada_sem_edicao_cai_para_original():
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=uuid.uuid4(),
+        id_usuario=id_usuario,
+        nome_arquivo="curriculo.pdf",
+        texto_extraido="texto bruto do currículo",
+        dados_editados=None,
+    )
+    exporter = CurriculoExporterFalso()
+    service = _criar_service_com_fakes(curriculos=[curriculo], exporter=exporter)
+
+    conteudo, nome_arquivo, _ = service.exportar_curriculo(
+        id_usuario=id_usuario,
+        id_curriculo=curriculo.id_curriculo,
+        id_template="moderno",
+        formato="pdf",
+        versao="editada",
+    )
+
+    assert conteudo == b"conteudo-pdf"
+    assert "Ana Silva" in nome_arquivo
+    assert exporter.chamadas[0][1]["nome"] == "Ana Silva"

@@ -10,6 +10,7 @@ import NovaAnalise from "./pages/NovaAnalise.jsx";
 import HistoricoAnalises from "./pages/HistoricoAnalises.jsx";
 import GaleriaTemplates from "./pages/GaleriaTemplates.jsx";
 import PreviewExportarCurriculo from "./pages/PreviewExportarCurriculo.jsx";
+import EditarCurriculo from "./pages/EditarCurriculo.jsx";
 import ChatBot from "./pages/ChatBot.jsx";
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
       <Route path="/analises/chat" element={<ChatBot />} />
       <Route path="/templates" element={<GaleriaTemplates />} />
       <Route path="/templates/exportar" element={<PreviewExportarCurriculo />} />
+      <Route path="/analises/editar" element={<EditarCurriculo />} />
     </Routes>
   );
 }

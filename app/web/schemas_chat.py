@@ -29,3 +29,13 @@ class ChatHistoricoResponse(BaseModel):
 class ChatEnviarResponse(BaseModel):
     mensagem_usuario: MensagemChatResponse
     mensagem_assistente: MensagemChatResponse
+
+
+class ChatEncerrarRequest(BaseModel):
+    email: EmailStr
+    id_curriculo: uuid.UUID | None = None
+    id_vaga: uuid.UUID | None = None
+
+
+class ChatEncerrarResponse(BaseModel):
+    mensagens_removidas: int

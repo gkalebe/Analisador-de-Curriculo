@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -199,6 +198,58 @@ def test_enviar_mensagem_vaga_nao_encontrada(chat_service):
             pergunta="Dúvida",
             id_vaga=uuid.uuid4(),
         )
+
+
+def test_encerrar_conversa_extrai_perguntas_e_apaga_mensagens(chat_service):
+    id_usuario = uuid.uuid4()
+    id_curriculo = uuid.uuid4()
+    mensagens = [
+        MensagemChat(
+            id_mensagem=uuid.uuid4(),
+            id_usuario=id_usuario,
+            id_curriculo=id_curriculo,
+            autor="usuario",
+            conteudo="Como melhorar meu resumo?",
+        ),
+        MensagemChat(
+            id_mensagem=uuid.uuid4(),
+            id_usuario=id_usuario,
+            id_curriculo=id_curriculo,
+            autor="assistente",
+            conteudo="Resposta simulada da IA.",
+        ),
+    ]
+
+    chat_service.chat_repository.listar = MagicMock(return_value=mensagens)
+    chat_service.chat_repository.excluir = MagicMock()
+    chat_service.pergunta_repository.criar_lote = MagicMock()
+
+    total_removidas = chat_service.encerrar_conversa(id_usuario=id_usuario, id_curriculo=id_curriculo)
+
+    assert total_removidas == 2
+    chat_service.pergunta_repository.criar_lote.assert_called_once_with(["Como melhorar meu resumo?"])
+    chat_service.chat_repository.excluir.assert_called_once_with(mensagens)
+
+
+def test_encerrar_conversa_sem_mensagens_nao_chama_repositorios(chat_service):
+    id_usuario = uuid.uuid4()
+    id_vaga = uuid.uuid4()
+
+    chat_service.chat_repository.listar = MagicMock(return_value=[])
+    chat_service.chat_repository.excluir = MagicMock()
+    chat_service.pergunta_repository.criar_lote = MagicMock()
+
+    total_removidas = chat_service.encerrar_conversa(id_usuario=id_usuario, id_vaga=id_vaga)
+
+    assert total_removidas == 0
+    chat_service.pergunta_repository.criar_lote.assert_not_called()
+    chat_service.chat_repository.excluir.assert_not_called()
+
+
+def test_encerrar_conversa_sem_contexto_lanca_erro(chat_service):
+    id_usuario = uuid.uuid4()
+    with pytest.raises(ContextoChatObrigatorioError):
+        chat_service.encerrar_conversa(id_usuario=id_usuario)
 
 
 def test_listar_historico_validacoes(chat_service):

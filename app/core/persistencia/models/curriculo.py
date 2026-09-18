@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, LargeBinary, String, Text, func
+from sqlalchemy import JSON, DateTime, ForeignKey, LargeBinary, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +24,8 @@ class Curriculo(Base):
     status_processamento: Mapped[str] = mapped_column(String(50), nullable=False, default="pendente")
     texto_extraido: Mapped[str | None] = mapped_column(Text, nullable=True)
     conteudo_arquivo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    dados_editados: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    editado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     id_usuario: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuario.id_usuario"), nullable=False)
 
     usuario: Mapped["Usuario"] = relationship(back_populates="curriculos")
