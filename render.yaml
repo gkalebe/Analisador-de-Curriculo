@@ -36,10 +36,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: analisador-curriculo-api
-          property: host
+        value: https://analisador-curriculo-api.onrender.com
 
 databases:
   # 3. PostgreSQL Database (Free Tier no Render)
