@@ -34,62 +34,59 @@ class VersaoExportacaoInvalidaError(Exception):
 
 TEMPLATES = [
     {
-        "id_template": "moderno",
-        "nome": "Moderno",
-        "descricao": "Layout com destaque em verde e seções bem demarcadas — indicado para tecnologia e design.",
+        "id_template": "generico",
+        "nome": "Genérico / Multiuso",
+        "descricao": "Layout neutro em azul-marinho, direto ao ponto — indicado para qualquer área quando não há um template mais específico.",
         "preview_ficticio": {
             "nome": "Ana Beatriz Souza",
             "email": "ana.souza@email.com",
             "telefone": "(61) 99999-0000",
-            "resumo": "Desenvolvedora backend pleno com 4 anos de experiência em Python e sistemas distribuídos.",
+            "resumo": "Profissional administrativa com 4 anos de experiência em rotinas de escritório, atendimento e organização de processos.",
             "experiencia_profissional": (
-                "Desenvolvedora Backend Pleno — Empresa XPTO (2023-atual)\n"
-                "Desenvolvedora Backend Júnior — Empresa ABC (2021-2023)"
+                "Assistente Administrativa — Empresa XPTO (2023-atual)\n"
+                "Auxiliar Administrativo — Empresa ABC (2021-2023)"
             ),
-            "formacao": "Bacharelado em Ciência da Computação — Universidade Exemplo (2017-2021)",
-            "habilidades": "Python, FastAPI, PostgreSQL, Docker, SQLAlchemy",
+            "formacao": "Bacharelado em Administração — Universidade Exemplo (2017-2021)",
+            "habilidades": "Pacote Office, atendimento ao cliente, organização, rotinas administrativas",
         },
     },
     {
-        "id_template": "classico",
-        "nome": "Clássico",
-        "descricao": "Layout formal, centralizado e em preto e branco — indicado para áreas jurídica e financeira.",
+        "id_template": "tecnologia",
+        "nome": "Tecnologia / TI",
+        "descricao": "Layout em verde-azulado com seções bem demarcadas — indicado para desenvolvimento, dados e áreas técnicas.",
         "preview_ficticio": {
             "nome": "Carlos Eduardo Lima",
             "email": "carlos.lima@email.com",
             "telefone": "(61) 98888-0000",
-            "resumo": "Analista financeiro com sólida experiência em controladoria e planejamento orçamentário.",
+            "resumo": "Desenvolvedor backend pleno com 4 anos de experiência em Python e sistemas distribuídos.",
             "experiencia_profissional": (
-                "Analista Financeiro Sênior — Empresa Delta (2020-atual)\n"
-                "Analista Financeiro Júnior — Empresa Gama (2018-2020)"
+                "Desenvolvedor Backend Pleno — Empresa Delta (2020-atual)\n"
+                "Desenvolvedor Backend Júnior — Empresa Gama (2018-2020)"
             ),
-            "formacao": "Bacharelado em Ciências Contábeis — Universidade Exemplo (2014-2018)",
-            "habilidades": "Excel avançado, SAP, análise de indicadores, orçamento empresarial",
+            "formacao": "Bacharelado em Ciência da Computação — Universidade Exemplo (2014-2018)",
+            "habilidades": "Python, FastAPI, PostgreSQL, Docker, SQLAlchemy",
         },
     },
     {
-        "id_template": "minimalista",
-        "nome": "Minimalista",
-        "descricao": "Layout compacto, sem cores e com tipografia leve — indicado para quem prefere ir direto ao ponto.",
+        "id_template": "estagio",
+        "nome": "Entrada / Estágio",
+        "descricao": "Layout em laranja, acolhedor e objetivo — indicado para quem está começando (estágio, trainee, primeiro emprego).",
         "preview_ficticio": {
             "nome": "Fernanda Alves",
             "email": "fernanda.alves@email.com",
             "telefone": "(61) 97777-0000",
-            "resumo": "Designer gráfica com foco em identidade visual e branding para pequenas empresas.",
+            "resumo": "Estudante de Design Gráfico, em busca da primeira oportunidade de estágio na área de branding.",
             "experiencia_profissional": (
-                "Designer Gráfica Freelancer (2019-atual)\n" "Estagiária de Design — Agência Criativa (2018-2019)"
+                "Estagiária de Design — Agência Criativa (2023-atual)\n" "Monitora de laboratório — Universidade Exemplo (2022-2023)"
             ),
-            "formacao": "Tecnólogo em Design Gráfico — Universidade Exemplo (2016-2019)",
+            "formacao": "Tecnólogo em Design Gráfico (cursando) — Universidade Exemplo (2020-atual)",
             "habilidades": "Adobe Illustrator, Photoshop, Figma, branding",
         },
     },
     {
-        "id_template": "executivo",
-        "nome": "Executivo",
-        "descricao": (
-            "Layout de alto contraste com títulos de seção em barra sólida azul-marinho — indicado para cargos "
-            "de liderança e gestão."
-        ),
+        "id_template": "gestao",
+        "nome": "Gestão / Coordenação",
+        "descricao": "Layout sóbrio em tom terracota — indicado para cargos de liderança, coordenação e gestão de equipes.",
         "preview_ficticio": {
             "nome": "Rafael Menezes Costa",
             "email": "rafael.costa@email.com",
@@ -104,23 +101,20 @@ TEMPLATES = [
         },
     },
     {
-        "id_template": "criativo",
-        "nome": "Criativo",
-        "descricao": (
-            "Layout com barra de destaque na lateral e habilidades em tags coloridas — indicado para marketing "
-            "e comunicação."
-        ),
+        "id_template": "setor_publico",
+        "nome": "Setor Público",
+        "descricao": "Layout formal em verde escuro — indicado para vagas em órgãos públicos, concursos e processos seletivos institucionais.",
         "preview_ficticio": {
             "nome": "Juliana Prado Martins",
             "email": "juliana.prado@email.com",
             "telefone": "(61) 95555-0000",
-            "resumo": "Analista de Marketing com foco em redes sociais e campanhas de performance.",
+            "resumo": "Analista administrativa com experiência em órgão público, atuando em processos de atendimento e conformidade.",
             "experiencia_profissional": (
-                "Analista de Marketing Pleno — Empresa Vívido (2022-atual)\n"
-                "Analista de Marketing Júnior — Agência Nexo (2020-2022)"
+                "Analista Administrativa — Ministério Exemplo (2022-atual)\n"
+                "Estagiária — Secretaria Municipal Exemplo (2020-2022)"
             ),
-            "formacao": "Bacharelado em Publicidade e Propaganda — Universidade Exemplo (2016-2020)",
-            "habilidades": "Redes sociais, Google Ads, copywriting, análise de métricas",
+            "formacao": "Bacharelado em Administração Pública — Universidade Exemplo (2016-2020)",
+            "habilidades": "Atendimento ao público, processos administrativos, Lei nº 8.112/1990, redação oficial",
         },
     },
 ]
