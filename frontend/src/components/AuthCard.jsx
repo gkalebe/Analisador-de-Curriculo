@@ -49,7 +49,7 @@ export default function AuthCard({ modoInicial }) {
     try {
       const resposta = await loginApi({ email: loginForm.email.trim(), senha: loginForm.senha });
       salvarSessao(criarSessao(resposta));
-      navigate("/painel");
+      navigate(`/analises/nova?email=${encodeURIComponent(resposta.usuario.email)}`);
     } catch (erro) {
       setLoginBanner(erro instanceof ApiError ? erro.message : "Falha de conexão com o servidor. Tente novamente.");
     } finally {
@@ -77,10 +77,14 @@ export default function AuthCard({ modoInicial }) {
         senha: cadastroForm.senha,
       });
       setCadastroBanner({
-        texto: "Cadastro realizado! Enviamos um e-mail de confirmação. Redirecionando para o login...",
+        texto: "Cadastro realizado! Entrando na sua conta...",
         tipo: "sucesso",
       });
-      setTimeout(() => irPara("login"), 1800);
+      // Login automático: o usuário acabou de criar a senha agora mesmo, não faz sentido
+      // pedir para ele digitá-la de novo numa segunda tela.
+      const resposta = await loginApi({ email: cadastroForm.email.trim(), senha: cadastroForm.senha });
+      salvarSessao(criarSessao(resposta));
+      navigate(`/analises/nova?email=${encodeURIComponent(resposta.usuario.email)}`);
     } catch (erro) {
       if (erro instanceof ApiError && erro.status === 409) {
         setCadastroErros({ email: erro.message });

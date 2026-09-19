@@ -4,18 +4,23 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
-from app.adapters.curriculo_parser.curriculo_parser import FormatoNaoSuportadoError
+from app.adapters.curriculo_parser.curriculo_parser import CurriculoParser, FormatoNaoSuportadoError
 from app.core.database import get_db
 from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.analisador_service import (
     AnalisadorService,
     CurriculoArquivoNaoEncontradoError,
     CurriculoNaoEncontradoError,
+    NenhumaSugestaoDisponivelError,
     VagaNaoEncontradaError,
 )
+from app.core.service.extracao_curriculo import SugestaoNaoAplicadaError
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     CurriculoDetalhesResponse,
+    CurriculoEdicaoEstruturadaRequest,
+    CurriculoEdicaoResponse,
+    CurriculoEdicaoTextoLivreRequest,
     CurriculoItemResponse,
     CurriculoListResponse,
     CurriculoResponse,
@@ -47,7 +52,12 @@ async def upload_curriculo(
         )
 
     nome_arquivo = file.filename or ""
-    extensao = nome_arquivo.rsplit(".", 1)[-1] if "." in nome_arquivo else ""
+    extensao = nome_arquivo.rsplit(".", 1)[-1].lower() if "." in nome_arquivo else ""
+    if extensao not in CurriculoParser.FORMATOS_SUPORTADOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato não suportado. Envie um arquivo PDF ou DOCX.",
+        )
     conteudo = await file.read()
 
     limite_mb = analisador_service.settings.max_upload_size_mb
@@ -133,7 +143,12 @@ async def criar_analise(
         )
 
     nome_arquivo = file.filename or ""
-    extensao = nome_arquivo.rsplit(".", 1)[-1] if "." in nome_arquivo else ""
+    extensao = nome_arquivo.rsplit(".", 1)[-1].lower() if "." in nome_arquivo else ""
+    if extensao not in CurriculoParser.FORMATOS_SUPORTADOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato não suportado. Envie um arquivo PDF ou DOCX.",
+        )
     conteudo = await file.read()
 
     limite_mb = analisador_service.settings.max_upload_size_mb
@@ -273,9 +288,136 @@ def baixar_arquivo_curriculo(
             detail="Arquivo físico do currículo não encontrado.",
         ) from erro
 
-    media_type = "application/pdf" if nome_arquivo.lower().endswith(".pdf") else "application/octet-stream"
+    eh_pdf = nome_arquivo.lower().endswith(".pdf")
+    media_type = "application/pdf" if eh_pdf else "application/octet-stream"
+    disposicao = "inline" if eh_pdf else "attachment"
     return Response(
         content=conteudo_arquivo,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+        headers={"Content-Disposition": f'{disposicao}; filename="{nome_arquivo}"'},
     )
+
+
+@router.get("/curriculos/{id_curriculo}/edicao", response_model=CurriculoEdicaoResponse)
+def obter_edicao_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+
+
+@router.put("/curriculos/{id_curriculo}/edicao", response_model=CurriculoEdicaoResponse)
+def salvar_edicao_estruturada_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    payload: CurriculoEdicaoEstruturadaRequest,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.salvar_edicao_estruturada_curriculo(
+            usuario.id_usuario, id_curriculo, payload.model_dump()
+        )
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+
+
+@router.post("/curriculos/{id_curriculo}/edicao/texto-livre", response_model=CurriculoEdicaoResponse)
+def salvar_edicao_texto_livre_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    payload: CurriculoEdicaoTextoLivreRequest,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.salvar_edicao_texto_livre_curriculo(usuario.id_usuario, id_curriculo, payload.texto)
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+    except IAConfiguracaoAusenteError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IAIndisponivelError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+
+
+@router.post("/curriculos/{id_curriculo}/edicao/aplicar-sugestoes", response_model=CurriculoEdicaoResponse)
+def aplicar_sugestoes_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.aplicar_sugestoes_curriculo(usuario.id_usuario, id_curriculo)
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+    except NenhumaSugestaoDisponivelError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ainda não há uma análise deste currículo com sugestões para aplicar.",
+        ) from erro
+    except IAConfiguracaoAusenteError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IAIndisponivelError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except SugestaoNaoAplicadaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="A IA não conseguiu aplicar as sugestões. Tente novamente em instantes.",
+        ) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)

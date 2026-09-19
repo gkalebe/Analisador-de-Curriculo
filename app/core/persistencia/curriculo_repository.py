@@ -1,9 +1,10 @@
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.persistencia.models import Curriculo
+from app.core.persistencia.models.curriculo import Curriculo
 
 
 class CurriculoRepository:
@@ -32,3 +33,16 @@ class CurriculoRepository:
     def excluir(self, curriculo: Curriculo) -> None:
         self.db.delete(curriculo)
         self.db.commit()
+
+    def salvar_edicao(self, curriculo: Curriculo, dados_editados: dict) -> Curriculo:
+        curriculo.dados_editados = dados_editados
+        curriculo.editado_em = datetime.now(timezone.utc)
+        self.db.commit()
+        self.db.refresh(curriculo)
+        return curriculo
+
+    def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
+        curriculo.dados_extraidos = dados_extraidos
+        self.db.commit()
+        self.db.refresh(curriculo)
+        return curriculo

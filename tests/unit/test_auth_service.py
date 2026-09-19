@@ -6,7 +6,7 @@ import pytest
 from jose import jwt
 
 from app.core.config import get_settings
-from app.core.persistencia.models import Usuario
+from app.core.persistencia.models.usuario import Usuario
 from app.core.service.auth_service import (
     AuthService,
     CredenciaisInvalidasError,

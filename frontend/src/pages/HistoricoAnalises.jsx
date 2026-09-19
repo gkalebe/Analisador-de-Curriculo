@@ -94,10 +94,10 @@ export default function HistoricoAnalises() {
     : 0;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
+    <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
       <Sidebar email={emailInicial} ativo="historico" />
 
-      <main className="flex-1 p-6 space-y-6 max-w-7xl">
+      <main className="flex-1 p-6 space-y-6 max-w-7xl md:h-screen md:overflow-y-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="font-brand text-[32px] font-bold text-black">Histórico de análises</h1>
@@ -344,7 +344,7 @@ export default function HistoricoAnalises() {
                           <div className="space-y-3">
                             <h4 className="font-brand text-lg font-bold text-black flex items-center gap-2">
                               <i className="ti ti-layout-grid text-[#1e5e3f]"></i>
-                              Diagnóstico Crítico da Estrutura (US-008)
+                              Diagnóstico Crítico da Estrutura
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-2">
@@ -397,7 +397,7 @@ export default function HistoricoAnalises() {
                           <div className="space-y-3">
                             <h4 className="font-brand text-lg font-bold text-black flex items-center gap-2">
                               <i className="ti ti-writing text-[#1e5e3f]"></i>
-                              Sugestões de Reescrita Lado a Lado (US-009)
+                              Sugestões de Reescrita Lado a Lado
                             </h4>
                             <div className="space-y-3">
                               {dadosAts.sugestoes_reescrita.map((sugestao, idx) => (

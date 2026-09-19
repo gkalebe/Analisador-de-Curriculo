@@ -3,10 +3,12 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
-from app.core.persistencia.models import Usuario, Vaga
+from app.core.persistencia.models.usuario import Usuario
+from app.core.persistencia.models.vaga import Vaga
 from app.core.service.analisador_service import (
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
+    VagaDuplicadaError,
 )
 from app.main import app
 from app.web.routers.vagas_router import get_analisador_service, get_usuario_repository
@@ -28,12 +30,15 @@ class AnalisadorServiceFalso:
         self.vagas_criadas: list[Vaga] = []
         self.deve_recusar_vazia = False
         self.deve_recusar_longa = False
+        self.deve_recusar_duplicada = False
 
     def cadastrar_vaga(self, id_usuario, descricao, titulo="", requisitos="", area=""):
         if self.deve_recusar_vazia:
             raise DescricaoVagaObrigatoriaError
         if self.deve_recusar_longa:
             raise DescricaoVagaMuitoLongaError
+        if self.deve_recusar_duplicada:
+            raise VagaDuplicadaError
         vaga = Vaga(
             id_vaga=uuid.uuid4(),
             titulo=titulo or None,
@@ -151,3 +156,19 @@ def test_criar_vaga_com_descricao_longa_retorna_400():
     app.dependency_overrides.clear()
     assert response.status_code == 400
     assert "no máximo" in response.json()["detail"]
+
+
+def test_criar_vaga_com_descricao_duplicada_retorna_409():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_duplicada = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/api/vagas",
+        json={"email": usuario.email, "descricao": "Vaga repetida."},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 409

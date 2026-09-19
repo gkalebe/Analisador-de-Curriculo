@@ -1,12 +1,12 @@
 # core/persistencia/
 
-Modelos ORM (`models.py`) e repositórios (`*_repository.py`). Esta é a única camada que fala SQLAlchemy diretamente — services não devem importar `sqlalchemy` nem montar `select(...)` fora daqui.
+Modelos ORM (`models/`) e repositórios (`*_repository.py`). Esta é a única camada que fala SQLAlchemy diretamente — services não devem importar `sqlalchemy` nem montar `select(...)` fora daqui.
 
-## `models.py`
+## `models/`
 
 As 5 entidades (`Usuario`, `Curriculo`, `Candidato`, `Vaga`, `Analise`) já estão completas, com chaves primárias UUID e relacionamentos, seguindo o diagrama UML do Documento de Arquitetura de Software (Seção 4.1) e o modelo de dados da Seção 6. Isso não é trabalho de nenhuma US específica — é o schema que o time já validou no documento, só transcrito para código.
 
-Se uma US precisar de um campo novo que não está no diagrama original, adicione o campo aqui e gere a migração (`alembic revision --autogenerate -m "..."`), mas avise o time antes: mexer em `models.py` é área de conflito sensível (ver Plano de Ação, Seção 1.4).
+Se uma US precisar de um campo novo que não está no diagrama original, adicione o campo ao módulo da entidade correspondente e gere a migração (`alembic revision --autogenerate -m "..."`), mas avise o time antes: mexer nos models é área de conflito sensível (ver Plano de Ação, Seção 1.4).
 
 `Curriculo.texto_extraido` (`Text`, nullable) foi adicionado nas US-012/US-013 (Gabriel Kalebe, autorizado pelo time): antes o texto extraído do PDF/DOCX era usado só para calcular `tamanho_texto_extraido` e descartado; agora é persistido para alimentar a extração de dados estruturados por IA na exportação de currículo (ver `app/core/service/README.md` e `app/adapters/README.md`). Migração: `alembic/versions/20260915_01_curriculo_texto_extraido.py`.
 
@@ -32,4 +32,4 @@ alembic revision --autogenerate -m "descricao-curta"
 alembic upgrade head
 ```
 
-Toda mudança em `models.py` deve vir acompanhada da migração correspondente no mesmo PR — a migração `54b69fafad49_adiciona_data_nascimento_e_exclusao_.py` corrigiu um caso em que isso não tinha acontecido (`Usuario.data_nascimento` e `Usuario.exclusao_solicitada_em` já existiam no model mas nunca tinham sido migrados, quebrando `alembic upgrade head` em bancos criados do zero). Depois de puxar essa migração, rode `alembic upgrade head` no seu ambiente local.
+Toda mudança em `models/` deve vir acompanhada da migração correspondente no mesmo PR — a migração `54b69fafad49_adiciona_data_nascimento_e_exclusao_.py` corrigiu um caso em que isso não tinha acontecido (`Usuario.data_nascimento` e `Usuario.exclusao_solicitada_em` já existiam no model mas nunca tinham sido migrados, quebrando `alembic upgrade head` em bancos criados do zero). Depois de puxar essa migração, rode `alembic upgrade head` no seu ambiente local.
