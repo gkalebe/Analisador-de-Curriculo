@@ -7,6 +7,7 @@ from app.core.service.analisador_service import (
     AnalisadorService,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
+    VagaDuplicadaError,
 )
 from app.web.schemas_vaga import VagaCreateRequest, VagaListResponse, VagaResponse
 
@@ -69,6 +70,11 @@ def criar_vaga(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"A descrição da vaga deve ter no máximo {limite} caracteres.",
+        ) from erro
+    except VagaDuplicadaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Você já cadastrou uma vaga com essa mesma descrição.",
         ) from erro
 
     return VagaResponse.model_validate(vaga)

@@ -26,6 +26,10 @@ class DescricaoVagaMuitoLongaError(Exception):
     pass
 
 
+class VagaDuplicadaError(Exception):
+    pass
+
+
 class VagaNaoEncontradaError(Exception):
     pass
 
@@ -78,6 +82,15 @@ class AnalisadorService:
             raise DescricaoVagaObrigatoriaError
         if len(descricao_normalizada) > self.settings.max_vaga_description_chars:
             raise DescricaoVagaMuitoLongaError
+
+        # Compara com as vagas já salvas do usuário para recusar duplicata exata (mesma
+        # descrição, ignorando maiúsculas/minúsculas e espaços nas pontas) — evita que o
+        # mesmo texto colado duas vezes (ex.: formulário que não limpa após salvar) vire
+        # duas vagas idênticas no histórico do usuário.
+        descricao_para_comparacao = descricao_normalizada.lower()
+        vagas_existentes = self.vaga_repository.listar_por_usuario(id_usuario)
+        if any((vaga_existente.descricao or "").strip().lower() == descricao_para_comparacao for vaga_existente in vagas_existentes):
+            raise VagaDuplicadaError
 
         vaga = Vaga(
             titulo=(titulo or "").strip() or None,

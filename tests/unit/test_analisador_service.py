@@ -11,6 +11,7 @@ from app.core.service.analisador_service import (
     CurriculoNaoEncontradoError,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
+    VagaDuplicadaError,
     VagaNaoEncontradaError,
 )
 
@@ -149,6 +150,33 @@ def test_cadastrar_vaga_rejeita_descricao_acima_do_limite():
 
     with pytest.raises(DescricaoVagaMuitoLongaError):
         service.cadastrar_vaga(id_usuario=uuid.uuid4(), descricao="a" * 11)
+
+
+def test_cadastrar_vaga_rejeita_descricao_duplicada_do_mesmo_usuario():
+    service, _ = _criar_service_com_fake()
+    id_usuario = uuid.uuid4()
+    service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga para desenvolvedor Python.")
+
+    with pytest.raises(VagaDuplicadaError):
+        service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga para desenvolvedor Python.")
+
+
+def test_cadastrar_vaga_rejeita_descricao_duplicada_ignorando_maiusculas_e_espacos():
+    service, _ = _criar_service_com_fake()
+    id_usuario = uuid.uuid4()
+    service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga para desenvolvedor Python.")
+
+    with pytest.raises(VagaDuplicadaError):
+        service.cadastrar_vaga(id_usuario=id_usuario, descricao="  VAGA PARA DESENVOLVEDOR PYTHON.  ")
+
+
+def test_cadastrar_vaga_permite_mesma_descricao_para_usuarios_diferentes():
+    service, fake = _criar_service_com_fake()
+
+    service.cadastrar_vaga(id_usuario=uuid.uuid4(), descricao="Vaga para desenvolvedor Python.")
+    service.cadastrar_vaga(id_usuario=uuid.uuid4(), descricao="Vaga para desenvolvedor Python.")
+
+    assert len(fake.vagas) == 2
 
 
 def test_listar_vagas_usuario_retorna_apenas_do_usuario():
