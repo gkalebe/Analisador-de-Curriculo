@@ -1,10 +1,15 @@
 import json
+from typing import TYPE_CHECKING
 
 from app.adapters.ai_service.ai_service_adapter import (
     AIServiceAdapter,
     IAConfiguracaoAusenteError,
     IAIndisponivelError,
 )
+
+if TYPE_CHECKING:
+    from app.core.persistencia.curriculo_repository import CurriculoRepository
+    from app.core.persistencia.models.curriculo import Curriculo
 
 # Campos estruturados de currículo compartilhados entre a exportação de templates e a
 # edição de currículo — mantidos num único lugar para as duas features nunca divergirem.
@@ -62,3 +67,43 @@ def normalizar_dados_editados(dados_editados: dict, texto_bruto: str = "") -> di
     return {campo: str(dados_editados.get(campo) or "") for campo in CAMPOS_CURRICULO} | {
         "texto_bruto": dados_editados.get("texto_bruto") or texto_bruto
     }
+
+
+def _dados_tem_conteudo(dados: dict) -> bool:
+    return any((dados.get(campo) or "").strip() for campo in CAMPOS_CURRICULO)
+
+
+def obter_dados_curriculo_com_cache(
+    curriculo: "Curriculo",
+    ai_service_adapter: AIServiceAdapter,
+    curriculo_repository: "CurriculoRepository",
+) -> dict:
+    """
+    Fonte única de dados estruturados de um currículo para edição/exportação/preview,
+    nesta ordem de prioridade:
+
+    1. `dados_editados` — edição manual do usuário (ou já com sugestões aplicadas):
+       sempre vence, nunca chama IA.
+    2. `dados_extraidos` — cache da extração por IA feita anteriormente para este
+       currículo: reaproveitado sem nova chamada à IA.
+    3. Extração nova por IA — só quando nenhum dos dois acima existe ainda. Se a
+       extração tiver conteúdo de verdade, é salva em `dados_extraidos` para as
+       próximas chamadas (próximo preview, próxima exportação, abrir a tela de
+       edição) não dependerem da IA estar disponível de novo.
+
+    Existe por causa de um problema real: exportar/pré-visualizar um currículo
+    "original" chamava a IA a cada clique — caro, lento e frágil (uma exportação de
+    documento não deveria poder falhar por causa de indisponibilidade/cota da IA).
+    Compartilhada entre `TemplateService` (exportação) e `AnalisadorService` (tela de
+    edição) para as duas nunca divergirem em como resolvem os dados de um currículo.
+    """
+    if curriculo.dados_editados:
+        return normalizar_dados_editados(curriculo.dados_editados, curriculo.texto_extraido or "")
+
+    if curriculo.dados_extraidos:
+        return normalizar_dados_editados(curriculo.dados_extraidos, curriculo.texto_extraido or "")
+
+    dados = extrair_dados_estruturados_curriculo(ai_service_adapter, curriculo.texto_extraido or "")
+    if _dados_tem_conteudo(dados):
+        curriculo_repository.salvar_dados_extraidos(curriculo, dados)
+    return dados

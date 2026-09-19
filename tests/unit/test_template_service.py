@@ -31,6 +31,10 @@ class CurriculoRepositorioFalso:
     def buscar_por_id(self, id_curriculo: uuid.UUID) -> Curriculo | None:
         return next((c for c in self.curriculos if c.id_curriculo == id_curriculo), None)
 
+    def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
+        curriculo.dados_extraidos = dados_extraidos
+        return curriculo
+
 
 class AIServiceAdapterFalso:
     def __init__(self, resposta: str | None = None, erro: Exception | None = None):

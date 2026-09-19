@@ -40,3 +40,9 @@ class CurriculoRepository:
         self.db.commit()
         self.db.refresh(curriculo)
         return curriculo
+
+    def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
+        curriculo.dados_extraidos = dados_extraidos
+        self.db.commit()
+        self.db.refresh(curriculo)
+        return curriculo

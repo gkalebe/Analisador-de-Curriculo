@@ -15,6 +15,7 @@ from app.core.persistencia.vaga_repository import VagaRepository
 from app.core.service.extracao_curriculo import (
     extrair_dados_estruturados_curriculo,
     normalizar_dados_editados,
+    obter_dados_curriculo_com_cache,
 )
 
 
@@ -212,10 +213,7 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        if curriculo.dados_editados:
-            dados = normalizar_dados_editados(curriculo.dados_editados, curriculo.texto_extraido or "")
-        else:
-            dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, curriculo.texto_extraido or "")
+        dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
 
         return {
             "id_curriculo": curriculo.id_curriculo,

@@ -56,6 +56,10 @@ class CurriculoRepositorioFalso:
         curriculo.editado_em = "2026-09-18T00:00:00+00:00"
         return curriculo
 
+    def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
+        curriculo.dados_extraidos = dados_extraidos
+        return curriculo
+
 
 class AnaliseRepositorioFalso:
     def __init__(self):
@@ -445,6 +449,29 @@ def test_obter_dados_edicao_curriculo_inexistente_lanca_erro():
 
     with pytest.raises(CurriculoNaoEncontradoError):
         service.obter_dados_edicao_curriculo(uuid.uuid4(), uuid.uuid4())
+
+
+def test_obter_dados_edicao_curriculo_reaproveita_extracao_em_cache_sem_chamar_ia_de_novo():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf", id_usuario=id_usuario, status_processamento="concluido", texto_extraido="texto bruto"
+    )
+    service.curriculo_repository.criar(curriculo)
+    chamadas = []
+    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: (
+        chamadas.append(texto)
+        or '{"nome": "Ana Silva", "email": "", "telefone": "", "resumo": "", '
+        '"formacao": "", "experiencia_profissional": "", "habilidades": ""}'
+    )
+
+    primeiro = service.obter_dados_edicao_curriculo(id_usuario, curriculo.id_curriculo)
+    segundo = service.obter_dados_edicao_curriculo(id_usuario, curriculo.id_curriculo)
+
+    assert primeiro["dados"]["nome"] == "Ana Silva"
+    assert segundo["dados"]["nome"] == "Ana Silva"
+    assert len(chamadas) == 1
+    assert curriculo.dados_extraidos["nome"] == "Ana Silva"
 
 
 def test_salvar_edicao_estruturada_curriculo_persiste_dados_completos():

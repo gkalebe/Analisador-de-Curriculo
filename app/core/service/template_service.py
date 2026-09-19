@@ -7,8 +7,8 @@ from app.adapters.curriculo_exporter.curriculo_exporter import CurriculoExporter
 from app.core.persistencia.analise_repository import AnaliseRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
 from app.core.service.extracao_curriculo import (
-    extrair_dados_estruturados_curriculo,
     normalizar_dados_editados,
+    obter_dados_curriculo_com_cache,
 )
 
 
@@ -159,11 +159,13 @@ class TemplateService:
 
         # "editada" usa os dados que o usuário revisou/ajustou na tela de edição (já
         # incorporando as sugestões da análise), sem nova chamada à IA. Se ainda não existir
-        # edição salva, caímos graciosamente para o comportamento padrão ("original").
+        # edição salva, caímos graciosamente para o comportamento padrão ("original"), que por
+        # sua vez reaproveita a extração já em cache (dados_extraidos) em vez de chamar a IA de
+        # novo a cada exportação — ver obter_dados_curriculo_com_cache.
         if versao == "editada" and curriculo.dados_editados:
             dados = normalizar_dados_editados(curriculo.dados_editados, curriculo.texto_extraido or "")
         else:
-            dados = self._extrair_dados_curriculo(curriculo.texto_extraido or "")
+            dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
 
         if formato == "pdf":
             conteudo = self.curriculo_exporter.gerar_pdf(dados, id_template)
@@ -175,6 +177,3 @@ class TemplateService:
         nome_base = (dados.get("nome") or curriculo.nome_arquivo.rsplit(".", 1)[0] or "curriculo").strip()
         nome_arquivo = f"{nome_base} - {TEMPLATES_POR_ID[id_template]['nome']}.{formato}"
         return conteudo, nome_arquivo, media_type
-
-    def _extrair_dados_curriculo(self, texto_extraido: str) -> dict:
-        return extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
