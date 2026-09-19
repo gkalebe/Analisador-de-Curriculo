@@ -11,6 +11,12 @@ if TYPE_CHECKING:
     from app.core.persistencia.curriculo_repository import CurriculoRepository
     from app.core.persistencia.models.curriculo import Curriculo
 
+
+class SugestaoNaoAplicadaError(Exception):
+    """A IA respondeu, mas não em um JSON interpretável — diferente de indisponibilidade,
+    aqui vale mostrar um erro explícito ao usuário em vez de aplicar silenciosamente nada,
+    já que "aplicar sugestões" é uma ação que ele pediu explicitamente."""
+
 # Campos estruturados de currículo compartilhados entre a exportação de templates e a
 # edição de currículo — mantidos num único lugar para as duas features nunca divergirem.
 CAMPOS_CURRICULO = (
@@ -107,3 +113,39 @@ def obter_dados_curriculo_com_cache(
     if _dados_tem_conteudo(dados):
         curriculo_repository.salvar_dados_extraidos(curriculo, dados)
     return dados
+
+
+def aplicar_sugestoes_em_dados_curriculo(
+    ai_service_adapter: AIServiceAdapter, dados_atuais: dict, sugestoes: dict, texto_bruto: str = ""
+) -> dict:
+    """
+    Pede à IA uma versão dos campos estruturados do currículo com as sugestões da
+    análise (palavras-chave faltantes, itens a remover/reorganizar, reescritas)
+    já aplicadas — sem IA nenhuma etapa depois disso, é só o que o usuário revisa e
+    salva (ou ajusta manualmente) na tela de edição.
+
+    Diferente de `extrair_dados_estruturados_curriculo`, uma falha aqui propaga
+    (`IAConfiguracaoAusenteError`/`IAIndisponivelError`/`SugestaoNaoAplicadaError`)
+    em vez de cair silenciosamente em campos vazios: apagar o currículo do usuário
+    porque a IA falhou seria pior do que mostrar um erro e deixar os dados como
+    estavam.
+    """
+    resultado_ia = ai_service_adapter.aplicar_sugestoes_curriculo(dados_atuais, sugestoes)
+
+    texto = (resultado_ia or "").strip()
+    if texto.startswith("```"):
+        texto = texto.strip("`").strip()
+        if texto.lower().startswith("json"):
+            texto = texto[4:].strip()
+
+    try:
+        dados_ia = json.loads(texto)
+    except (json.JSONDecodeError, TypeError) as erro:
+        raise SugestaoNaoAplicadaError("A IA não retornou um JSON válido ao aplicar as sugestões.") from erro
+
+    if not isinstance(dados_ia, dict):
+        raise SugestaoNaoAplicadaError("A IA não retornou os dados do currículo no formato esperado.")
+
+    return {campo: str(dados_ia.get(campo) or dados_atuais.get(campo) or "") for campo in CAMPOS_CURRICULO} | {
+        "texto_bruto": texto_bruto
+    }

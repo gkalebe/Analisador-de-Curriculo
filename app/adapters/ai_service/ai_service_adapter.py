@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -155,6 +156,10 @@ class AIServiceAdapter:
         prompt = self._montar_prompt_extracao(texto_curriculo)
         return self.cliente.gerar_resposta(prompt, temperatura=0.2)
 
+    def aplicar_sugestoes_curriculo(self, dados_atuais: dict, sugestoes: dict) -> str:
+        prompt = self._montar_prompt_aplicar_sugestoes(dados_atuais, sugestoes)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
+
     def responder_chat(
         self,
         historico: list[tuple[str, str]],
@@ -226,6 +231,44 @@ class AIServiceAdapter:
             'por \\n, ou string vazia>", "habilidades": "<habilidades técnicas e comportamentais '
             'separadas por vírgula, ou string vazia>"}.\n\n'
             f"Currículo:\n{texto_curriculo}"
+        )
+
+    def _montar_prompt_aplicar_sugestoes(self, dados_atuais: dict, sugestoes: dict) -> str:
+        diagnostico = sugestoes.get("diagnostico_ats") or {}
+        reescritas = sugestoes.get("sugestoes_reescrita") or []
+        linhas_reescritas = "\n".join(
+            f'- Trecho original: "{item.get("trecho_original", "")}" → '
+            f'Versão sugerida: "{item.get("versao_otimizada", "")}"'
+            for item in reescritas
+            if isinstance(item, dict) and (item.get("trecho_original") or item.get("versao_otimizada"))
+        ) or "(nenhuma)"
+
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Você já analisou este currículo antes e deu o diagnóstico abaixo. Agora, aplique "
+            "esse diagnóstico DIRETAMENTE nos campos do currículo — não descreva o que deveria mudar, "
+            "entregue os campos já corrigidos.\n\n"
+            "REGRAS ESTRITAS:\n"
+            "1. Remova do currículo os itens listados em 'A remover' (ex.: se for uma formação, tire a "
+            "linha inteira de 'formacao'; se for um termo vago numa frase, reescreva a frase sem ele).\n"
+            "2. Reorganize conforme 'A reorganizar' (ex.: ordem de destaque, agrupamento).\n"
+            "3. Troque cada trecho original pela versão otimizada listada em 'Reescritas sugeridas', "
+            "quando esse trecho aparecer no campo correspondente.\n"
+            "4. Incorpore as 'Palavras-chave faltantes' de forma natural e verdadeira nos campos onde "
+            "fizer sentido (resumo, experiência, habilidades) — SOMENTE se algo no currículo atual já "
+            "sustentar aquilo; NUNCA invente uma ferramenta, empresa, cargo ou tempo de experiência que "
+            "o candidato não tenha.\n"
+            "5. Preserve tudo que não foi mencionado no diagnóstico exatamente como está.\n"
+            "6. Responda ESTRITAMENTE em JSON válido, sem texto fora do JSON e sem markdown, no mesmo "
+            "formato exato dos campos de entrada: "
+            '{"nome": "...", "email": "...", "telefone": "...", "resumo": "...", "formacao": "...", '
+            '"experiencia_profissional": "...", "habilidades": "..."}.\n\n'
+            f"CAMPOS ATUAIS DO CURRÍCULO:\n{json.dumps(dados_atuais, ensure_ascii=False, indent=2)}\n\n"
+            f"PONTOS FORTES (manter): {diagnostico.get('pontos_fortes') or []}\n"
+            f"A REORGANIZAR: {diagnostico.get('a_reorganizar') or []}\n"
+            f"A REMOVER: {diagnostico.get('a_remover') or []}\n"
+            f"PALAVRAS-CHAVE FALTANTES: {sugestoes.get('palavras_chave_faltantes') or []}\n"
+            f"REESCRITAS SUGERIDAS:\n{linhas_reescritas}\n"
         )
 
     def _montar_prompt_chat(

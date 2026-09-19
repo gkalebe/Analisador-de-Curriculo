@@ -1,9 +1,13 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.service.extracao_curriculo import (
     CAMPOS_CURRICULO,
+    SugestaoNaoAplicadaError,
+    aplicar_sugestoes_em_dados_curriculo,
     dados_curriculo_vazios,
     extrair_dados_estruturados_curriculo,
     normalizar_dados_editados,
@@ -156,3 +160,73 @@ def test_obter_dados_curriculo_com_cache_nao_salva_extracao_vazia():
 
     assert dados["nome"] == ""
     assert repositorio.chamadas_salvar_dados_extraidos == []
+
+
+SUGESTOES_EXEMPLO = {
+    "palavras_chave_faltantes": ["Docker"],
+    "diagnostico_ats": {"pontos_fortes": ["Boa formação"], "a_reorganizar": [], "a_remover": ["Ensino Médio"]},
+    "sugestoes_reescrita": [{"trecho_original": "fez coisas", "versao_otimizada": "liderou automações"}],
+}
+
+DADOS_ATUAIS_EXEMPLO = {
+    "nome": "Ana Silva",
+    "email": "ana@email.com",
+    "telefone": "",
+    "resumo": "fez coisas",
+    "formacao": "Ensino Médio\nEngenharia",
+    "experiencia_profissional": "Experiência.",
+    "habilidades": "Python",
+}
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_com_sucesso():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = (
+        '{"nome": "Ana Silva", "email": "ana@email.com", "telefone": "", '
+        '"resumo": "liderou automações", "formacao": "Engenharia", '
+        '"experiencia_profissional": "Experiência.", "habilidades": "Python, Docker"}'
+    )
+
+    resultado = aplicar_sugestoes_em_dados_curriculo(
+        ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO, texto_bruto="texto bruto"
+    )
+
+    assert resultado["resumo"] == "liderou automações"
+    assert resultado["formacao"] == "Engenharia"
+    assert resultado["texto_bruto"] == "texto bruto"
+    ai_adapter.aplicar_sugestoes_curriculo.assert_called_once_with(DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_mantem_campo_atual_se_ia_omitir():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = '{"resumo": "liderou automações"}'
+
+    resultado = aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+    assert resultado["resumo"] == "liderou automações"
+    assert resultado["nome"] == "Ana Silva"
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_remove_cercas_markdown():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = '```json\n{"resumo": "liderou automações"}\n```'
+
+    resultado = aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+    assert resultado["resumo"] == "liderou automações"
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_com_resposta_nao_json_lanca_erro():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = "não é json"
+
+    with pytest.raises(SugestaoNaoAplicadaError):
+        aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_propaga_indisponibilidade_da_ia():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.side_effect = IAIndisponivelError("timeout")
+
+    with pytest.raises(IAIndisponivelError):
+        aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)

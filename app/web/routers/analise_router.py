@@ -11,8 +11,10 @@ from app.core.service.analisador_service import (
     AnalisadorService,
     CurriculoArquivoNaoEncontradoError,
     CurriculoNaoEncontradoError,
+    NenhumaSugestaoDisponivelError,
     VagaNaoEncontradaError,
 )
+from app.core.service.extracao_curriculo import SugestaoNaoAplicadaError
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     CurriculoDetalhesResponse,
@@ -377,5 +379,45 @@ def salvar_edicao_texto_livre_curriculo(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
     except IAIndisponivelError as erro:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+
+
+@router.post("/curriculos/{id_curriculo}/edicao/aplicar-sugestoes", response_model=CurriculoEdicaoResponse)
+def aplicar_sugestoes_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.aplicar_sugestoes_curriculo(usuario.id_usuario, id_curriculo)
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+    except NenhumaSugestaoDisponivelError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ainda não há uma análise deste currículo com sugestões para aplicar.",
+        ) from erro
+    except IAConfiguracaoAusenteError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IAIndisponivelError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except SugestaoNaoAplicadaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="A IA não conseguiu aplicar as sugestões. Tente novamente em instantes.",
+        ) from erro
 
     return CurriculoEdicaoResponse.model_validate(dados_edicao)

@@ -487,7 +487,7 @@ export default function NovaAnalise() {
               {/* Rodapé do Diagnóstico com Ações */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-200">
                 <p className="text-xs text-gray-500">
-                  Pronto para aplicar as melhorias? Utilize nossos modelos diagramados para leitura de robôs ATS.
+                  Pronto para aplicar as melhorias? Transforme este diagnóstico num currículo em template ATS.
                 </p>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <button
@@ -498,10 +498,10 @@ export default function NovaAnalise() {
                     Testar outra vaga / currículo
                   </button>
                   <Link
-                    to={`/templates?email=${encodeURIComponent(emailInicial)}`}
+                    to={`/analises/editar?email=${encodeURIComponent(emailInicial)}&curriculo=${resultado.id_curriculo}`}
                     className="flex-1 sm:flex-none text-center rounded-lg bg-[#1e5e3f] px-5 py-2 text-sm font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors"
                   >
-                    Ver Templates ATS
+                    Transformar em Template ATS
                   </Link>
                 </div>
               </div>

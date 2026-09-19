@@ -3,6 +3,7 @@ import uuid
 
 import pytest
 
+from app.adapters.ai_service.ai_service_adapter import IAIndisponivelError
 from app.core.persistencia.models.analise import Analise
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
@@ -11,6 +12,7 @@ from app.core.service.analisador_service import (
     CurriculoNaoEncontradoError,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
+    NenhumaSugestaoDisponivelError,
     VagaDuplicadaError,
     VagaNaoEncontradaError,
 )
@@ -472,6 +474,88 @@ def test_obter_dados_edicao_curriculo_reaproveita_extracao_em_cache_sem_chamar_i
     assert segundo["dados"]["nome"] == "Ana Silva"
     assert len(chamadas) == 1
     assert curriculo.dados_extraidos["nome"] == "Ana Silva"
+
+
+def _preparar_curriculo_com_sugestoes(service, id_usuario: uuid.UUID, dados_editados: dict | None = None) -> Curriculo:
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="texto bruto",
+        dados_editados=dados_editados,
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    observacoes = json.dumps(
+        {
+            "palavras_chave": {"ausentes": ["Docker"]},
+            "diagnostico_ats": {"pontos_fortes": [], "o_que_reorganizar": [], "o_que_retirar": ["Ensino Médio"]},
+            "sugestoes_reescrita": [
+                {"trecho_original": "fez coisas", "sugestao_otimizada": "liderou automações", "motivo": "Ativo"}
+            ],
+        }
+    )
+    analise = Analise(
+        id_curriculo=curriculo.id_curriculo, id_vaga=vaga.id_vaga, id_usuario=id_usuario, observacoes=observacoes
+    )
+    service.analise_repository.criar(analise)
+    return curriculo
+
+
+def test_aplicar_sugestoes_curriculo_salva_como_edicao():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
+    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: (
+        '{"nome": "Ana Silva", "email": "", "telefone": "", "resumo": "fez coisas", '
+        '"formacao": "", "experiencia_profissional": "", "habilidades": "Python"}'
+    )
+    service.ai_service_adapter.aplicar_sugestoes_curriculo = lambda dados, sugestoes: (
+        '{"nome": "", "email": "", "telefone": "", "resumo": "liderou automações", '
+        '"formacao": "Engenharia", "experiencia_profissional": "", "habilidades": "Python, Docker"}'
+    )
+
+    resultado = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+
+    assert resultado.dados_editados["resumo"] == "liderou automações"
+    assert resultado.dados_editados["habilidades"] == "Python, Docker"
+    assert resultado.editado_em is not None
+
+
+def test_aplicar_sugestoes_curriculo_sem_sugestoes_disponiveis_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf", id_usuario=id_usuario, status_processamento="concluido", texto_extraido="texto bruto"
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    with pytest.raises(NenhumaSugestaoDisponivelError):
+        service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+
+
+def test_aplicar_sugestoes_curriculo_inexistente_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+
+    with pytest.raises(CurriculoNaoEncontradoError):
+        service.aplicar_sugestoes_curriculo(uuid.uuid4(), uuid.uuid4())
+
+
+def test_aplicar_sugestoes_curriculo_com_falha_na_ia_propaga_erro():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
+    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: (
+        '{"nome": "Ana Silva", "email": "", "telefone": "", "resumo": "", '
+        '"formacao": "", "experiencia_profissional": "", "habilidades": ""}'
+    )
+    service.ai_service_adapter.aplicar_sugestoes_curriculo = lambda dados, sugestoes: (_ for _ in ()).throw(
+        IAIndisponivelError("timeout")
+    )
+
+    with pytest.raises(IAIndisponivelError):
+        service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
 
 
 def test_salvar_edicao_estruturada_curriculo_persiste_dados_completos():

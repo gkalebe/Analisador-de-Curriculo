@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import {
+  aplicarSugestoesCurriculo,
   obterEdicaoCurriculo,
   salvarEdicaoEstruturada,
   salvarEdicaoTextoLivre,
@@ -47,6 +48,7 @@ export default function EditarCurriculo() {
 
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [aplicandoSugestoes, setAplicandoSugestoes] = useState(false);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
 
@@ -127,6 +129,25 @@ export default function EditarCurriculo() {
     ((sugestoes.palavras_chave_faltantes && sugestoes.palavras_chave_faltantes.length > 0) ||
       (sugestoes.sugestoes_reescrita && sugestoes.sugestoes_reescrita.length > 0) ||
       sugestoes.diagnostico_ats);
+
+  async function aplicarSugestoes() {
+    setAplicandoSugestoes(true);
+    setErro("");
+    setAviso("");
+    try {
+      const resposta = await aplicarSugestoesCurriculo(idCurriculoSelecionado, emailInicial);
+      setDadosForm({ ...DADOS_VAZIOS, ...resposta.dados });
+      setTextoLivre(resposta.dados?.texto_bruto || "");
+      setPossuiEdicao(true);
+      setEditadoEm(resposta.editado_em || null);
+      setModo("estruturado");
+      setAviso("Sugestões aplicadas automaticamente. Revise os campos abaixo antes de exportar.");
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível aplicar as sugestões agora. Tente novamente.");
+    } finally {
+      setAplicandoSugestoes(false);
+    }
+  }
 
   return (
     <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
@@ -306,6 +327,18 @@ export default function EditarCurriculo() {
                 <p className="text-sm text-gray-500">
                   Nenhuma sugestão disponível ainda. Rode uma análise deste currículo para receber recomendações.
                 </p>
+              )}
+
+              {temSugestoes && (
+                <button
+                  type="button"
+                  onClick={aplicarSugestoes}
+                  disabled={aplicandoSugestoes}
+                  className="w-full flex items-center justify-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
+                >
+                  <i className="ti ti-sparkles"></i>{" "}
+                  {aplicandoSugestoes ? "Aplicando..." : "Aplicar sugestões automaticamente"}
+                </button>
               )}
 
               {sugestoes?.palavras_chave_faltantes?.length > 0 && (
