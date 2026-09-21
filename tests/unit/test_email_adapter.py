@@ -2,6 +2,7 @@ import smtplib
 from unittest.mock import MagicMock, patch
 
 from app.adapters.email.email_adapter import EmailAdapter
+from app.adapters.email.sendgrid_client import SendGridError
 from app.core.config import Settings
 
 
@@ -13,6 +14,7 @@ def _adapter(**overrides) -> EmailAdapter:
         "smtp_password": "",
         "smtp_from": "no-reply@analisador-curriculos.com",
         "smtp_use_tls": True,
+        "sendgrid_api_key": "",
         "frontend_login_url": "http://localhost:8000/login",
     }
     base.update(overrides)
@@ -69,3 +71,48 @@ def test_enviar_confirmacao_cadastro_nao_propaga_erro_de_autenticacao():
         mock_smtp.return_value.__enter__.return_value = instancia
 
         adapter.enviar_confirmacao_cadastro("destino@example.com", "Gabriel")
+
+
+def test_enviar_confirmacao_cadastro_com_sendgrid_configurado_usa_sendgrid_e_nao_smtp():
+    adapter = _adapter(sendgrid_api_key="chave-sendgrid", smtp_host="smtp.gmail.com")
+
+    with (
+        patch("app.adapters.email.email_adapter.enviar_email_sendgrid") as mock_sendgrid,
+        patch("app.adapters.email.email_adapter.smtplib.SMTP") as mock_smtp,
+    ):
+        adapter.enviar_confirmacao_cadastro("destino@example.com", "Gabriel")
+
+    mock_sendgrid.assert_called_once()
+    assert mock_sendgrid.call_args.kwargs["destinatario"] == "destino@example.com"
+    assert mock_sendgrid.call_args.kwargs["api_key"] == "chave-sendgrid"
+    mock_smtp.assert_not_called()
+
+
+def test_enviar_confirmacao_cadastro_com_falha_no_sendgrid_cai_para_smtp():
+    adapter = _adapter(sendgrid_api_key="chave-sendgrid", smtp_host="smtp.gmail.com")
+
+    with (
+        patch("app.adapters.email.email_adapter.enviar_email_sendgrid") as mock_sendgrid,
+        patch("app.adapters.email.email_adapter.smtplib.SMTP") as mock_smtp,
+    ):
+        mock_sendgrid.side_effect = SendGridError("chave invalida")
+        instancia = MagicMock()
+        mock_smtp.return_value.__enter__.return_value = instancia
+
+        adapter.enviar_confirmacao_cadastro("destino@example.com", "Gabriel")
+
+    mock_smtp.assert_called_once()
+    instancia.send_message.assert_called_once()
+
+
+def test_enviar_confirmacao_cadastro_sem_sendgrid_nem_smtp_so_loga():
+    adapter = _adapter(sendgrid_api_key="", smtp_host="")
+
+    with (
+        patch("app.adapters.email.email_adapter.enviar_email_sendgrid") as mock_sendgrid,
+        patch("app.adapters.email.email_adapter.smtplib.SMTP") as mock_smtp,
+    ):
+        adapter.enviar_confirmacao_cadastro("destino@example.com", "Gabriel")
+
+    mock_sendgrid.assert_not_called()
+    mock_smtp.assert_not_called()

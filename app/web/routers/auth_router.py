@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from fastapi import BackgroundTasks
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.config import get_settings
+from app.core.rate_limit import limiter
 from app.core.service.auth_service import (
     AuthService,
     CredenciaisInvalidasError,
@@ -58,7 +59,9 @@ def get_usuario_autenticado(
 
 
 @router.post("", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
 def cadastrar_usuario(
+    request: Request,
     payload: CadastrarUsuarioRequest,
     background_tasks: BackgroundTasks,
     auth_service: AuthService = Depends(get_auth_service),
@@ -85,7 +88,9 @@ def cadastrar_usuario(
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("5/minute")
 def login(
+    request: Request,
     payload: LoginRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ) -> LoginResponse:
@@ -163,7 +168,9 @@ def confirmar_exclusao_conta(
 
 
 @router.post("/recuperar-senha", response_model=MensagemResponse, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("5/hour")
 def solicitar_recuperacao_senha(
+    request: Request,
     payload: SolicitarRecuperacaoSenhaRequest,
     auth_service: AuthService = Depends(get_auth_service),
 ) -> MensagemResponse:

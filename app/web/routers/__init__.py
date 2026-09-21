@@ -1,6 +1,7 @@
 from app.web.routers import (
     analise_router,
     auth_router,
+    chat_router,
     diagnostico_router,
     painel_router,
     simulador_router,
@@ -10,6 +11,7 @@ from app.web.routers import (
 __all__ = [
     "auth_router",
     "analise_router",
+    "chat_router",
     "diagnostico_router",
     "simulador_router",
     "templates_router",

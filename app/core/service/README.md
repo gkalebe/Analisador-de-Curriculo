@@ -32,13 +32,13 @@ Referência de critérios de aceite (DADO/QUANDO/ENTÃO) por US: Levantamento de
 
 ## US-003 — Recuperar senha via e-mail (concluída)
 
-`AuthService` ganhou `solicitar_recuperacao_senha(email)` e `redefinir_senha(token, nova_senha)`, além das exceções `TokenRecuperacaoInvalidoError` e `UsuarioNaoEncontradoError`. Abordagem escolhida: token assinado (JWT, `python-jose`, expira em `password_reset_expire_minutes` — configurável em `app/core/config.py`) em vez de gravar um campo novo em `models.py`. Isso evita mexer no schema (área sensível, ver Plano de Ação Seção 1.4) e mantém a validação sem estado — quem quiser trocar por token opaco persistido no banco mais adiante, avise o time antes de alterar `Usuario`.
+`AuthService` ganhou `solicitar_recuperacao_senha(email)` e `redefinir_senha(token, nova_senha)`, além das exceções `TokenRecuperacaoInvalidoError` e `UsuarioNaoEncontradoError`. Abordagem escolhida: token assinado (JWT, `python-jose`, expira em `password_reset_expire_minutes` — configurável em `app/core/config.py`) em vez de gravar um campo novo em `models/`. Isso evita mexer no schema (área sensível, ver Plano de Ação Seção 1.4) e mantém a validação sem estado — quem quiser trocar por token opaco persistido no banco mais adiante, avise o time antes de alterar `Usuario`.
 
 Provedor de e-mail transacional definido: SendGrid (`app/adapters/email/`), com fallback para SMTP puro ou log local quando `SENDGRID_API_KEY` não está configurada.
 
 ## US-019 — Cadastrar informações de vaga no banco (concluída)
 
-`AnalisadorService` ganhou `cadastrar_vaga(id_usuario, descricao, titulo="", requisitos="", area="")` e `listar_vagas_usuario(id_usuario)`, além das exceções `DescricaoVagaObrigatoriaError` (descrição vazia/só espaços) e `DescricaoVagaMuitoLongaError` (acima de `max_vaga_description_chars`, em `app/core/config.py`). `cadastrar_vaga` valida e delega a persistência para `VagaRepository.criar` (já implementado, US-019 back); `listar_vagas_usuario` delega para `VagaRepository.listar_por_usuario`, usado pela tela de reaproveitamento de vagas salvas. Testado em `tests/unit/test_analisador_service.py` com um fake de repositório em memória.
+`AnalisadorService` ganhou `cadastrar_vaga(id_usuario, descricao, titulo="", requisitos="", area="")` e `listar_vagas_usuario(id_usuario)`, além das exceções `DescricaoVagaObrigatoriaError` (descrição vazia/só espaços), `DescricaoVagaMuitoLongaError` (acima de `max_vaga_description_chars`, em `app/core/config.py`) e `VagaDuplicadaError` (mesma descrição já cadastrada pelo mesmo usuário, comparação case-insensitive e sem espaços nas pontas — `vagas_router.py` converte em `409`). `cadastrar_vaga` valida, confere duplicata contra `VagaRepository.listar_por_usuario` e delega a persistência para `VagaRepository.criar` (já implementado, US-019 back); `listar_vagas_usuario` delega para `VagaRepository.listar_por_usuario`, usado pela tela de reaproveitamento de vagas salvas — essa mesma tela (`NovaVaga.jsx`) também limpa o formulário após salvar com sucesso, para não deixar o texto da vaga anterior pronto para ser reenviado sem querer. Testado em `tests/unit/test_analisador_service.py` com um fake de repositório em memória.
 
 ## US-005/US-006/US-007 — Comparar currículo com vaga (concluída)
 
@@ -62,6 +62,8 @@ A lista `TEMPLATES` (3 templates fixos: `moderno`, `classico`, `minimalista`, ca
 
 Erros tratados no router (`templates_router.py`): `NenhumaAnaliseEncontradaError` → `403`, `CurriculoNaoEncontradoError`/`TemplateNaoEncontradoError` → `404`, `FormatoExportacaoInvalidoError` → `400`. Testes: `tests/unit/test_template_service.py` e `tests/unit/test_templates_router.py`.
 
+**Redesign dos templates (17/09):** os 3 templates em `CurriculoExporter` foram redesenhados (marcadores de lista reais, no máximo 1 cor de destaque por template, layout sempre em coluna única) a partir de uma pesquisa sobre o que recrutadores e ATS priorizam — detalhes e fontes em `app/adapters/README.md`. Nenhuma mudança de contrato aqui: `TemplateService`/`templates_router.py` continuam iguais, só a geração visual do arquivo mudou.
+
 ## US-016 (back) — Histórico de análises e lacunas recorrentes (concluída)
 
 Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) atribuída a ele no kanban.
@@ -74,3 +76,15 @@ Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) atribuída a ele no kan
 Decisão deliberada: essa contagem de lacunas **não usa IA** — é heurística de texto simples sobre campos que já existem (`Vaga.requisitos`, `Curriculo.texto_extraido`), evitando 1 chamada de IA por análise só para montar o painel (custo, latência e mais um ponto de falha) e mantendo o painel disponível mesmo sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` configurada. Se o time decidir que a extração precisa ser semântica (sinônimos, etc.) em vez de substring, isso é uma evolução futura, não um requisito da issue #20.
 
 Testes: `tests/unit/test_plano_service.py`.
+
+## Pipeline de geração estruturada de currículo (fora do backlog de USs, pedido direto do Kevin)
+
+Novo, independente do fluxo de exportação de templates acima (que continua existindo e funcionando como está) — resolve o mesmo problema (currículo final a partir de dados extraídos por IA) de um jeito que elimina corte/perda de informação: em vez da IA reescrever texto livre que depois é encaixado em seções fixas, a IA só preenche um schema Pydantic fixo, e a montagem do documento é 100% determinística.
+
+`ValidadorCurriculoEstruturado` (Etapa 2 do pipeline) valida o JSON da Etapa 1 contra `DadosCurriculoEstruturado` sem chamar IA; se um campo de texto obrigatório (`nome_completo`, `titulo_profissional`, `resumo_profissional` — ver `CAMPOS_TEXTO_OBRIGATORIOS` em `app/adapters/ai_service/curriculo_schema.py`) vier vazio, faz um retry cirúrgico só daquele campo via `GeradorCurriculoEstruturadoIA.regenerar_campo`, e loga quais campos precisaram de retry (`validar_e_reparar` retorna essa lista) para dar visibilidade da qualidade do prompt da Etapa 1 ao longo do tempo.
+
+`CurriculoEstruturadoService.gerar_curriculo_documento(informacoes_brutas, id_template, formato, diretorio_saida)` é a orquestração de ponta a ponta (Etapa 1 → 2 → 3), recebendo o formato desejado (`"docx"` ou `"pdf"`) e devolvendo `(caminho_arquivo, campos_com_retry)`.
+
+Detalhes de cada etapa (Etapa 1 e Etapa 3, incluindo o motivo de cada decisão técnica) documentados em `app/adapters/README.md`. Exemplo de uso completo: `exemplo_pipeline_curriculo.py` (raiz do projeto) — roda as 3 etapas com dados fictícios, com fallback automático para não depender de `GEMINI_API_KEY` configurada.
+
+Ainda não tem router/endpoint HTTP nem persistência — só a biblioteca do pipeline; quem for integrar à API decide se substitui a exportação de templates existente ou convive como uma segunda opção.

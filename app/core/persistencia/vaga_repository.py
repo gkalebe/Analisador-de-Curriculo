@@ -3,7 +3,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.persistencia.models import Vaga
+from app.core.persistencia.models.vaga import Vaga
 
 
 class VagaRepository:

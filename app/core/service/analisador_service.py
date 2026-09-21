@@ -8,8 +8,16 @@ from app.adapters.curriculo_parser.curriculo_parser import CurriculoParser
 from app.core.config import get_settings
 from app.core.persistencia.analise_repository import AnaliseRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
-from app.core.persistencia.models import Analise, Curriculo, Vaga
+from app.core.persistencia.models.analise import Analise
+from app.core.persistencia.models.curriculo import Curriculo
+from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
+from app.core.service.extracao_curriculo import (
+    aplicar_sugestoes_em_dados_curriculo,
+    extrair_dados_estruturados_curriculo,
+    normalizar_dados_editados,
+    obter_dados_curriculo_com_cache,
+)
 
 
 class DescricaoVagaObrigatoriaError(Exception):
@@ -17,6 +25,10 @@ class DescricaoVagaObrigatoriaError(Exception):
 
 
 class DescricaoVagaMuitoLongaError(Exception):
+    pass
+
+
+class VagaDuplicadaError(Exception):
     pass
 
 
@@ -29,6 +41,10 @@ class CurriculoNaoEncontradoError(Exception):
 
 
 class CurriculoArquivoNaoEncontradoError(Exception):
+    pass
+
+
+class NenhumaSugestaoDisponivelError(Exception):
     pass
 
 
@@ -72,6 +88,15 @@ class AnalisadorService:
             raise DescricaoVagaObrigatoriaError
         if len(descricao_normalizada) > self.settings.max_vaga_description_chars:
             raise DescricaoVagaMuitoLongaError
+
+        # Compara com as vagas já salvas do usuário para recusar duplicata exata (mesma
+        # descrição, ignorando maiúsculas/minúsculas e espaços nas pontas) — evita que o
+        # mesmo texto colado duas vezes (ex.: formulário que não limpa após salvar) vire
+        # duas vagas idênticas no histórico do usuário.
+        descricao_para_comparacao = descricao_normalizada.lower()
+        vagas_existentes = self.vaga_repository.listar_por_usuario(id_usuario)
+        if any((vaga_existente.descricao or "").strip().lower() == descricao_para_comparacao for vaga_existente in vagas_existentes):
+            raise VagaDuplicadaError
 
         vaga = Vaga(
             titulo=(titulo or "").strip() or None,
@@ -187,6 +212,101 @@ class AnalisadorService:
 
     def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
         return self.analise_repository.listar_por_usuario(id_usuario)
+
+    def obter_dados_edicao_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+
+        return {
+            "id_curriculo": curriculo.id_curriculo,
+            "dados": dados,
+            "possui_edicao": curriculo.dados_editados is not None,
+            "editado_em": curriculo.editado_em,
+            "sugestoes": self._obter_sugestoes_mais_recentes(id_usuario, id_curriculo),
+        }
+
+    def salvar_edicao_estruturada_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, dados: dict) -> Curriculo:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        dados_completos = normalizar_dados_editados(dados, curriculo.texto_extraido or "")
+        return self.curriculo_repository.salvar_edicao(curriculo, dados_completos)
+
+    def salvar_edicao_texto_livre_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, texto: str) -> Curriculo:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto)
+        dados["texto_bruto"] = texto
+        return self.curriculo_repository.salvar_edicao(curriculo, dados)
+
+    def aplicar_sugestoes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> Curriculo:
+        """Pede à IA uma versão dos dados do currículo com as sugestões da última análise
+        (palavras-chave faltantes, itens a remover/reorganizar, reescritas) já aplicadas, e
+        salva o resultado como `dados_editados` — pronto para revisão/exportação, sem
+        precisar o usuário reescrever campo a campo manualmente.
+
+        Levanta `NenhumaSugestaoDisponivelError` se este currículo ainda não tem nenhuma
+        análise com diagnóstico salvo.
+        """
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        sugestoes = self._obter_sugestoes_mais_recentes(id_usuario, id_curriculo)
+        if not sugestoes:
+            raise NenhumaSugestaoDisponivelError
+
+        dados_atuais = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+        dados_aplicados = aplicar_sugestoes_em_dados_curriculo(
+            self.ai_service_adapter, dados_atuais, sugestoes, curriculo.texto_extraido or ""
+        )
+        return self.curriculo_repository.salvar_edicao(curriculo, dados_aplicados)
+
+    def _obter_sugestoes_mais_recentes(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict | None:
+        # Mesma normalização de chaves usada em NovaAnalise.jsx/HistoricoAnalises.jsx: a IA
+        # (ver AIServiceAdapter._montar_prompt_comparacao) devolve "correspondentes"/"ausentes",
+        # "o_que_reorganizar"/"o_que_retirar" e "sugestao_otimizada"/"motivo" — normalizamos
+        # para os nomes amigáveis usados na tela de edição, com fallback para os nomes crus.
+        analise = self.analise_repository.buscar_mais_recente_por_curriculo(id_usuario, id_curriculo)
+        if analise is None or not analise.observacoes:
+            return None
+        try:
+            dados = json.loads(analise.observacoes)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(dados, dict):
+            return None
+
+        palavras_chave = dados.get("palavras_chave") or {}
+        diagnostico = dados.get("diagnostico_ats") or {}
+        sugestoes = dados.get("sugestoes_reescrita") or []
+        if not isinstance(sugestoes, list):
+            sugestoes = []
+
+        return {
+            "resumo": dados.get("resumo") or dados.get("explicacao_ats") or dados.get("observacoes"),
+            "palavras_chave_faltantes": palavras_chave.get("faltantes") or palavras_chave.get("ausentes") or [],
+            "diagnostico_ats": {
+                "pontos_fortes": diagnostico.get("pontos_fortes") or [],
+                "a_reorganizar": diagnostico.get("a_reorganizar") or diagnostico.get("o_que_reorganizar") or [],
+                "a_remover": diagnostico.get("a_remover") or diagnostico.get("o_que_retirar") or [],
+            },
+            "sugestoes_reescrita": [
+                {
+                    "trecho_original": s.get("trecho_original") or "",
+                    "versao_otimizada": s.get("versao_otimizada") or s.get("sugestao_otimizada") or "",
+                    "justificativa": s.get("justificativa") or s.get("motivo") or "",
+                }
+                for s in sugestoes
+                if isinstance(s, dict)
+            ],
+        }
 
     def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:
         texto = (resultado_ia or "").strip()

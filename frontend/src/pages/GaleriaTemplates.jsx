@@ -4,26 +4,29 @@ import Sidebar from "../components/Sidebar.jsx";
 import { listarTemplates } from "../api/templateApi.js";
 import { ApiError } from "../api/client.js";
 
-const ESTILOS_CARTAO = {
-  moderno: {
-    borda: "border-[#1e5e3f]",
-    nome: "text-[#1e5e3f] font-brand text-xl font-bold",
-    secao: "text-[#1e5e3f] text-xs font-bold uppercase tracking-wide mt-3",
-    corpo: "text-sm text-gray-700",
-  },
-  classico: {
-    borda: "border-black",
-    nome: "text-black font-serif text-xl font-bold text-center block",
-    secao: "text-black text-xs font-bold uppercase text-center block mt-3",
-    corpo: "text-sm text-gray-800 text-center",
-  },
-  minimalista: {
-    borda: "border-gray-300",
-    nome: "text-gray-900 text-lg font-normal",
-    secao: "text-gray-400 text-xs font-medium uppercase mt-3",
-    corpo: "text-sm text-gray-600",
-  },
+// Os 5 templates de currículo compartilham a mesma estrutura visual no backend
+// (ver CurriculoExporter.CORES_TEMPLATES) — só o "accent" muda por área de
+// atuação. O cartão de preview aqui replica isso: mesmo layout, cor diferente.
+const ACCENTS = {
+  generico: "#1f3864",
+  tecnologia: "#0f766e",
+  estagio: "#c2410c",
+  gestao: "#7c2d12",
+  setor_publico: "#14532d",
 };
+
+function estiloCartao(idTemplate) {
+  const accent = ACCENTS[idTemplate] || ACCENTS.generico;
+  return {
+    borda: "",
+    bordaStyle: { borderColor: accent },
+    nome: "font-brand text-xl font-bold",
+    nomeStyle: { color: accent },
+    secao: "text-xs font-bold uppercase tracking-wide mt-3",
+    secaoStyle: { color: accent },
+    corpo: "text-sm text-gray-700",
+  };
+}
 
 export default function GaleriaTemplates() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,10 +68,10 @@ export default function GaleriaTemplates() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
+    <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
       <Sidebar email={emailInicial} ativo="templates" />
 
-      <main className="flex-1 p-6 space-y-4">
+      <main className="flex-1 p-6 space-y-4 md:h-screen md:overflow-y-auto">
         <div>
           <h1 className="font-brand text-[32px] font-bold text-black">Templates ATS</h1>
           <p className="mt-1 text-lg font-semibold text-[#727272]">
@@ -105,23 +108,24 @@ export default function GaleriaTemplates() {
         {templates.length > 0 && (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {templates.map((template) => {
-              const estilo = ESTILOS_CARTAO[template.id_template] || ESTILOS_CARTAO.moderno;
+              const estilo = estiloCartao(template.id_template);
               const preview = template.preview_ficticio;
               return (
                 <div
                   key={template.id_template}
-                  className={`flex flex-col rounded-lg border-[1.5px] ${estilo.borda} bg-white p-5 shadow-sm`}
+                  className="flex flex-col rounded-lg border-2 bg-white p-5 shadow-sm"
+                  style={estilo.bordaStyle}
                 >
                   <div className="mb-4">
-                    <p className={estilo.nome}>{preview.nome}</p>
+                    <p className={estilo.nome} style={estilo.nomeStyle}>{preview.nome}</p>
                     <p className="text-xs text-gray-500">
                       {preview.email} · {preview.telefone}
                     </p>
-                    <p className={estilo.secao}>Resumo</p>
+                    <p className={estilo.secao} style={estilo.secaoStyle}>Resumo</p>
                     <p className={estilo.corpo}>{preview.resumo}</p>
-                    <p className={estilo.secao}>Experiência</p>
+                    <p className={estilo.secao} style={estilo.secaoStyle}>Experiência</p>
                     <p className={`${estilo.corpo} whitespace-pre-line`}>{preview.experiencia_profissional}</p>
-                    <p className={estilo.secao}>Habilidades</p>
+                    <p className={estilo.secao} style={estilo.secaoStyle}>Habilidades</p>
                     <p className={estilo.corpo}>{preview.habilidades}</p>
                   </div>
                   <div className="mt-auto space-y-2 border-t border-gray-100 pt-4">

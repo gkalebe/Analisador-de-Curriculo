@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.email.email_adapter import EmailAdapter
 from app.core.config import get_settings
-from app.core.persistencia.models import Usuario
+from app.core.persistencia.models.usuario import Usuario
 from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.email_service import enviar_email_recuperacao_senha
 

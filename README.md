@@ -78,6 +78,10 @@ pytest
 ruff check .
 ```
 
+## Dependências
+
+`requirements.txt` passa por auditoria periódica: cada biblioteca listada precisa estar de fato em uso (import direto) ou ser um requisito real de outra que está (ex.: `python-multipart` para `UploadFile`/`File` do FastAPI, `email-validator` para `EmailStr` do Pydantic, `python-dotenv` para o `env_file` do `pydantic-settings`). Em 17/09, `jinja2` foi removida — sobrava de antes da migração para a SPA React, sem nenhum router ou template usando Jinja2 há tempos (`app/web/README.md` já registrava isso como obsoleto). O front (`frontend/package.json`) já estava enxuto: `react`, `react-dom`, `react-router-dom` e as duas devDependencies do Vite, todas em uso.
+
 ## Estrutura de pastas
 
 ```
@@ -109,7 +113,7 @@ Cada pasta abaixo tem seu próprio `README.md` com a tabela de quem implementa o
 - [`app/core/persistencia/README.md`](app/core/persistencia/README.md)
 - [`app/adapters/README.md`](app/adapters/README.md)
 
-A Sprint 0 entregou só a estrutura: assinatura de classes e métodos, `models.py` completo (é o schema já acordado no Documento de Arquitetura, não lógica de negócio) e o wiring entre camadas. Os métodos de repositório e as implementações dos adapters propositalmente lançavam `NotImplementedError` — implementar isso é o trabalho de cada US nas Sprints 1 a 4; várias US já foram implementadas desde então (ver os READMEs de cada pasta).
+A Sprint 0 entregou só a estrutura: assinatura de classes e métodos, os models ORM completos (o schema já acordado no Documento de Arquitetura, não lógica de negócio) e o wiring entre camadas. Os métodos de repositório e as implementações dos adapters propositalmente lançavam `NotImplementedError` — implementar isso é o trabalho de cada US nas Sprints 1 a 4; várias US já foram implementadas desde então (ver os READMEs de cada pasta).
 
 ## Fluxo de contribuição
 

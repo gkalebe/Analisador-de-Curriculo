@@ -15,7 +15,7 @@ class AIServiceClientFalso:
         self.resposta = resposta
         self.prompts_recebidos: list[str] = []
 
-    def gerar_resposta(self, prompt: str) -> str:
+    def gerar_resposta(self, prompt: str, **kwargs) -> str:
         self.prompts_recebidos.append(prompt)
         return self.resposta
 
@@ -40,16 +40,6 @@ def test_analisar_curriculo_envia_prompt_com_curriculo():
     assert "Experiência com Python." in cliente_falso.prompts_recebidos[0]
 
 
-def test_extrair_dados_estruturados_envia_prompt_com_texto_curriculo():
-    cliente_falso = AIServiceClientFalso()
-    adapter = AIServiceAdapter(cliente=cliente_falso)
-
-    resultado = adapter.extrair_dados_estruturados("Experiência com Python.")
-
-    assert resultado == cliente_falso.resposta
-    assert "Experiência com Python." in cliente_falso.prompts_recebidos[0]
-
-
 def test_gemini_client_sem_api_key_lanca_erro_de_configuracao():
     cliente = GeminiClient(api_key="")
 
@@ -69,10 +59,10 @@ def test_gemini_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
     import google.generativeai as genai
 
     class ModeloFalso:
-        def generate_content(self, prompt, request_options=None):
+        def generate_content(self, prompt, **kwargs):
             raise google.api_core.exceptions.DeadlineExceeded("tempo esgotado")
 
-    monkeypatch.setattr(genai, "configure", lambda *args, **kwargs: None)
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
     monkeypatch.setattr(genai, "GenerativeModel", lambda model_name: ModeloFalso())
 
     cliente = GeminiClient(api_key="chave-qualquer")
@@ -81,16 +71,74 @@ def test_gemini_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
         cliente.gerar_resposta("prompt qualquer")
 
 
+def test_gemini_client_tenta_novamente_e_recupera_apos_indisponibilidade_transitoria(monkeypatch):
+    import google.api_core.exceptions
+    import google.generativeai as genai
+
+    from app.adapters.ai_service import ai_service_adapter
+
+    class RespostaFalsa:
+        text = '{"pontuacao": 90, "observacoes": "ok"}'
+
+    class ModeloFalso:
+        def __init__(self):
+            self.chamadas = 0
+
+        def generate_content(self, prompt, **kwargs):
+            self.chamadas += 1
+            if self.chamadas == 1:
+                raise google.api_core.exceptions.ServiceUnavailable("modelo sobrecarregado")
+            return RespostaFalsa()
+
+    modelo_falso = ModeloFalso()
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", lambda model_name: modelo_falso)
+    monkeypatch.setattr(ai_service_adapter.time, "sleep", lambda segundos: None)
+
+    cliente = GeminiClient(api_key="chave-qualquer")
+    resultado = cliente.gerar_resposta("prompt qualquer")
+
+    assert resultado == RespostaFalsa.text
+    assert modelo_falso.chamadas == 2
+
+
+def test_gemini_client_lanca_ia_indisponivel_apos_esgotar_tentativas_de_indisponibilidade(monkeypatch):
+    import google.api_core.exceptions
+    import google.generativeai as genai
+
+    from app.adapters.ai_service import ai_service_adapter
+
+    class ModeloFalso:
+        def __init__(self):
+            self.chamadas = 0
+
+        def generate_content(self, prompt, **kwargs):
+            self.chamadas += 1
+            raise google.api_core.exceptions.ServiceUnavailable("modelo sobrecarregado")
+
+    modelo_falso = ModeloFalso()
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", lambda model_name: modelo_falso)
+    monkeypatch.setattr(ai_service_adapter.time, "sleep", lambda segundos: None)
+
+    cliente = GeminiClient(api_key="chave-qualquer")
+
+    with pytest.raises(IAIndisponivelError):
+        cliente.gerar_resposta("prompt qualquer")
+
+    assert modelo_falso.chamadas == ai_service_adapter.MAX_TENTATIVAS_GEMINI
+
+
 def test_claude_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(monkeypatch):
     import anthropic
 
     class MensagensFalso:
-        def create(self, model, max_tokens, messages):
+        def create(self, model, max_tokens, messages, **kwargs):
             requisicao_falsa = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
             raise anthropic.APIError("tempo esgotado", request=requisicao_falsa, body=None)
 
     class ClienteAnthropicFalso:
-        def __init__(self, api_key=None, timeout=None):
+        def __init__(self, api_key=None, timeout=None, max_retries=None):
             self.messages = MensagensFalso()
 
     monkeypatch.setattr(anthropic, "Anthropic", ClienteAnthropicFalso)

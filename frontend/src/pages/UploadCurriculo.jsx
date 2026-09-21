@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
+import VisualizadorPdf from "../components/VisualizadorPdf.jsx";
+import LimiteDeErro from "../components/LimiteDeErro.jsx";
 import {
   enviarCurriculo,
   listarCurriculos,
-  obterDetalhesCurriculo,
   obterUrlDownloadCurriculo,
 } from "../api/curriculoApi.js";
 import {
@@ -27,8 +28,6 @@ export default function UploadCurriculo() {
   const [resultado, setResultado] = useState(null);
   const [curriculosSalvos, setCurriculosSalvos] = useState([]);
   const [curriculoSelecionado, setCurriculoSelecionado] = useState(null);
-  const [carregandoDetalhes, setCarregandoDetalhes] = useState(false);
-  const [erroDetalhes, setErroDetalhes] = useState("");
 
   useEffect(() => {
     if (!emailInicial) return;
@@ -83,30 +82,19 @@ export default function UploadCurriculo() {
     }
   }
 
-  async function abrirVisualizacao(curriculo) {
-    setCarregandoDetalhes(true);
-    setErroDetalhes("");
-    setCurriculoSelecionado({ ...curriculo });
-    try {
-      const detalhes = await obterDetalhesCurriculo(curriculo.id_curriculo, emailInicial);
-      setCurriculoSelecionado(detalhes);
-    } catch (e) {
-      setErroDetalhes("Não foi possível carregar os detalhes do currículo.");
-    } finally {
-      setCarregandoDetalhes(false);
-    }
+  function abrirCurriculoOriginal(curriculo) {
+    setCurriculoSelecionado(curriculo);
   }
 
-  function fecharVisualizacao() {
+  function fecharCurriculoOriginal() {
     setCurriculoSelecionado(null);
-    setErroDetalhes("");
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900">
+    <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
       <Sidebar email={emailInicial} ativo="curriculo" />
 
-      <main className="flex-1 p-6 space-y-6">
+      <main className="flex-1 p-6 space-y-6 md:h-screen md:overflow-y-auto">
         <div>
           <h1 className="font-brand text-[32px] font-bold text-black">Enviar currículo</h1>
           <p className="mt-1 text-lg font-semibold text-[#727272]">
@@ -207,7 +195,7 @@ export default function UploadCurriculo() {
               )}
             </div>
             <p className="text-sm text-gray-500">
-              Clique em um currículo para abrir, visualizar o conteúdo extraído ou baixar o arquivo original.
+              Clique em um currículo para visualizar o arquivo original.
             </p>
 
             {curriculosSalvos.length > 0 && (
@@ -215,7 +203,7 @@ export default function UploadCurriculo() {
                 {curriculosSalvos.map((curr) => (
                   <li key={curr.id_curriculo}>
                     <div
-                      onClick={() => abrirVisualizacao(curr)}
+                      onClick={() => abrirCurriculoOriginal(curr)}
                       className="w-full flex items-center justify-between p-4 rounded-lg border-[0.5px] border-black bg-white hover:border-[#1e5e3f] hover:shadow-sm cursor-pointer transition-all"
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -237,7 +225,7 @@ export default function UploadCurriculo() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            abrirVisualizacao(curr);
+                            abrirCurriculoOriginal(curr);
                           }}
                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-[#1e5e3f] bg-[#f0fdf4] hover:bg-[#e0f7ea] border border-[#1e5e3f]/30 rounded-md transition-colors"
                         >
@@ -263,7 +251,7 @@ export default function UploadCurriculo() {
         {/* Modal / Visualizador de Currículo */}
         {curriculoSelecionado && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-            <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl border border-black bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-black bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {/* Cabeçalho */}
               <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gray-50">
                 <div className="flex items-center gap-3 min-w-0">
@@ -281,7 +269,7 @@ export default function UploadCurriculo() {
                 </div>
                 <button
                   type="button"
-                  onClick={fecharVisualizacao}
+                  onClick={fecharCurriculoOriginal}
                   className="rounded-lg p-2 text-gray-400 hover:bg-gray-200 hover:text-black transition-colors"
                   aria-label="Fechar"
                 >
@@ -289,43 +277,21 @@ export default function UploadCurriculo() {
                 </button>
               </div>
 
-              {/* Conteúdo */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {carregandoDetalhes && (
-                  <div className="py-12 text-center text-gray-500 flex flex-col items-center gap-2">
-                    <i className="ti ti-loader text-[28px] animate-spin text-[#1e5e3f]"></i>
-                    <p className="text-sm">Carregando conteúdo do currículo...</p>
-                  </div>
-                )}
-
-                {erroDetalhes && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    {erroDetalhes}
-                  </div>
-                )}
-
-                {!carregandoDetalhes && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                        Conteúdo Extraído do Currículo
-                      </h4>
-                      <span className="text-xs text-gray-400">
-                        Visualização direta no sistema
-                      </span>
-                    </div>
-
-                    {curriculoSelecionado.texto_extraido ? (
-                      <div className="rounded-lg border border-gray-200 bg-[#fafafa] p-4 text-sm text-gray-800 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto leading-relaxed selection:bg-emerald-100">
-                        {curriculoSelecionado.texto_extraido}
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-gray-500 text-sm">
-                        <i className="ti ti-file-text text-[24px] text-gray-400 mb-1"></i>
-                        <p>Nenhum texto salvo para este arquivo ou upload realizado anteriormente.</p>
-                        <p className="text-xs text-gray-400 mt-1">Você pode fazer o download do arquivo original abaixo.</p>
-                      </div>
-                    )}
+              {/* Conteúdo: o arquivo original, como o usuário enviou. Único contêiner com
+                  scroll do modal — evita aninhar dois overflow-auto, que é o que estava
+                  impedindo a barra de rolagem de aparecer. */}
+              <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
+                {curriculoSelecionado.nome_arquivo?.toLowerCase().endsWith(".pdf") ? (
+                  <LimiteDeErro chave={curriculoSelecionado.id_curriculo}>
+                    <VisualizadorPdf idCurriculo={curriculoSelecionado.id_curriculo} email={emailInicial} />
+                  </LimiteDeErro>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center gap-2 text-center text-gray-500 p-6">
+                    <i className="ti ti-file-text text-[32px] text-gray-400"></i>
+                    <p className="text-sm">
+                      Este formato (.docx) não tem pré-visualização própria ainda.
+                    </p>
+                    <p className="text-xs text-gray-400">Baixe o arquivo original abaixo para abri-lo no Word.</p>
                   </div>
                 )}
               </div>
@@ -343,7 +309,7 @@ export default function UploadCurriculo() {
                 </a>
                 <button
                   type="button"
-                  onClick={fecharVisualizacao}
+                  onClick={fecharCurriculoOriginal}
                   className="rounded-md bg-gray-800 px-5 py-2 text-sm font-semibold text-white hover:bg-black transition-colors"
                 >
                   Fechar
