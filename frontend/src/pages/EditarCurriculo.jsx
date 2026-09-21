@@ -2,23 +2,21 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import {
-  aplicarSugestoesCurriculo,
   obterEdicaoCurriculo,
   salvarEdicaoEstruturada,
   salvarEdicaoTextoLivre,
 } from "../api/curriculoApi.js";
 import { listarAnalises } from "../api/analiseApi.js";
+import { listarTemplates } from "../api/templateApi.js";
 import { ApiError } from "../api/client.js";
 
-const CAMPOS_ESTRUTURADOS = [
-  { chave: "nome", rotulo: "Nome", tipo: "input" },
-  { chave: "email", rotulo: "E-mail", tipo: "input" },
-  { chave: "telefone", rotulo: "Telefone", tipo: "input" },
-  { chave: "resumo", rotulo: "Resumo profissional", tipo: "textarea" },
-  { chave: "formacao", rotulo: "Formação", tipo: "textarea" },
-  { chave: "experiencia_profissional", rotulo: "Experiência profissional", tipo: "textarea" },
-  { chave: "habilidades", rotulo: "Habilidades", tipo: "input" },
-];
+const ESTILOS_CARTAO = {
+  moderno: { borda: "border-[#1e5e3f]", nome: "text-[#1e5e3f]" },
+  classico: { borda: "border-black", nome: "text-black" },
+  minimalista: { borda: "border-gray-300", nome: "text-gray-900" },
+  executivo: { borda: "border-[#1e3a5f]", nome: "text-[#1e3a5f]" },
+  criativo: { borda: "border-[#c45a3c]", nome: "text-gray-900" },
+};
 
 const DADOS_VAZIOS = {
   nome: "",
@@ -30,14 +28,67 @@ const DADOS_VAZIOS = {
   habilidades: "",
 };
 
+const BLOCOS_CAMPO = [
+  { chave: "resumo", rotulo: "Resumo profissional", tipo: "textarea", linhas: 4 },
+  { chave: "formacao", rotulo: "Formação", tipo: "textarea", linhas: 3 },
+  { chave: "experiencia_profissional", rotulo: "Experiência profissional", tipo: "textarea", linhas: 6 },
+  { chave: "habilidades", rotulo: "Habilidades", tipo: "input" },
+];
+
+function normalizarTexto(texto) {
+  return (texto || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+}
+
+function pontuarSobreposicao(trecho, textoCampo) {
+  if (!trecho || !textoCampo) return 0;
+  const palavras = normalizarTexto(trecho)
+    .split(/\W+/)
+    .filter((p) => p.length > 3);
+  if (palavras.length === 0) return 0;
+  const textoNormalizado = normalizarTexto(textoCampo);
+  const encontradas = palavras.filter((p) => textoNormalizado.includes(p));
+  return encontradas.length / palavras.length;
+}
+
+function associarSugestoesPorBloco(sugestoes, dados) {
+  const campos = ["resumo", "formacao", "experiencia_profissional", "habilidades"];
+  const porCampo = { resumo: [], formacao: [], experiencia_profissional: [], habilidades: [] };
+  const semCampo = [];
+
+  (sugestoes?.sugestoes_reescrita || []).forEach((s) => {
+    let melhorCampo = null;
+    let melhorPontuacao = 0;
+    campos.forEach((campo) => {
+      const pontuacao = pontuarSobreposicao(s.trecho_original, dados[campo]);
+      if (pontuacao > melhorPontuacao) {
+        melhorPontuacao = pontuacao;
+        melhorCampo = campo;
+      }
+    });
+    if (melhorCampo && melhorPontuacao >= 0.4) {
+      porCampo[melhorCampo].push(s);
+    } else {
+      semCampo.push(s);
+    }
+  });
+
+  return { porCampo, semCampo };
+}
+
 export default function EditarCurriculo() {
   const [searchParams, setSearchParams] = useSearchParams();
   const emailInicial = searchParams.get("email") || "";
   const idCurriculoUrl = searchParams.get("curriculo") || "";
+  const idTemplateUrl = searchParams.get("template") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [analises, setAnalises] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [idCurriculoSelecionado, setIdCurriculoSelecionado] = useState(idCurriculoUrl);
+  const [idTemplateSelecionado, setIdTemplateSelecionado] = useState(idTemplateUrl);
 
   const [modo, setModo] = useState("estruturado"); // "estruturado" | "texto-livre"
   const [dadosForm, setDadosForm] = useState(DADOS_VAZIOS);
@@ -48,7 +99,6 @@ export default function EditarCurriculo() {
 
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [aplicandoSugestoes, setAplicandoSugestoes] = useState(false);
   const [erro, setErro] = useState("");
   const [aviso, setAviso] = useState("");
 
@@ -56,6 +106,9 @@ export default function EditarCurriculo() {
     if (!emailInicial) return;
     listarAnalises(emailInicial)
       .then((resposta) => setAnalises(resposta.analises || []))
+      .catch(() => {});
+    listarTemplates(emailInicial)
+      .then((resposta) => setTemplates(resposta.templates || []))
       .catch(() => {});
   }, [emailInicial]);
 
@@ -83,7 +136,17 @@ export default function EditarCurriculo() {
 
   function escolherCurriculo(idCurriculo) {
     setIdCurriculoSelecionado(idCurriculo);
-    setSearchParams({ email: emailInicial, curriculo: idCurriculo });
+    setSearchParams({ email: emailInicial, curriculo: idCurriculo, ...(idTemplateSelecionado ? { template: idTemplateSelecionado } : {}) });
+  }
+
+  function escolherTemplate(idTemplate) {
+    setIdTemplateSelecionado(idTemplate);
+    setSearchParams({ email: emailInicial, curriculo: idCurriculoSelecionado, template: idTemplate });
+  }
+
+  function trocarTemplate() {
+    setIdTemplateSelecionado("");
+    setSearchParams({ email: emailInicial, curriculo: idCurriculoSelecionado });
   }
 
   async function salvarEstruturado(evento) {
@@ -124,30 +187,46 @@ export default function EditarCurriculo() {
     }
   }
 
-  const temSugestoes =
-    sugestoes &&
-    ((sugestoes.palavras_chave_faltantes && sugestoes.palavras_chave_faltantes.length > 0) ||
-      (sugestoes.sugestoes_reescrita && sugestoes.sugestoes_reescrita.length > 0) ||
-      sugestoes.diagnostico_ats);
-
-  async function aplicarSugestoes() {
-    setAplicandoSugestoes(true);
-    setErro("");
-    setAviso("");
-    try {
-      const resposta = await aplicarSugestoesCurriculo(idCurriculoSelecionado, emailInicial);
-      setDadosForm({ ...DADOS_VAZIOS, ...resposta.dados });
-      setTextoLivre(resposta.dados?.texto_bruto || "");
-      setPossuiEdicao(true);
-      setEditadoEm(resposta.editado_em || null);
-      setModo("estruturado");
-      setAviso("Sugestões aplicadas automaticamente. Revise os campos abaixo antes de exportar.");
-    } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível aplicar as sugestões agora. Tente novamente.");
-    } finally {
-      setAplicandoSugestoes(false);
-    }
+  function usarSugestaoNoCampo(campo, sugestao) {
+    setDadosForm((atual) => {
+      const atualCampo = atual[campo] || "";
+      let novoValor;
+      if (sugestao.trecho_original && atualCampo.includes(sugestao.trecho_original)) {
+        novoValor = atualCampo.replace(sugestao.trecho_original, sugestao.versao_otimizada);
+      } else if (atualCampo.trim()) {
+        novoValor = `${atualCampo}\n${sugestao.versao_otimizada}`;
+      } else {
+        novoValor = sugestao.versao_otimizada;
+      }
+      return { ...atual, [campo]: novoValor };
+    });
   }
+
+  function adicionarPalavraChave(palavra) {
+    setDadosForm((atual) => {
+      const atuais = (atual.habilidades || "")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (atuais.some((p) => normalizarTexto(p) === normalizarTexto(palavra))) return atual;
+      const novoValor = atuais.length > 0 ? `${atual.habilidades}, ${palavra}` : palavra;
+      return { ...atual, habilidades: novoValor };
+    });
+  }
+
+  const { porCampo: sugestoesPorCampo, semCampo: sugestoesSemCampo } = associarSugestoesPorBloco(sugestoes, dadosForm);
+  const temDiagnostico =
+    sugestoes?.diagnostico_ats &&
+    ((sugestoes.diagnostico_ats.pontos_fortes && sugestoes.diagnostico_ats.pontos_fortes.length > 0) ||
+      (sugestoes.diagnostico_ats.a_reorganizar && sugestoes.diagnostico_ats.a_reorganizar.length > 0) ||
+      (sugestoes.diagnostico_ats.a_remover && sugestoes.diagnostico_ats.a_remover.length > 0));
+  const temQualquerSugestao =
+    sugestoes &&
+    (temDiagnostico ||
+      (sugestoes.palavras_chave_faltantes && sugestoes.palavras_chave_faltantes.length > 0) ||
+      (sugestoes.sugestoes_reescrita && sugestoes.sugestoes_reescrita.length > 0));
+
+  const templateEscolhido = templates.find((t) => t.id_template === idTemplateSelecionado);
 
   return (
     <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
@@ -157,7 +236,7 @@ export default function EditarCurriculo() {
         <div>
           <h1 className="font-brand text-[32px] font-bold text-black">Editar currículo</h1>
           <p className="mt-1 text-lg font-semibold text-[#727272]">
-            Aplique as sugestões da análise ao seu currículo — por campos ou colando o texto todo.
+            Aplique as sugestões da análise direto em cada bloco do seu currículo.
           </p>
         </div>
 
@@ -179,7 +258,7 @@ export default function EditarCurriculo() {
 
         {emailInicial && !idCurriculoSelecionado && (
           <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-4">
-            <h2 className="font-brand text-[24px] text-black">Escolha o currículo para editar</h2>
+            <h2 className="font-brand text-[24px] text-black">1. Escolha o currículo para editar</h2>
             {analises.length === 0 && (
               <p className="text-sm text-gray-500">
                 Você ainda não concluiu nenhuma análise. Rode uma em "Nova análise" antes de editar seu currículo.
@@ -217,206 +296,286 @@ export default function EditarCurriculo() {
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-[#1e5e3f]">{aviso}</div>
         )}
 
-        {emailInicial && idCurriculoSelecionado && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2 rounded-lg border-[0.5px] border-black bg-white p-6 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setModo("estruturado")}
-                    className={`rounded-md px-4 py-2 text-sm font-bold transition-colors ${
-                      modo === "estruturado" ? "bg-[#1e5e3f] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    Campos estruturados
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModo("texto-livre")}
-                    className={`rounded-md px-4 py-2 text-sm font-bold transition-colors ${
-                      modo === "texto-livre" ? "bg-[#1e5e3f] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    Texto livre
-                  </button>
-                </div>
-                {possuiEdicao && (
-                  <span className="text-xs font-semibold text-[#1e5e3f]">
-                    Editado {editadoEm ? `em ${new Date(editadoEm).toLocaleString("pt-BR")}` : ""}
-                  </span>
-                )}
-              </div>
-
-              {carregando && <p className="text-sm text-gray-500">Carregando...</p>}
-
-              {!carregando && modo === "estruturado" && (
-                <form onSubmit={salvarEstruturado} className="space-y-4">
-                  {CAMPOS_ESTRUTURADOS.map((campo) => (
-                    <div key={campo.chave}>
-                      <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                        {campo.rotulo}
-                      </label>
-                      {campo.tipo === "textarea" ? (
-                        <textarea
-                          value={dadosForm[campo.chave] || ""}
-                          onChange={(e) => setDadosForm({ ...dadosForm, [campo.chave]: e.target.value })}
-                          rows={4}
-                          className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={dadosForm[campo.chave] || ""}
-                          onChange={(e) => setDadosForm({ ...dadosForm, [campo.chave]: e.target.value })}
-                          className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
-                        />
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="submit"
-                    disabled={salvando}
-                    className="rounded-md bg-[#1e5e3f] px-5 py-2.5 font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
-                  >
-                    {salvando ? "Salvando..." : "Salvar edição"}
-                  </button>
-                </form>
-              )}
-
-              {!carregando && modo === "texto-livre" && (
-                <form onSubmit={salvarTextoLivre} className="space-y-4">
-                  <p className="text-sm text-gray-500">
-                    Cole aqui o texto completo do seu currículo já revisado. A IA reorganiza automaticamente nos
-                    campos estruturados.
-                  </p>
-                  <textarea
-                    value={textoLivre}
-                    onChange={(e) => setTextoLivre(e.target.value)}
-                    rows={16}
-                    placeholder="Cole aqui o texto completo do currículo..."
-                    className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={salvando || !textoLivre.trim()}
-                    className="rounded-md bg-[#1e5e3f] px-5 py-2.5 font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
-                  >
-                    {salvando ? "Salvando..." : "Salvar e reorganizar"}
-                  </button>
-                </form>
-              )}
-
-              {possuiEdicao && (
-                <div className="rounded-lg border border-emerald-200 bg-[#f0fdf4] px-4 py-3 text-sm text-[#1e5e3f]">
-                  Pronto! Ao exportar um template em "Templates ATS", escolha a versão <strong>Editada</strong> para
-                  usar esses dados.{" "}
-                  <Link
-                    to={`/templates?email=${encodeURIComponent(emailInicial)}`}
-                    className="font-semibold underline"
-                  >
-                    Ir para templates
-                  </Link>
-                </div>
-              )}
+        {emailInicial && idCurriculoSelecionado && !idTemplateSelecionado && (
+          <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-brand text-[24px] text-black">2. Para qual template você está otimizando?</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setIdCurriculoSelecionado("");
+                  setSearchParams({ email: emailInicial });
+                }}
+                className="text-xs font-semibold text-gray-500 underline hover:text-black"
+              >
+                Trocar currículo
+              </button>
             </div>
+            <p className="text-sm text-gray-500">
+              Os blocos de edição vão aparecer na mesma ordem usada pelo template escolhido, para facilitar encaixar
+              as sugestões. Você pode trocar de template a qualquer momento.
+            </p>
+            {templates.length === 0 && <p className="text-sm text-gray-500">Carregando templates...</p>}
+            {templates.length > 0 && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {templates.map((template) => {
+                  const estilo = ESTILOS_CARTAO[template.id_template] || ESTILOS_CARTAO.moderno;
+                  return (
+                    <button
+                      key={template.id_template}
+                      type="button"
+                      onClick={() => escolherTemplate(template.id_template)}
+                      className={`flex flex-col rounded-lg border-2 ${estilo.borda} bg-white p-4 text-left hover:bg-[#f9fafb]`}
+                    >
+                      <p className={`font-brand text-lg font-bold ${estilo.nome}`}>{template.nome}</p>
+                      <p className="mt-1 text-xs text-gray-500">{template.descricao}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
-            <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-4 h-fit">
-              <h3 className="font-brand text-lg font-bold text-black">Sugestões da última análise</h3>
-              {!temSugestoes && (
-                <p className="text-sm text-gray-500">
-                  Nenhuma sugestão disponível ainda. Rode uma análise deste currículo para receber recomendações.
-                </p>
-              )}
-
-              {temSugestoes && (
+        {emailInicial && idCurriculoSelecionado && idTemplateSelecionado && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-[0.5px] border-black bg-white px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">Template:</span>
+                <span className="font-bold text-[#1e5e3f]">{templateEscolhido?.nome || idTemplateSelecionado}</span>
+                <button type="button" onClick={trocarTemplate} className="text-xs font-semibold underline text-gray-500 hover:text-black">
+                  Trocar template
+                </button>
+              </div>
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={aplicarSugestoes}
-                  disabled={aplicandoSugestoes}
-                  className="w-full flex items-center justify-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
+                  onClick={() => setModo("estruturado")}
+                  className={`rounded-md px-4 py-2 text-sm font-bold transition-colors ${
+                    modo === "estruturado" ? "bg-[#1e5e3f] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
                 >
-                  <i className="ti ti-sparkles"></i>{" "}
-                  {aplicandoSugestoes ? "Aplicando..." : "Aplicar sugestões automaticamente"}
+                  Blocos
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setModo("texto-livre")}
+                  className={`rounded-md px-4 py-2 text-sm font-bold transition-colors ${
+                    modo === "texto-livre" ? "bg-[#1e5e3f] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Texto livre
+                </button>
+              </div>
+            </div>
 
-              {sugestoes?.palavras_chave_faltantes?.length > 0 && (
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">
-                    Palavras-chave faltantes
+            {carregando && <p className="text-sm text-gray-500">Carregando...</p>}
+
+            {possuiEdicao && !carregando && (
+              <div className="rounded-lg border border-emerald-200 bg-[#f0fdf4] px-4 py-3 text-sm text-[#1e5e3f] flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Editado {editadoEm ? `em ${new Date(editadoEm).toLocaleString("pt-BR")}` : ""}. Ao exportar,
+                  escolha a versão <strong>Editada</strong>.
+                </span>
+                <Link
+                  to={`/templates/exportar?email=${encodeURIComponent(emailInicial)}&template=${idTemplateSelecionado}`}
+                  className="font-semibold underline whitespace-nowrap"
+                >
+                  Ir para exportação
+                </Link>
+              </div>
+            )}
+
+            {!carregando && modo === "texto-livre" && (
+              <form onSubmit={salvarTextoLivre} className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-4">
+                <p className="text-sm text-gray-500">
+                  Cole aqui o texto completo do seu currículo já revisado. A IA reorganiza automaticamente nos
+                  campos estruturados.
+                </p>
+                <textarea
+                  value={textoLivre}
+                  onChange={(e) => setTextoLivre(e.target.value)}
+                  rows={16}
+                  placeholder="Cole aqui o texto completo do currículo..."
+                  className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                />
+                <button
+                  type="submit"
+                  disabled={salvando || !textoLivre.trim()}
+                  className="rounded-md bg-[#1e5e3f] px-5 py-2.5 font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
+                >
+                  {salvando ? "Salvando..." : "Salvar e reorganizar"}
+                </button>
+              </form>
+            )}
+
+            {!carregando && modo === "estruturado" && (
+              <form onSubmit={salvarEstruturado} className="space-y-4">
+                {!temQualquerSugestao && (
+                  <p className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-500">
+                    Nenhuma sugestão disponível ainda para este currículo. Rode uma análise dele para receber
+                    recomendações em cada bloco.
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {sugestoes.palavras_chave_faltantes.map((palavra, idx) => (
-                      <span
-                        key={idx}
-                        className="rounded-full bg-amber-100 border border-amber-300 px-2.5 py-1 text-xs text-amber-800"
-                      >
-                        {palavra}
-                      </span>
-                    ))}
+                )}
+
+                {temDiagnostico && (
+                  <div className="rounded-lg border-[0.5px] border-black bg-white p-4 space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Diagnóstico geral da análise</p>
+                    {sugestoes.diagnostico_ats.pontos_fortes?.length > 0 && (
+                      <p className="text-sm text-gray-700">
+                        <span className="font-bold text-[#1e5e3f]">Pontos fortes: </span>
+                        {sugestoes.diagnostico_ats.pontos_fortes.join(" · ")}
+                      </p>
+                    )}
+                    {sugestoes.diagnostico_ats.a_reorganizar?.length > 0 && (
+                      <p className="text-sm text-gray-700">
+                        <span className="font-bold text-amber-700">A reorganizar: </span>
+                        {sugestoes.diagnostico_ats.a_reorganizar.join(" · ")}
+                      </p>
+                    )}
+                    {sugestoes.diagnostico_ats.a_remover?.length > 0 && (
+                      <p className="text-sm text-gray-700">
+                        <span className="font-bold text-red-700">A remover: </span>
+                        {sugestoes.diagnostico_ats.a_remover.join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-lg border-[0.5px] border-black bg-white p-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Nome</label>
+                    <input
+                      type="text"
+                      value={dadosForm.nome || ""}
+                      onChange={(e) => setDadosForm({ ...dadosForm, nome: e.target.value })}
+                      className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">E-mail</label>
+                    <input
+                      type="text"
+                      value={dadosForm.email || ""}
+                      onChange={(e) => setDadosForm({ ...dadosForm, email: e.target.value })}
+                      className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Telefone</label>
+                    <input
+                      type="text"
+                      value={dadosForm.telefone || ""}
+                      onChange={(e) => setDadosForm({ ...dadosForm, telefone: e.target.value })}
+                      className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                    />
                   </div>
                 </div>
-              )}
 
-              {sugestoes?.diagnostico_ats && (
-                <div className="space-y-2">
-                  {sugestoes.diagnostico_ats.pontos_fortes?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">Pontos fortes</p>
-                      <ul className="list-disc pl-4 text-sm text-gray-700 space-y-0.5">
-                        {sugestoes.diagnostico_ats.pontos_fortes.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {sugestoes.diagnostico_ats.a_reorganizar?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">A reorganizar</p>
-                      <ul className="list-disc pl-4 text-sm text-gray-700 space-y-0.5">
-                        {sugestoes.diagnostico_ats.a_reorganizar.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {sugestoes.diagnostico_ats.a_remover?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-1">A remover</p>
-                      <ul className="list-disc pl-4 text-sm text-gray-700 space-y-0.5">
-                        {sugestoes.diagnostico_ats.a_remover.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+                {BLOCOS_CAMPO.map((campo) => {
+                  const sugestoesDoBloco = sugestoesPorCampo[campo.chave] || [];
+                  const chaves = campo.chave === "habilidades" ? sugestoes?.palavras_chave_faltantes || [] : [];
+                  const temAlgumaSugestao = sugestoesDoBloco.length > 0 || chaves.length > 0;
+                  return (
+                    <div
+                      key={campo.chave}
+                      className="rounded-lg border-[0.5px] border-black bg-white p-5 grid grid-cols-1 gap-4 lg:grid-cols-5"
+                    >
+                      <div className="lg:col-span-3">
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                          {campo.rotulo}
+                        </label>
+                        {campo.tipo === "textarea" ? (
+                          <textarea
+                            value={dadosForm[campo.chave] || ""}
+                            onChange={(e) => setDadosForm({ ...dadosForm, [campo.chave]: e.target.value })}
+                            rows={campo.linhas}
+                            className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={dadosForm[campo.chave] || ""}
+                            onChange={(e) => setDadosForm({ ...dadosForm, [campo.chave]: e.target.value })}
+                            className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+                          />
+                        )}
+                      </div>
 
-              {sugestoes?.sugestoes_reescrita?.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Trechos para reescrever</p>
-                  {sugestoes.sugestoes_reescrita.map((item, idx) => (
-                    <div key={idx} className="rounded-lg border border-gray-200 p-3 text-xs space-y-1.5">
-                      {item.trecho_original && (
-                        <p className="text-gray-500">
-                          <span className="font-bold">Original: </span>
-                          {item.trecho_original}
-                        </p>
-                      )}
-                      {item.versao_otimizada && (
-                        <p className="text-[#1e5e3f]">
-                          <span className="font-bold">Sugestão: </span>
-                          {item.versao_otimizada}
-                        </p>
-                      )}
-                      {item.justificativa && <p className="italic text-gray-400">{item.justificativa}</p>}
+                      <div className="lg:col-span-2 lg:border-l lg:border-gray-100 lg:pl-4 space-y-2">
+                        <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Sugestões para este bloco</p>
+                        {!temAlgumaSugestao && (
+                          <p className="text-xs text-gray-400">Nenhuma sugestão específica para este bloco.</p>
+                        )}
+
+                        {chaves.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {chaves.map((palavra, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => adicionarPalavraChave(palavra)}
+                                title="Adicionar às habilidades"
+                                className="rounded-full bg-amber-100 border border-amber-300 px-2.5 py-1 text-xs text-amber-800 hover:bg-amber-200"
+                              >
+                                + {palavra}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {sugestoesDoBloco.map((s, idx) => (
+                          <div key={idx} className="rounded-lg border border-gray-200 p-2.5 text-xs space-y-1">
+                            {s.versao_otimizada && <p className="text-[#1e5e3f]">{s.versao_otimizada}</p>}
+                            {s.justificativa && <p className="italic text-gray-400">{s.justificativa}</p>}
+                            <button
+                              type="button"
+                              onClick={() => usarSugestaoNoCampo(campo.chave, s)}
+                              className="rounded bg-[#1e5e3f] px-2.5 py-1 font-bold text-white hover:bg-[#174a32]"
+                            >
+                              Usar esta versão
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  );
+                })}
+
+                {sugestoesSemCampo.length > 0 && (
+                  <div className="rounded-lg border-[0.5px] border-black bg-white p-5 space-y-2">
+                    <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                      Outras sugestões de reescrita (não identificamos o bloco exato)
+                    </p>
+                    {sugestoesSemCampo.map((s, idx) => (
+                      <div key={idx} className="rounded-lg border border-gray-200 p-3 text-xs space-y-1.5">
+                        {s.trecho_original && (
+                          <p className="text-gray-500">
+                            <span className="font-bold">Original: </span>
+                            {s.trecho_original}
+                          </p>
+                        )}
+                        {s.versao_otimizada && (
+                          <p className="text-[#1e5e3f]">
+                            <span className="font-bold">Sugestão: </span>
+                            {s.versao_otimizada}
+                          </p>
+                        )}
+                        {s.justificativa && <p className="italic text-gray-400">{s.justificativa}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={salvando}
+                  className="rounded-md bg-[#1e5e3f] px-5 py-2.5 font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
+                >
+                  {salvando ? "Salvando..." : "Salvar edição"}
+                </button>
+              </form>
+            )}
           </div>
         )}
       </main>
