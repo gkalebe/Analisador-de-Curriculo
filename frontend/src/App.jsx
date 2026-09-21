@@ -12,6 +12,7 @@ import GaleriaTemplates from "./pages/GaleriaTemplates.jsx";
 import PreviewExportarCurriculo from "./pages/PreviewExportarCurriculo.jsx";
 import EditarCurriculo from "./pages/EditarCurriculo.jsx";
 import ChatBot from "./pages/ChatBot.jsx";
+import SimulacaoEntrevista from "./pages/SimulacaoEntrevista.jsx";
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/templates" element={<GaleriaTemplates />} />
       <Route path="/templates/exportar" element={<PreviewExportarCurriculo />} />
       <Route path="/analises/editar" element={<EditarCurriculo />} />
+      <Route path="/analises/simulacao" element={<SimulacaoEntrevista />} />
     </Routes>
   );
 }

@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 import logging
 
 from fastapi import FastAPI, Request
@@ -18,24 +17,15 @@ from app.web.routers import (
 )
 
 from app.core.config import get_settings
-from app.core.database import Base, engine
 from app.core.rate_limit import limiter
 import app.core.persistencia.models  # noqa: F401
 
 logging.basicConfig(level=logging.INFO)
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    try:
-        Base.metadata.create_all(bind=engine)
-        logging.info("Tabelas do banco verificadas/criadas no startup.")
-    except Exception as erro:
-        logging.error(f"Erro ao inicializar tabelas no banco: {erro}")
-    yield
-
-
-app = FastAPI(title="Analisador de Currículos", version="0.1.0", lifespan=lifespan)
+# O schema do banco é responsabilidade exclusiva do Alembic (alembic upgrade head).
+# Não criamos tabelas automaticamente no startup: isso mascarava migrações que nunca
+# rodaram (tabela nova aparecia sozinha, mas colunas novas em tabelas existentes não).
+app = FastAPI(title="Analisador de Currículos", version="0.1.0")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
