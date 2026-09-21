@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .analise import Analise
     from .curriculo import Curriculo
     from .mensagem_chat import MensagemChat
+    from .simulacao_entrevista import SimulacaoEntrevista
     from .vaga import Vaga
 
 
@@ -31,5 +32,8 @@ class Usuario(Base):
     vagas: Mapped[list["Vaga"]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
     analises: Mapped[list["Analise"]] = relationship(back_populates="usuario", cascade="all, delete-orphan")
     mensagens_chat: Mapped[list["MensagemChat"]] = relationship(
+        back_populates="usuario", cascade="all, delete-orphan"
+    )
+    simulacoes_entrevista: Mapped[list["SimulacaoEntrevista"]] = relationship(
         back_populates="usuario", cascade="all, delete-orphan"
     )

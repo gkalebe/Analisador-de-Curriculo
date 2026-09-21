@@ -76,8 +76,10 @@ class GeminiClient(AIServiceClient):
             except (
                 google.api_core.exceptions.ServiceUnavailable,
                 google.api_core.exceptions.TooManyRequests,
+                google.api_core.exceptions.DeadlineExceeded,
+                requests.exceptions.Timeout,
             ) as erro:
-                # Erros transitórios de sobrecarga momentânea do modelo: vale uma nova tentativa rápida.
+                # Erros transitórios (sobrecarga momentânea ou timeout de leitura): vale nova tentativa.
                 ultimo_erro = erro
                 logger.warning(
                     "Gemini indisponível (tentativa %d/%d): %r", tentativa, MAX_TENTATIVAS_GEMINI, erro
@@ -169,6 +171,14 @@ class AIServiceAdapter:
     ) -> str:
         prompt = self._montar_prompt_chat(historico, pergunta, texto_curriculo, texto_vaga)
         return self.cliente.gerar_resposta(prompt, temperatura=0.5)
+
+    def gerar_perguntas_entrevista(self, texto_vaga: str) -> str:
+        prompt = self._montar_prompt_perguntas_entrevista(texto_vaga)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.6)
+
+    def avaliar_resposta_entrevista(self, texto_vaga: str, pergunta: str, tipo: str, resposta: str) -> str:
+        prompt = self._montar_prompt_feedback_entrevista(texto_vaga, pergunta, tipo, resposta)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
         return (
@@ -303,4 +313,54 @@ class AIServiceAdapter:
             f"{contexto}\n\n"
             f"Conversa até aqui:\n{linhas_historico or '(nenhuma mensagem anterior)'}\n\n"
             f"Nova pergunta do candidato: {pergunta}"
+        )
+
+    def _montar_prompt_perguntas_entrevista(self, texto_vaga: str) -> str:
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Monte um roteiro de simulação de entrevista de emprego para a vaga descrita abaixo, "
+            "para o candidato treinar antes do processo seletivo real.\n\n"
+            "DIRETRIZES:\n"
+            "1. Gere exatamente 2 perguntas do tipo comportamental (sobre experiências passadas e soft "
+            "skills, ex.: trabalho em equipe, conflitos, liderança), 2 do tipo técnica (sobre "
+            "conhecimentos e ferramentas específicos exigidos pela vaga) e 2 do tipo situacional "
+            "(cenários hipotéticos relacionados ao dia a dia da vaga).\n"
+            "2. As perguntas devem ser específicas ao conteúdo da vaga, nunca genéricas.\n"
+            "3. Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos "
+            "markdown, no formato exato:\n"
+            "{\n"
+            '  "perguntas": [\n'
+            '    {"tipo": "comportamental", "texto": "<pergunta>"},\n'
+            '    {"tipo": "tecnica", "texto": "<pergunta>"},\n'
+            '    {"tipo": "situacional", "texto": "<pergunta>"}\n'
+            "  ]\n"
+            "}\n\n"
+            f"Descrição da vaga:\n{texto_vaga}"
+        )
+
+    def _montar_prompt_feedback_entrevista(self, texto_vaga: str, pergunta: str, tipo: str, resposta: str) -> str:
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Avalie a resposta do candidato a uma pergunta de simulação de entrevista para a "
+            "vaga descrita abaixo, dando feedback construtivo para ele treinar.\n\n"
+            "DIRETRIZES:\n"
+            "1. Avalie a resposta em 4 dimensões: clareza (a resposta é fácil de entender e bem "
+            "estruturada?), objetividade (vai direto ao ponto, sem enrolação?), coerência (a resposta "
+            "faz sentido com o que foi perguntado e é internamente consistente?) e alinhamento "
+            "(quão aderente a resposta está aos requisitos e ao perfil da vaga?).\n"
+            "2. Para cada dimensão, dê uma nota de 0 a 10 e um comentário curto (1 a 2 frases) e "
+            "acionável.\n"
+            "3. Dê também um feedback geral (2 a 3 frases) resumindo o principal ponto a melhorar.\n"
+            "4. Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos "
+            "markdown, no formato exato:\n"
+            "{\n"
+            '  "clareza": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "objetividade": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "coerencia": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "alinhamento": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "feedback_geral": "<feedback geral>"\n'
+            "}\n\n"
+            f"Descrição da vaga:\n{texto_vaga}\n\n"
+            f"Pergunta ({tipo}): {pergunta}\n\n"
+            f"Resposta do candidato: {resposta}"
         )
