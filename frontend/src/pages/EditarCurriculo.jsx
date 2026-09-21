@@ -302,7 +302,10 @@ export default function EditarCurriculo() {
               <h2 className="font-brand text-[24px] text-black">2. Para qual template você está otimizando?</h2>
               <button
                 type="button"
-                onClick={() => setIdCurriculoSelecionado("")}
+                onClick={() => {
+                  setIdCurriculoSelecionado("");
+                  setSearchParams({ email: emailInicial });
+                }}
                 className="text-xs font-semibold text-gray-500 underline hover:text-black"
               >
                 Trocar currículo

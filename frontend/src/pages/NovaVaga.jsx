@@ -43,6 +43,7 @@ export default function NovaVaga() {
     try {
       await criarVaga({ ...form, email: emailInicial });
       setSucesso("Vaga salva com sucesso.");
+      setForm(novoFormularioVaga(emailInicial));
       const resposta = await listarVagas(emailInicial);
       setVagasSalvas(resposta.vagas);
     } catch (e) {

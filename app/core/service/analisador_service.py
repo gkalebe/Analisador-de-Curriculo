@@ -13,8 +13,10 @@ from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
 from app.core.service.extracao_curriculo import (
+    aplicar_sugestoes_em_dados_curriculo,
     extrair_dados_estruturados_curriculo,
     normalizar_dados_editados,
+    obter_dados_curriculo_com_cache,
 )
 
 
@@ -23,6 +25,10 @@ class DescricaoVagaObrigatoriaError(Exception):
 
 
 class DescricaoVagaMuitoLongaError(Exception):
+    pass
+
+
+class VagaDuplicadaError(Exception):
     pass
 
 
@@ -35,6 +41,10 @@ class CurriculoNaoEncontradoError(Exception):
 
 
 class CurriculoArquivoNaoEncontradoError(Exception):
+    pass
+
+
+class NenhumaSugestaoDisponivelError(Exception):
     pass
 
 
@@ -78,6 +88,15 @@ class AnalisadorService:
             raise DescricaoVagaObrigatoriaError
         if len(descricao_normalizada) > self.settings.max_vaga_description_chars:
             raise DescricaoVagaMuitoLongaError
+
+        # Compara com as vagas já salvas do usuário para recusar duplicata exata (mesma
+        # descrição, ignorando maiúsculas/minúsculas e espaços nas pontas) — evita que o
+        # mesmo texto colado duas vezes (ex.: formulário que não limpa após salvar) vire
+        # duas vagas idênticas no histórico do usuário.
+        descricao_para_comparacao = descricao_normalizada.lower()
+        vagas_existentes = self.vaga_repository.listar_por_usuario(id_usuario)
+        if any((vaga_existente.descricao or "").strip().lower() == descricao_para_comparacao for vaga_existente in vagas_existentes):
+            raise VagaDuplicadaError
 
         vaga = Vaga(
             titulo=(titulo or "").strip() or None,
@@ -199,10 +218,7 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        if curriculo.dados_editados:
-            dados = normalizar_dados_editados(curriculo.dados_editados, curriculo.texto_extraido or "")
-        else:
-            dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, curriculo.texto_extraido or "")
+        dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
 
         return {
             "id_curriculo": curriculo.id_curriculo,
@@ -228,6 +244,29 @@ class AnalisadorService:
         dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto)
         dados["texto_bruto"] = texto
         return self.curriculo_repository.salvar_edicao(curriculo, dados)
+
+    def aplicar_sugestoes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> Curriculo:
+        """Pede à IA uma versão dos dados do currículo com as sugestões da última análise
+        (palavras-chave faltantes, itens a remover/reorganizar, reescritas) já aplicadas, e
+        salva o resultado como `dados_editados` — pronto para revisão/exportação, sem
+        precisar o usuário reescrever campo a campo manualmente.
+
+        Levanta `NenhumaSugestaoDisponivelError` se este currículo ainda não tem nenhuma
+        análise com diagnóstico salvo.
+        """
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        sugestoes = self._obter_sugestoes_mais_recentes(id_usuario, id_curriculo)
+        if not sugestoes:
+            raise NenhumaSugestaoDisponivelError
+
+        dados_atuais = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+        dados_aplicados = aplicar_sugestoes_em_dados_curriculo(
+            self.ai_service_adapter, dados_atuais, sugestoes, curriculo.texto_extraido or ""
+        )
+        return self.curriculo_repository.salvar_edicao(curriculo, dados_aplicados)
 
     def _obter_sugestoes_mais_recentes(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict | None:
         # Mesma normalização de chaves usada em NovaAnalise.jsx/HistoricoAnalises.jsx: a IA

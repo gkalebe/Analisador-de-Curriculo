@@ -10,6 +10,7 @@ python-dotenv==1.0.1
 python-multipart==0.0.20
 pymupdf==1.25.1
 python-docx==1.1.2
+docxtpl==0.20.2
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0

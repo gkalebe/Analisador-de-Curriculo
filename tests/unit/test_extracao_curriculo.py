@@ -1,11 +1,17 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
+from app.core.persistencia.models.curriculo import Curriculo
 from app.core.service.extracao_curriculo import (
     CAMPOS_CURRICULO,
+    SugestaoNaoAplicadaError,
+    aplicar_sugestoes_em_dados_curriculo,
     dados_curriculo_vazios,
     extrair_dados_estruturados_curriculo,
     normalizar_dados_editados,
+    obter_dados_curriculo_com_cache,
 )
 
 RESPOSTA_IA_PADRAO = (
@@ -84,3 +90,143 @@ def test_normalizar_dados_editados_preserva_texto_bruto_proprio():
     resultado = normalizar_dados_editados({"nome": "Ana", "texto_bruto": "texto editado"}, texto_bruto="fallback")
 
     assert resultado["texto_bruto"] == "texto editado"
+
+
+def _curriculo(**overrides) -> Curriculo:
+    base = {
+        "nome_arquivo": "curriculo.pdf",
+        "texto_extraido": "texto bruto do currículo",
+        "dados_editados": None,
+        "dados_extraidos": None,
+    }
+    base.update(overrides)
+    return Curriculo(**base)
+
+
+class RepositorioFalso:
+    def __init__(self):
+        self.chamadas_salvar_dados_extraidos: list[dict] = []
+
+    def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
+        curriculo.dados_extraidos = dados_extraidos
+        self.chamadas_salvar_dados_extraidos.append(dados_extraidos)
+        return curriculo
+
+
+def test_obter_dados_curriculo_com_cache_usa_dados_editados_sem_chamar_ia():
+    curriculo = _curriculo(dados_editados={"nome": "Ana Editada"})
+    ai_adapter = MagicMock()
+    repositorio = RepositorioFalso()
+
+    dados = obter_dados_curriculo_com_cache(curriculo, ai_adapter, repositorio)
+
+    assert dados["nome"] == "Ana Editada"
+    ai_adapter.extrair_dados_estruturados.assert_not_called()
+    assert repositorio.chamadas_salvar_dados_extraidos == []
+
+
+def test_obter_dados_curriculo_com_cache_reaproveita_dados_extraidos_sem_chamar_ia():
+    curriculo = _curriculo(dados_extraidos={"nome": "Ana Cacheada"})
+    ai_adapter = MagicMock()
+    repositorio = RepositorioFalso()
+
+    dados = obter_dados_curriculo_com_cache(curriculo, ai_adapter, repositorio)
+
+    assert dados["nome"] == "Ana Cacheada"
+    ai_adapter.extrair_dados_estruturados.assert_not_called()
+
+
+def test_obter_dados_curriculo_com_cache_extrai_e_salva_na_primeira_vez():
+    curriculo = _curriculo()
+    ai_adapter = MagicMock()
+    ai_adapter.extrair_dados_estruturados.return_value = RESPOSTA_IA_PADRAO
+    repositorio = RepositorioFalso()
+
+    dados = obter_dados_curriculo_com_cache(curriculo, ai_adapter, repositorio)
+
+    assert dados["nome"] == "Ana Silva"
+    ai_adapter.extrair_dados_estruturados.assert_called_once()
+    assert len(repositorio.chamadas_salvar_dados_extraidos) == 1
+    assert curriculo.dados_extraidos["nome"] == "Ana Silva"
+
+
+def test_obter_dados_curriculo_com_cache_nao_salva_extracao_vazia():
+    curriculo = _curriculo()
+    ai_adapter = MagicMock()
+    ai_adapter.extrair_dados_estruturados.side_effect = IAIndisponivelError("timeout")
+    repositorio = RepositorioFalso()
+
+    dados = obter_dados_curriculo_com_cache(curriculo, ai_adapter, repositorio)
+
+    assert dados["nome"] == ""
+    assert repositorio.chamadas_salvar_dados_extraidos == []
+
+
+SUGESTOES_EXEMPLO = {
+    "palavras_chave_faltantes": ["Docker"],
+    "diagnostico_ats": {"pontos_fortes": ["Boa formação"], "a_reorganizar": [], "a_remover": ["Ensino Médio"]},
+    "sugestoes_reescrita": [{"trecho_original": "fez coisas", "versao_otimizada": "liderou automações"}],
+}
+
+DADOS_ATUAIS_EXEMPLO = {
+    "nome": "Ana Silva",
+    "email": "ana@email.com",
+    "telefone": "",
+    "resumo": "fez coisas",
+    "formacao": "Ensino Médio\nEngenharia",
+    "experiencia_profissional": "Experiência.",
+    "habilidades": "Python",
+}
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_com_sucesso():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = (
+        '{"nome": "Ana Silva", "email": "ana@email.com", "telefone": "", '
+        '"resumo": "liderou automações", "formacao": "Engenharia", '
+        '"experiencia_profissional": "Experiência.", "habilidades": "Python, Docker"}'
+    )
+
+    resultado = aplicar_sugestoes_em_dados_curriculo(
+        ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO, texto_bruto="texto bruto"
+    )
+
+    assert resultado["resumo"] == "liderou automações"
+    assert resultado["formacao"] == "Engenharia"
+    assert resultado["texto_bruto"] == "texto bruto"
+    ai_adapter.aplicar_sugestoes_curriculo.assert_called_once_with(DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_mantem_campo_atual_se_ia_omitir():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = '{"resumo": "liderou automações"}'
+
+    resultado = aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+    assert resultado["resumo"] == "liderou automações"
+    assert resultado["nome"] == "Ana Silva"
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_remove_cercas_markdown():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = '```json\n{"resumo": "liderou automações"}\n```'
+
+    resultado = aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+    assert resultado["resumo"] == "liderou automações"
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_com_resposta_nao_json_lanca_erro():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.return_value = "não é json"
+
+    with pytest.raises(SugestaoNaoAplicadaError):
+        aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)
+
+
+def test_aplicar_sugestoes_em_dados_curriculo_propaga_indisponibilidade_da_ia():
+    ai_adapter = MagicMock()
+    ai_adapter.aplicar_sugestoes_curriculo.side_effect = IAIndisponivelError("timeout")
+
+    with pytest.raises(IAIndisponivelError):
+        aplicar_sugestoes_em_dados_curriculo(ai_adapter, DADOS_ATUAIS_EXEMPLO, SUGESTOES_EXEMPLO)

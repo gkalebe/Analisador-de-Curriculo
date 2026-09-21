@@ -45,3 +45,10 @@ export function salvarEdicaoTextoLivre(idCurriculo, email, texto) {
   });
 }
 
+export function aplicarSugestoesCurriculo(idCurriculo, email) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao/aplicar-sugestoes`, {
+    method: "POST",
+    params: { email },
+  });
+}
+

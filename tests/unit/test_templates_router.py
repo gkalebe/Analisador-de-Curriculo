@@ -108,7 +108,7 @@ def test_exportar_curriculo_com_email_desconhecido_retorna_404():
         params={
             "email": "nao-cadastrado@example.com",
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
         },
     )
@@ -127,7 +127,7 @@ def test_exportar_curriculo_com_sucesso():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
         },
     )
@@ -150,7 +150,7 @@ def test_exportar_curriculo_com_curriculo_nao_encontrado_retorna_404():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
         },
     )
@@ -192,7 +192,7 @@ def test_exportar_curriculo_com_formato_invalido_retorna_400():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "jpg",
         },
     )
@@ -213,7 +213,7 @@ def test_exportar_curriculo_com_versao_invalida_retorna_400():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
             "versao": "rascunho",
         },
@@ -234,7 +234,7 @@ def test_exportar_curriculo_repassa_versao_default_original():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
         },
     )

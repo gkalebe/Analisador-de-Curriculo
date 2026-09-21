@@ -26,6 +26,12 @@ class Curriculo(Base):
     conteudo_arquivo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     dados_editados: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     editado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Cache da extração por IA de `texto_extraido` (nome/resumo/formação/experiência/habilidades),
+    # preenchido na primeira vez que a extração funciona. Sem isso, cada preview/exportação do
+    # currículo original chamava a IA de novo — caro e frágil (quota/indisponibilidade quebrava a
+    # exportação, que não deveria depender de IA). `dados_editados`, quando existir, sempre tem
+    # prioridade sobre este campo (é uma edição intencional do usuário).
+    dados_extraidos: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     id_usuario: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuario.id_usuario"), nullable=False)
 
     usuario: Mapped["Usuario"] = relationship(back_populates="curriculos")
