@@ -90,4 +90,12 @@ Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) veio atribuída a ele n
 - `lacunas_recorrentes`: lista `{"competencia", "frequencia"}` ordenada da mais para a menos frequente. Calculada sem IA (determinístico, sem custo/latência extra e sem depender de `GEMINI_API_KEY`/`ANTHROPIC_API_KEY`): para cada análise, separa `Vaga.requisitos` em itens (por vírgula/`;`/quebra de linha) e considera "lacuna" todo item que não aparece como substring (case-insensitive) em `Curriculo.texto_extraido`; depois soma a frequência de cada lacuna entre todas as análises do usuário. Vaga sem `requisitos` preenchido não gera lacuna para aquela análise.
 - `PlanoService.obter_historico_e_lacunas` é o método novo; `PainelHistoricoResponse`/`HistoricoAnaliseItem`/`LacunaRecorrente` ficam em `app/web/schemas_painel.py`.
 - Testes: `tests/unit/test_plano_service.py`, `tests/unit/test_painel_router.py`.
-- Não implementado agora (fora do escopo da issue #20): a tela React (issue #35, `[FRONT] US-016`, hoje sem dono no kanban) e US-014/US-015/US-018 (demais partes de `painel_router.py`/`plano_service.py`).
+- Não implementado agora (fora do escopo da issue #20): US-014/US-015 (demais partes de `painel_router.py`/`plano_service.py`).
+
+## FRONT-US-016 — Histórico (lista e detalhe de análise) (concluída)
+
+Feito por Vitor Bittencourt, seguindo o protótipo Figma (issue #35 `[FRONT] US-016`).
+
+- Telas: `frontend/src/pages/HistoricoAnalises.jsx` (lista "Vagas anteriores", em `/analises/historico`) e `frontend/src/pages/VisualizarAnalise.jsx` (detalhe completo de uma análise, em `/analises/historico/visualizar?id=...`). Consomem `GET /analises` (já existente) em vez de `GET /painel/historico`, porque a tela de detalhe (termos encontrados, lacunas técnicas, diagnóstico crítico, sugestões de reescrita) depende do campo `observacoes` (JSON da IA) e de `id_vaga`, que só `AnaliseResponse`/`GET /analises` devolve — `PainelHistoricoResponse` não tem esses campos. `GET /painel/historico` (lacunas recorrentes agregadas entre análises) segue implementado e sem consumidor no front; fica disponível para uma eventual tela de painel/lacunas fora do escopo desta issue.
+- Componente novo reutilizável: `frontend/src/components/AnelProgresso.jsx` (anel de progresso SVG com faixas de aderência forte/moderada/baixa).
+- Exclusão de análise (ícone de lixeira no histórico) é a issue separada FRONT-US-018 — ver branch/PR próprios.
