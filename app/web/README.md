@@ -99,3 +99,11 @@ Feito por Vitor Bittencourt, seguindo o protótipo Figma (issue #35 `[FRONT] US-
 - Telas: `frontend/src/pages/HistoricoAnalises.jsx` (lista "Vagas anteriores", em `/analises/historico`) e `frontend/src/pages/VisualizarAnalise.jsx` (detalhe completo de uma análise, em `/analises/historico/visualizar?id=...`). Consomem `GET /analises` (já existente) em vez de `GET /painel/historico`, porque a tela de detalhe (termos encontrados, lacunas técnicas, diagnóstico crítico, sugestões de reescrita) depende do campo `observacoes` (JSON da IA) e de `id_vaga`, que só `AnaliseResponse`/`GET /analises` devolve — `PainelHistoricoResponse` não tem esses campos. `GET /painel/historico` (lacunas recorrentes agregadas entre análises) segue implementado e sem consumidor no front; fica disponível para uma eventual tela de painel/lacunas fora do escopo desta issue.
 - Componente novo reutilizável: `frontend/src/components/AnelProgresso.jsx` (anel de progresso SVG com faixas de aderência forte/moderada/baixa).
 - Exclusão de análise (ícone de lixeira no histórico) é a issue separada FRONT-US-018 — ver branch/PR próprios.
+
+## FRONT-US-018 — Excluir análise do histórico (concluída)
+
+Feito por Vitor Bittencourt, seguindo o protótipo Figma (modal "Deletar!" no histórico). Empilhada sobre a branch/PR de FRONT-US-016, pois o ícone de lixeira vive na mesma tela `HistoricoAnalises.jsx`.
+
+- Endpoint novo `DELETE /analises/{id_analise}?email=...`: `204` em caso de sucesso, `404` se o e-mail ou a análise (ou análise de outro usuário) não existir. `AnaliseRepository.excluir` e `AnalisadorService.excluir_analise` (levanta `AnaliseNaoEncontradaError`) são novos — nenhum dos dois existia antes; só havia `CurriculoRepository.excluir`, sem rota, que é uma entidade diferente (currículo, não análise).
+- Front: `frontend/src/components/ModalConfirmarExclusao.jsx` (modal de confirmação) e o ícone de lixeira + `excluirAnalise` (`frontend/src/api/analiseApi.js`) plugados em `HistoricoAnalises.jsx`.
+- Testes: `tests/unit/test_analise_router.py` (`test_excluir_analise_*`), `tests/unit/test_analisador_service.py` (`test_excluir_analise_*`).

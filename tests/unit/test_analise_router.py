@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.adapters.curriculo_parser.curriculo_parser import FormatoNaoSuportadoError
 from app.core.persistencia.models import Usuario
-from app.core.service.analisador_service import VagaNaoEncontradaError
+from app.core.service.analisador_service import AnaliseNaoEncontradaError, VagaNaoEncontradaError
 from app.main import app
 from app.web.routers.analise_router import get_analisador_service, get_usuario_repository
 
@@ -31,6 +31,8 @@ class AnalisadorServiceFalso:
         self.analises_criadas: list[dict] = []
         self.analises_para_listar: list = []
         self.arquivo_curriculo: tuple[bytes, str] = (b"conteudo pdf", "curriculo.pdf")
+        self.deve_recusar_analise_nao_encontrada = False
+        self.analises_excluidas: list = []
 
     def processar_upload_curriculo(self, conteudo, nome_arquivo, extensao, id_usuario):
         if self.deve_recusar_formato:
@@ -68,6 +70,11 @@ class AnalisadorServiceFalso:
 
     def obter_arquivo_curriculo(self, id_usuario, id_curriculo):
         return self.arquivo_curriculo
+
+    def excluir_analise(self, id_usuario, id_analise):
+        if self.deve_recusar_analise_nao_encontrada:
+            raise AnaliseNaoEncontradaError
+        self.analises_excluidas.append(id_analise)
 
 
 def _usuario() -> Usuario:
@@ -310,3 +317,40 @@ def test_baixar_arquivo_curriculo_docx_retorna_content_disposition_attachment():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.headers["content-disposition"].startswith("attachment")
+
+
+def test_excluir_analise_com_sucesso_retorna_204():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    id_analise = uuid.uuid4()
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.delete(f"/analises/{id_analise}", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 204
+    assert service_falso.analises_excluidas == [id_analise]
+
+
+def test_excluir_analise_com_email_desconhecido_retorna_404():
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.delete(f"/analises/{uuid.uuid4()}", params={"email": "nao-cadastrado@example.com"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+
+def test_excluir_analise_inexistente_retorna_404():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_analise_nao_encontrada = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.delete(f"/analises/{uuid.uuid4()}", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404

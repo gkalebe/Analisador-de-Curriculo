@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.analisador_service import (
     AnalisadorService,
+    AnaliseNaoEncontradaError,
     CurriculoArquivoNaoEncontradoError,
     CurriculoNaoEncontradoError,
     NenhumaSugestaoDisponivelError,
@@ -217,6 +218,31 @@ def listar_analises(
         ) from erro
 
     return AnaliseListResponse(analises=[AnaliseResponse.model_validate(a) for a in analises])
+
+
+@router.delete("/{id_analise}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_analise(
+    id_analise: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> Response:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.excluir_analise(usuario.id_usuario, id_analise)
+    except AnaliseNaoEncontradaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Análise não encontrada para este usuário.",
+        ) from erro
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/curriculos", response_model=CurriculoListResponse)

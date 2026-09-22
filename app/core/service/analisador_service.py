@@ -54,6 +54,10 @@ class NenhumaSugestaoDisponivelError(Exception):
     pass
 
 
+class AnaliseNaoEncontradaError(Exception):
+    pass
+
+
 class AnalisadorService:
     def __init__(self, db: Session):
         self.curriculo_repository = CurriculoRepository(db)
@@ -218,6 +222,13 @@ class AnalisadorService:
 
     def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
         return self.analise_repository.listar_por_usuario(id_usuario)
+
+    def excluir_analise(self, id_usuario: uuid.UUID, id_analise: uuid.UUID) -> None:
+        analise = self.analise_repository.buscar_por_id(id_analise)
+        if analise is None or analise.id_usuario != id_usuario:
+            raise AnaliseNaoEncontradaError
+
+        self.analise_repository.excluir(analise)
 
     def obter_dados_edicao_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict:
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)

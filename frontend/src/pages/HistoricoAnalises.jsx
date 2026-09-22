@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import AnelProgresso, { classificarAderencia } from "../components/AnelProgresso.jsx";
-import { listarAnalises } from "../api/analiseApi.js";
+import ModalConfirmarExclusao from "../components/ModalConfirmarExclusao.jsx";
+import { listarAnalises, excluirAnalise } from "../api/analiseApi.js";
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
 
@@ -15,6 +16,8 @@ export default function HistoricoAnalises() {
   const [analises, setAnalises] = useState([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
+  const [analiseParaExcluir, setAnaliseParaExcluir] = useState(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   useEffect(() => {
     if (!emailInicial) return;
@@ -39,6 +42,20 @@ export default function HistoricoAnalises() {
 
   function irParaVisualizar(idAnalise) {
     navigate(`/analises/historico/visualizar?email=${encodeURIComponent(emailInicial)}&id=${idAnalise}`);
+  }
+
+  async function confirmarExclusao() {
+    if (!analiseParaExcluir) return;
+    setExcluindo(true);
+    try {
+      await excluirAnalise(analiseParaExcluir.id_analise, emailInicial);
+      setAnalises((atual) => atual.filter((a) => a.id_analise !== analiseParaExcluir.id_analise));
+      setAnaliseParaExcluir(null);
+    } catch {
+      setErro("Não foi possível excluir esta análise. Tente novamente.");
+    } finally {
+      setExcluindo(false);
+    }
   }
 
   return (
@@ -138,6 +155,15 @@ export default function HistoricoAnalises() {
                         >
                           Visualizar
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setAnaliseParaExcluir(item)}
+                          className="p-2 rounded text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          title="Excluir análise"
+                        >
+                          <i className="ti ti-trash text-lg"></i>
+                        </button>
                       </div>
                     </li>
                   );
@@ -147,6 +173,13 @@ export default function HistoricoAnalises() {
           </div>
         )}
       </main>
+
+      <ModalConfirmarExclusao
+        aberto={!!analiseParaExcluir}
+        excluindo={excluindo}
+        onConfirmar={confirmarExclusao}
+        onCancelar={() => setAnaliseParaExcluir(null)}
+      />
     </div>
   );
 }

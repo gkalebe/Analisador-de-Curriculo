@@ -9,6 +9,7 @@ from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
 from app.core.service.analisador_service import (
     AnalisadorService,
+    AnaliseNaoEncontradaError,
     CurriculoNaoEncontradoError,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
@@ -74,6 +75,12 @@ class AnaliseRepositorioFalso:
 
     def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
         return [analise for analise in self.analises if analise.id_usuario == id_usuario]
+
+    def buscar_por_id(self, id_analise: uuid.UUID) -> Analise | None:
+        return next((a for a in self.analises if a.id_analise == id_analise), None)
+
+    def excluir(self, analise: Analise) -> None:
+        self.analises.remove(analise)
 
     def buscar_mais_recente_por_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> Analise | None:
         candidatas = [
@@ -263,6 +270,39 @@ def test_listar_analises_usuario_retorna_apenas_do_usuario():
 
     assert len(analises) == 1
     assert analises[0].id_usuario == id_usuario
+
+
+def test_excluir_analise_remove_do_repositorio():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga.")
+    analise = service.analisar_curriculo_para_vaga(
+        id_usuario=id_usuario, id_vaga=vaga.id_vaga, conteudo=b"x", nome_arquivo="a.pdf", extensao="pdf"
+    )
+
+    service.excluir_analise(id_usuario, analise.id_analise)
+
+    assert service.listar_analises_usuario(id_usuario) == []
+
+
+def test_excluir_analise_de_outro_usuario_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    outro_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga.")
+    analise = service.analisar_curriculo_para_vaga(
+        id_usuario=id_usuario, id_vaga=vaga.id_vaga, conteudo=b"x", nome_arquivo="a.pdf", extensao="pdf"
+    )
+
+    with pytest.raises(AnaliseNaoEncontradaError):
+        service.excluir_analise(outro_usuario, analise.id_analise)
+
+
+def test_excluir_analise_inexistente_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+
+    with pytest.raises(AnaliseNaoEncontradaError):
+        service.excluir_analise(uuid.uuid4(), uuid.uuid4())
 
 
 def test_interpretar_resultado_ia_remove_bloco_markdown():
