@@ -201,7 +201,12 @@ class AIServiceAdapter:
             "(usando verbos de ação fortes, palavras-chave precisas da vaga e quantificação de impactos).\n"
             "2. Aponte termos técnicos da vaga que estão presentes e os que estão ausentes.\n"
             "3. Forneça sugestões concretas de reescrita lado a lado (trecho original vs trecho "
-            "otimizado para ATS).\n\n"
+            "otimizado para ATS).\n"
+            "4. Para CADA sugestão de reescrita, identifique com certeza em qual campo do currículo "
+            "estruturado o trecho original está: 'resumo' (resumo profissional), 'formacao' (formação "
+            "acadêmica), 'experiencia_profissional' (experiências de trabalho) ou 'habilidades' "
+            "(habilidades técnicas/comportamentais). Use EXATAMENTE um desses 4 valores no campo "
+            "\"campo\" — nunca deixe em branco e nunca invente um valor fora dessa lista.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
             "{\n"
@@ -219,6 +224,7 @@ class AIServiceAdapter:
             "  },\n"
             '  "sugestoes_reescrita": [\n'
             "    {\n"
+            '      "campo": "<resumo | formacao | experiencia_profissional | habilidades>",\n'
             '      "trecho_original": "<trecho exato do currículo original que está genérico ou fraco>",\n'
             '      "sugestao_otimizada": "<versão reescrita com verbos de ação e foco em ATS, SEM inventar fatos>",\n'
             '      "motivo": "<por que essa versão melhora a pontuação em robôs ATS e recrutadores>"\n'

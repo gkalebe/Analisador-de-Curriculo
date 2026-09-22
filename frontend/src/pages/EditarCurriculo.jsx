@@ -10,13 +10,16 @@ import { listarAnalises } from "../api/analiseApi.js";
 import { listarTemplates } from "../api/templateApi.js";
 import { ApiError } from "../api/client.js";
 
+// Chaves alinhadas com TEMPLATES em app/core/service/template_service.py (a cor de cada
+// template descrita lá: azul-marinho, verde-azulado, laranja, terracota, verde escuro).
 const ESTILOS_CARTAO = {
-  moderno: { borda: "border-[#1e5e3f]", nome: "text-[#1e5e3f]" },
-  classico: { borda: "border-black", nome: "text-black" },
-  minimalista: { borda: "border-gray-300", nome: "text-gray-900" },
-  executivo: { borda: "border-[#1e3a5f]", nome: "text-[#1e3a5f]" },
-  criativo: { borda: "border-[#c45a3c]", nome: "text-gray-900" },
+  generico: { borda: "border-[#1e3a5f]", nome: "text-[#1e3a5f]", cor: "#1e3a5f", fundo: "#eef2f7" },
+  tecnologia: { borda: "border-[#0f6a63]", nome: "text-[#0f6a63]", cor: "#0f6a63", fundo: "#eafaf8" },
+  estagio: { borda: "border-[#c2570c]", nome: "text-[#c2570c]", cor: "#c2570c", fundo: "#fff4ea" },
+  gestao: { borda: "border-[#a8452e]", nome: "text-[#a8452e]", cor: "#a8452e", fundo: "#fbeee9" },
+  setor_publico: { borda: "border-[#14532d]", nome: "text-[#14532d]", cor: "#14532d", fundo: "#eef7f0" },
 };
+const ESTILO_PADRAO = { borda: "border-[#1e5e3f]", nome: "text-[#1e5e3f]", cor: "#1e5e3f", fundo: "#f0fdf4" };
 
 const DADOS_VAZIOS = {
   nome: "",
@@ -53,15 +56,25 @@ function pontuarSobreposicao(trecho, textoCampo) {
   return encontradas.length / palavras.length;
 }
 
+const CAMPOS_VALIDOS = ["resumo", "formacao", "experiencia_profissional", "habilidades"];
+
 function associarSugestoesPorBloco(sugestoes, dados) {
-  const campos = ["resumo", "formacao", "experiencia_profissional", "habilidades"];
   const porCampo = { resumo: [], formacao: [], experiencia_profissional: [], habilidades: [] };
   const semCampo = [];
 
   (sugestoes?.sugestoes_reescrita || []).forEach((s) => {
+    // A análise já diz explicitamente a qual campo a sugestão pertence (ver
+    // AIServiceAdapter._montar_prompt_comparacao) — confiamos nisso em vez de adivinhar.
+    // A sobreposição de palavras fica só como fallback para análises antigas, salvas antes
+    // dessa mudança, que ainda não têm "campo" preenchido.
+    if (s.campo && CAMPOS_VALIDOS.includes(s.campo)) {
+      porCampo[s.campo].push(s);
+      return;
+    }
+
     let melhorCampo = null;
     let melhorPontuacao = 0;
-    campos.forEach((campo) => {
+    CAMPOS_VALIDOS.forEach((campo) => {
       const pontuacao = pontuarSobreposicao(s.trecho_original, dados[campo]);
       if (pontuacao > melhorPontuacao) {
         melhorPontuacao = pontuacao;
@@ -76,6 +89,95 @@ function associarSugestoesPorBloco(sugestoes, dados) {
   });
 
   return { porCampo, semCampo };
+}
+
+function LinhasComoParagrafos({ texto }) {
+  const linhas = (texto || "").split("\n").filter((linha) => linha.trim());
+  if (linhas.length === 0) return null;
+  return (
+    <>
+      {linhas.map((linha, idx) => (
+        <p key={idx}>{linha}</p>
+      ))}
+    </>
+  );
+}
+
+function SecaoPreview({ titulo, cor, children }) {
+  return (
+    <div>
+      <p
+        className="mb-1 text-[11px] font-bold uppercase tracking-wide"
+        style={{ color: cor }}
+      >
+        {titulo}
+      </p>
+      <div className="space-y-1 text-[12.5px] leading-snug text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+// Pré-visualização ao vivo: não é o PDF/DOCX exportado de verdade (isso continua sendo
+// gerado no back-end, por CurriculoExporter, com o layout definitivo de cada template), mas
+// reflete os mesmos dados e a mesma cor do template escolhido — atualiza sozinha a cada
+// mudança em dadosForm porque é só JSX lendo o state, sem chamada nenhuma à API.
+function PainelPreview({ dados, estilo, template }) {
+  const habilidades = (dados.habilidades || "")
+    .split(",")
+    .map((h) => h.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="rounded-lg border-[0.5px] border-black bg-white p-5">
+      <p className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-400">
+        Pré-visualização — {template?.nome || "template"}
+      </p>
+      <div className="rounded-md p-4" style={{ backgroundColor: estilo.fundo }}>
+        <p className="text-lg font-bold leading-tight" style={{ color: estilo.cor }}>
+          {dados.nome || "Seu nome"}
+        </p>
+        <p className="text-xs text-gray-600">{[dados.email, dados.telefone].filter(Boolean).join(" · ")}</p>
+
+        <div className="mt-3 space-y-3">
+          {dados.resumo && (
+            <SecaoPreview titulo="Resumo" cor={estilo.cor}>
+              <p>{dados.resumo}</p>
+            </SecaoPreview>
+          )}
+          {dados.experiencia_profissional && (
+            <SecaoPreview titulo="Experiência profissional" cor={estilo.cor}>
+              <LinhasComoParagrafos texto={dados.experiencia_profissional} />
+            </SecaoPreview>
+          )}
+          {dados.formacao && (
+            <SecaoPreview titulo="Formação" cor={estilo.cor}>
+              <LinhasComoParagrafos texto={dados.formacao} />
+            </SecaoPreview>
+          )}
+          {habilidades.length > 0 && (
+            <SecaoPreview titulo="Habilidades" cor={estilo.cor}>
+              <div className="flex flex-wrap gap-1.5">
+                {habilidades.map((h, idx) => (
+                  <span
+                    key={idx}
+                    className="rounded-full border px-2 py-0.5 text-[11px]"
+                    style={{ borderColor: estilo.cor, color: estilo.cor }}
+                  >
+                    {h}
+                  </span>
+                ))}
+              </div>
+            </SecaoPreview>
+          )}
+          {!dados.resumo && !dados.experiencia_profissional && !dados.formacao && habilidades.length === 0 && (
+            <p className="text-xs text-gray-400">
+              Preencha os blocos ao lado ou aplique uma sugestão para ver o currículo tomar forma aqui.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function EditarCurriculo() {
@@ -190,14 +292,15 @@ export default function EditarCurriculo() {
   function usarSugestaoNoCampo(campo, sugestao) {
     setDadosForm((atual) => {
       const atualCampo = atual[campo] || "";
-      let novoValor;
-      if (sugestao.trecho_original && atualCampo.includes(sugestao.trecho_original)) {
-        novoValor = atualCampo.replace(sugestao.trecho_original, sugestao.versao_otimizada);
-      } else if (atualCampo.trim()) {
-        novoValor = `${atualCampo}\n${sugestao.versao_otimizada}`;
-      } else {
-        novoValor = sugestao.versao_otimizada;
-      }
+      // Se o trecho original ainda estiver lá, trocamos só esse pedaço (preserva o resto do
+      // bloco, útil quando o campo tem mais de um item, como experiência ou formação). Caso
+      // contrário — texto já foi alterado, formatação mudou, ou a sugestão nunca teve um
+      // trecho_original exato — apagamos e colocamos a versão selecionada no lugar, em vez de
+      // concatenar por cima do que já estava lá.
+      const novoValor =
+        sugestao.trecho_original && atualCampo.includes(sugestao.trecho_original)
+          ? atualCampo.replace(sugestao.trecho_original, sugestao.versao_otimizada)
+          : sugestao.versao_otimizada || "";
       return { ...atual, [campo]: novoValor };
     });
   }
@@ -319,7 +422,7 @@ export default function EditarCurriculo() {
             {templates.length > 0 && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {templates.map((template) => {
-                  const estilo = ESTILOS_CARTAO[template.id_template] || ESTILOS_CARTAO.moderno;
+                  const estilo = ESTILOS_CARTAO[template.id_template] || ESTILO_PADRAO;
                   return (
                     <button
                       key={template.id_template}
@@ -338,6 +441,7 @@ export default function EditarCurriculo() {
         )}
 
         {emailInicial && idCurriculoSelecionado && idTemplateSelecionado && (
+          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_360px]">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border-[0.5px] border-black bg-white px-4 py-3">
               <div className="flex items-center gap-2">
@@ -576,6 +680,15 @@ export default function EditarCurriculo() {
                 </button>
               </form>
             )}
+          </div>
+
+          <div className="lg:sticky lg:top-6">
+            <PainelPreview
+              dados={dadosForm}
+              estilo={ESTILOS_CARTAO[idTemplateSelecionado] || ESTILO_PADRAO}
+              template={templateEscolhido}
+            />
+          </div>
           </div>
         )}
       </main>
