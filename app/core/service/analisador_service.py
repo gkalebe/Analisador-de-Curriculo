@@ -19,6 +19,12 @@ from app.core.service.extracao_curriculo import (
     obter_dados_curriculo_com_cache,
 )
 
+# Mesmos 4 campos estruturados usados na tela de edição (EditarCurriculo.jsx) — a IA já
+# devolve qual desses campos cada sugestão de reescrita tem como alvo (ver
+# AIServiceAdapter._montar_prompt_comparacao), então o front não precisa mais adivinhar o
+# bloco certo por sobreposição de palavras.
+CAMPOS_CURRICULO_VALIDOS = {"resumo", "formacao", "experiencia_profissional", "habilidades"}
+
 
 class DescricaoVagaObrigatoriaError(Exception):
     pass
@@ -299,6 +305,7 @@ class AnalisadorService:
             },
             "sugestoes_reescrita": [
                 {
+                    "campo": s.get("campo") if s.get("campo") in CAMPOS_CURRICULO_VALIDOS else "",
                     "trecho_original": s.get("trecho_original") or "",
                     "versao_otimizada": s.get("versao_otimizada") or s.get("sugestao_otimizada") or "",
                     "justificativa": s.get("justificativa") or s.get("motivo") or "",

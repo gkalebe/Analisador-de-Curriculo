@@ -34,6 +34,7 @@ class CurriculoDetalhesResponse(BaseModel):
 
 
 class SugestaoReescritaItem(BaseModel):
+    campo: str | None = None
     trecho_original: str | None = None
     versao_otimizada: str | None = None
     justificativa: str | None = None
