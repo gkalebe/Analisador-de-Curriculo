@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -196,6 +197,47 @@ class AnalisadorService:
 
     def listar_curriculos_usuario(self, id_usuario: uuid.UUID) -> list[Curriculo]:
         return self.curriculo_repository.listar_por_usuario(id_usuario)
+
+    def listar_biblioteca_curriculos(self, id_usuario: uuid.UUID) -> list[dict]:
+        limite_retencao = datetime.now(timezone.utc) - timedelta(days=self.settings.retencao_curriculo_dias)
+
+        biblioteca = []
+        for curriculo in self.curriculo_repository.listar_por_usuario(id_usuario):
+            ultima_atividade = self._ultima_atividade_curriculo(curriculo)
+            if ultima_atividade < limite_retencao:
+                continue
+
+            analises = sorted(curriculo.analises, key=lambda a: a.data_analise, reverse=True)
+            vaga_titulo = analises[0].vaga.titulo if analises and analises[0].vaga else None
+
+            biblioteca.append(
+                {
+                    "id_curriculo": curriculo.id_curriculo,
+                    "nome_arquivo": curriculo.nome_arquivo,
+                    "data_upload": curriculo.data_upload,
+                    "origem": "ia" if curriculo.dados_editados else "usuario",
+                    "vaga_titulo": vaga_titulo,
+                    "possui_arquivo": bool(curriculo.conteudo_arquivo),
+                    "ultima_atividade": ultima_atividade,
+                }
+            )
+
+        return biblioteca
+
+    def excluir_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> None:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        self.curriculo_repository.excluir(curriculo)
+
+    @staticmethod
+    def _ultima_atividade_curriculo(curriculo: Curriculo) -> datetime:
+        datas = [curriculo.data_upload, curriculo.editado_em]
+        datas.extend(analise.data_analise for analise in curriculo.analises)
+        # O PostgreSQL devolve datetime com tzinfo, o SQLite (test_curriculo_repository) sem.
+        # Comparar naive com aware estoura TypeError, então normaliza tudo para UTC antes.
+        return max(d if d.tzinfo else d.replace(tzinfo=timezone.utc) for d in datas if d is not None)
 
     def obter_detalhes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict:
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)

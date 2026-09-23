@@ -14,6 +14,7 @@ import EditarCurriculo from "./pages/EditarCurriculo.jsx";
 import ChatBot from "./pages/ChatBot.jsx";
 import SimulacaoEntrevista from "./pages/SimulacaoEntrevista.jsx";
 import VisualizarAnalise from "./pages/VisualizarAnalise.jsx";
+import BibliotecaCurriculos from "./pages/BibliotecaCurriculos.jsx";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
       <Route path="/analises/nova" element={<NovaAnalise />} />
       <Route path="/analises/historico" element={<HistoricoAnalises />} />
       <Route path="/analises/historico/visualizar" element={<VisualizarAnalise />} />
+      <Route path="/analises/biblioteca" element={<BibliotecaCurriculos />} />
       <Route path="/analises/vagas/nova" element={<NovaVaga />} />
       <Route path="/analises/upload" element={<UploadCurriculo />} />
       <Route path="/analises/chat" element={<ChatBot />} />

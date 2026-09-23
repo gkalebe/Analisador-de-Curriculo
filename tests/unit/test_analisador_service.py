@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -53,6 +54,9 @@ class CurriculoRepositorioFalso:
     def atualizar_status(self, curriculo: Curriculo, status: str) -> Curriculo:
         curriculo.status_processamento = status
         return curriculo
+
+    def excluir(self, curriculo: Curriculo) -> None:
+        self.curriculos.remove(curriculo)
 
     def salvar_edicao(self, curriculo: Curriculo, dados_editados: dict) -> Curriculo:
         curriculo.dados_editados = dados_editados
@@ -639,3 +643,113 @@ def test_salvar_edicao_texto_livre_curriculo_extrai_via_ia_e_persiste():
     assert resultado.dados_editados["nome"] == "Ana via texto"
     assert resultado.dados_editados["texto_bruto"] == "texto colado novo"
 
+
+
+def _curriculo_na_biblioteca(service, id_usuario, nome_arquivo, *, dias_atras=0, dados_editados=None):
+    curriculo = Curriculo(
+        nome_arquivo=nome_arquivo,
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        conteudo_arquivo=b"conteudo",
+        dados_editados=dados_editados,
+    )
+    curriculo.data_upload = datetime.now(timezone.utc) - timedelta(days=dias_atras)
+    return service.curriculo_repository.criar(curriculo)
+
+
+def test_listar_biblioteca_separa_origem_pelo_dados_editados():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    _curriculo_na_biblioteca(service, id_usuario, "original.pdf")
+    _curriculo_na_biblioteca(service, id_usuario, "otimizado.pdf", dados_editados={"nome": "Ana"})
+
+    biblioteca = service.listar_biblioteca_curriculos(id_usuario)
+
+    origem_por_arquivo = {item["nome_arquivo"]: item["origem"] for item in biblioteca}
+    assert origem_por_arquivo == {"original.pdf": "usuario", "otimizado.pdf": "ia"}
+
+
+def test_listar_biblioteca_usa_vaga_da_analise_mais_recente():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _curriculo_na_biblioteca(service, id_usuario, "c.pdf")
+    antiga = Analise(
+        id_curriculo=curriculo.id_curriculo,
+        id_vaga=uuid.uuid4(),
+        id_usuario=id_usuario,
+        data_analise=datetime.now(timezone.utc) - timedelta(days=5),
+    )
+    antiga.vaga = Vaga(titulo="Vaga antiga", descricao="d", id_usuario=id_usuario)
+    recente = Analise(
+        id_curriculo=curriculo.id_curriculo,
+        id_vaga=uuid.uuid4(),
+        id_usuario=id_usuario,
+        data_analise=datetime.now(timezone.utc),
+    )
+    recente.vaga = Vaga(titulo="Vaga recente", descricao="d", id_usuario=id_usuario)
+    curriculo.analises = [antiga, recente]
+
+    biblioteca = service.listar_biblioteca_curriculos(id_usuario)
+
+    assert biblioteca[0]["vaga_titulo"] == "Vaga recente"
+
+
+def test_listar_biblioteca_omite_curriculo_fora_do_prazo_de_retencao():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    _curriculo_na_biblioteca(service, id_usuario, "dentro.pdf", dias_atras=89)
+    _curriculo_na_biblioteca(service, id_usuario, "expirado.pdf", dias_atras=91)
+
+    biblioteca = service.listar_biblioteca_curriculos(id_usuario)
+
+    assert [item["nome_arquivo"] for item in biblioteca] == ["dentro.pdf"]
+
+
+def test_listar_biblioteca_considera_analise_recente_para_manter_curriculo_antigo():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _curriculo_na_biblioteca(service, id_usuario, "antigo.pdf", dias_atras=200)
+    curriculo.analises = [
+        Analise(
+            id_curriculo=curriculo.id_curriculo,
+            id_vaga=uuid.uuid4(),
+            id_usuario=id_usuario,
+            data_analise=datetime.now(timezone.utc),
+        )
+    ]
+
+    biblioteca = service.listar_biblioteca_curriculos(id_usuario)
+
+    assert [item["nome_arquivo"] for item in biblioteca] == ["antigo.pdf"]
+
+
+def test_listar_biblioteca_de_usuario_sem_curriculo_devolve_lista_vazia():
+    service = _criar_service_completo_com_fakes()
+
+    assert service.listar_biblioteca_curriculos(uuid.uuid4()) == []
+
+
+def test_excluir_curriculo_remove_do_repositorio():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _curriculo_na_biblioteca(service, id_usuario, "c.pdf")
+
+    service.excluir_curriculo(id_usuario, curriculo.id_curriculo)
+
+    assert service.listar_curriculos_usuario(id_usuario) == []
+
+
+def test_excluir_curriculo_de_outro_usuario_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _curriculo_na_biblioteca(service, id_usuario, "c.pdf")
+
+    with pytest.raises(CurriculoNaoEncontradoError):
+        service.excluir_curriculo(uuid.uuid4(), curriculo.id_curriculo)
+
+
+def test_excluir_curriculo_inexistente_lanca_erro():
+    service = _criar_service_completo_com_fakes()
+
+    with pytest.raises(CurriculoNaoEncontradoError):
+        service.excluir_curriculo(uuid.uuid4(), uuid.uuid4())
