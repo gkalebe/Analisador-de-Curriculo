@@ -13,18 +13,18 @@ Regra da Clean Architecture simplificada: esta camada conhece o `core`, mas o `c
 | Arquivo | Módulo | US | Sprint | Dev |
 |---|---|---|---|---|
 | `auth_router.py` | Autenticação | US-001, US-002, US-003, US-017 | 1 | Kevin, Gabriel Kalebe, Allan |
-| `analise_router.py` | Upload de currículo | US-004, US-005, US-006, US-007 | 1-2 | Gustavo Souto Pereira, Allan, Kevin, Gabriel Kalebe, Carlos |
+| `analise_router.py` | Upload de currículo / Biblioteca | US-004, US-005, US-006, US-007, US-018 | 1-2, 4 | Gustavo Souto Pereira, Allan, Kevin, Gabriel Kalebe, Carlos, Vitor Bittencourt (US-018) |
 | `vagas_router.py` | Vagas | US-019 | 1-2 | Gabriel Kalebe |
 | `diagnostico_router.py` | Diagnóstico | US-008, US-009 | 2 | Gabriel Kalebe, Allan |
 | `simulador_router.py` | Simulador | US-010, US-011 | 3 | Kevin, Gabriel Kalebe |
 | `templates_router.py` | Templates ATS | US-012, US-013 | 3 | Allan, Carlos (implementado por Gabriel Kalebe, com autorização do time) |
-| `painel_router.py` | Plano Dev. / Painel / Biblioteca | US-014 a US-016, US-018 | 4 | Kevin, Gabriel Kalebe (US-016 back, concluído), Carlos, Allan |
+| `painel_router.py` | Plano Dev. / Painel | US-014 a US-016 | 4 | Kevin, Gabriel Kalebe (US-016 back, concluído), Carlos, Allan |
 
 Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicione o endpoint no arquivo correspondente — não crie um router novo sem necessidade, para não fragmentar módulos que já existem.
 
 ## O que falta (routers ainda com só o esqueleto)
 
-- Endpoints reais em `diagnostico_router.py` e `simulador_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py`, `analise_router.py`, `templates_router.py` já estão implementados, e `painel_router.py` tem o endpoint de US-016 implementado (ver seções abaixo); US-014, US-015 e US-018 seguem pendentes nesse mesmo router.
+- Endpoints reais em `diagnostico_router.py` e `simulador_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py`, `analise_router.py`, `templates_router.py` já estão implementados, e `painel_router.py` tem o endpoint de US-016 implementado (ver seções abaixo); US-014 e US-015 seguem pendentes nesse mesmo router. US-018 (Biblioteca) ficou em `analise_router.py`, junto dos demais endpoints de currículo.
 - `POST /analises` (rodar uma análise) já está implementado de ponta a ponta — ver seção "Nova análise" abaixo. Devolve `503` se `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` não estiver configurada no `.env`.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.
@@ -90,4 +90,25 @@ Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) veio atribuída a ele n
 - `lacunas_recorrentes`: lista `{"competencia", "frequencia"}` ordenada da mais para a menos frequente. Calculada sem IA (determinístico, sem custo/latência extra e sem depender de `GEMINI_API_KEY`/`ANTHROPIC_API_KEY`): para cada análise, separa `Vaga.requisitos` em itens (por vírgula/`;`/quebra de linha) e considera "lacuna" todo item que não aparece como substring (case-insensitive) em `Curriculo.texto_extraido`; depois soma a frequência de cada lacuna entre todas as análises do usuário. Vaga sem `requisitos` preenchido não gera lacuna para aquela análise.
 - `PlanoService.obter_historico_e_lacunas` é o método novo; `PainelHistoricoResponse`/`HistoricoAnaliseItem`/`LacunaRecorrente` ficam em `app/web/schemas_painel.py`.
 - Testes: `tests/unit/test_plano_service.py`, `tests/unit/test_painel_router.py`.
-- Não implementado agora (fora do escopo da issue #20): a tela React (issue #35, `[FRONT] US-016`, hoje sem dono no kanban) e US-014/US-015/US-018 (demais partes de `painel_router.py`/`plano_service.py`).
+- Não implementado agora (fora do escopo da issue #20): US-014/US-015 (demais partes de `painel_router.py`/`plano_service.py`).
+
+## FRONT-US-016 — Histórico (lista e detalhe de análise) (concluída)
+
+Feito por Vitor Bittencourt, seguindo o protótipo Figma (issue #35 `[FRONT] US-016`).
+
+- Telas: `frontend/src/pages/HistoricoAnalises.jsx` (lista "Vagas anteriores", em `/analises/historico`) e `frontend/src/pages/VisualizarAnalise.jsx` (detalhe completo de uma análise, em `/analises/historico/visualizar?id=...`). Consomem `GET /analises` (já existente) em vez de `GET /painel/historico`, porque a tela de detalhe (termos encontrados, lacunas técnicas, diagnóstico crítico, sugestões de reescrita) depende do campo `observacoes` (JSON da IA) e de `id_vaga`, que só `AnaliseResponse`/`GET /analises` devolve — `PainelHistoricoResponse` não tem esses campos. `GET /painel/historico` (lacunas recorrentes agregadas entre análises) segue implementado e sem consumidor no front; fica disponível para uma eventual tela de painel/lacunas fora do escopo desta issue.
+- Componente novo reutilizável: `frontend/src/components/AnelProgresso.jsx` (anel de progresso SVG com faixas de aderência forte/moderada/baixa).
+- Exclusão de análise (ícone de lixeira no histórico) veio junto da branch de US-018 — ver a seção abaixo.
+
+## US-018 — Biblioteca de currículos (concluída)
+
+Feito por Vitor Bittencourt (Levantamento de Requisitos v1.1, US-018: "Acessar biblioteca de currículos", dependências US-004 e US-013). Empilhada sobre a branch/PR de FRONT-US-016.
+
+- Tela: `frontend/src/pages/BibliotecaCurriculos.jsx`, em `/analises/biblioteca`, item "Biblioteca" na `Sidebar.jsx`. Lista os currículos do usuário em duas seções — "Enviados por mim" e "Gerados pela IA" — com nome do arquivo, data e vaga associada, e ações Visualizar / Baixar / Excluir por item.
+- Endpoint novo `GET /analises/curriculos/biblioteca?email=...`: devolve `{"enviados_por_mim": [...], "gerados_por_ia": [...]}`, `404` se o e-mail não estiver cadastrado. **Registrado antes de `/curriculos/{id_curriculo}` de propósito** — o FastAPI resolve rotas na ordem de registro, e `biblioteca` cairia no path param de UUID (422) se viesse depois.
+- Endpoint novo `DELETE /analises/curriculos/{id_curriculo}?email=...`: `204` em caso de sucesso, `404` se o e-mail ou o currículo (ou currículo de outro usuário) não existir. `CurriculoRepository.excluir` já existia sem rota; `AnalisadorService.excluir_curriculo` é novo. A exclusão remove em cascata as análises daquele currículo (`cascade="all, delete-orphan"` no model).
+- Separação das duas categorias sem migration: `origem` é derivada em `AnalisadorService.listar_biblioteca_curriculos` — `"ia"` quando o currículo tem `dados_editados` (existe versão otimizada salva pela edição/aplicação de sugestões por IA), `"usuario"` caso contrário. Não há coluna `origem` no banco, porque hoje nada materializa um `Curriculo` separado para a versão exportada (US-013 gera o arquivo na hora).
+- RN-010 (retenção de 90 dias): `listar_biblioteca_curriculos` omite currículos cuja última atividade — o maior valor entre `data_upload`, `editado_em` e a `data_analise` das análises — passou de `retencao_curriculo_dias` (nova configuração em `app/core/config.py`, default 90). Só a listagem respeita o prazo; a exclusão automática do arquivo em disco/banco (job agendado + aviso por e-mail 7 dias antes) segue pendente e fica fora do escopo desta US.
+- `vaga_titulo` vem da análise mais recente do currículo, e é `null` quando ele ainda não foi comparado com nenhuma vaga (critério 1 pede "quando disponível").
+- Extra fora da US (mesma branch): exclusão de análise no histórico — `DELETE /analises/{id_analise}?email=...` (`204`/`404`), `AnaliseRepository.excluir` e `AnalisadorService.excluir_analise` (levanta `AnaliseNaoEncontradaError`), com o ícone de lixeira + `ModalConfirmarExclusao.jsx` em `HistoricoAnalises.jsx`. Não corresponde a nenhuma US do levantamento; veio de uma leitura inicial equivocada da US-018 e foi mantido por já estar testado e em uso na tela de Histórico.
+- Testes: `tests/unit/test_analise_router.py` (`test_listar_biblioteca_*`, `test_excluir_curriculo_*`, `test_excluir_analise_*`), `tests/unit/test_analisador_service.py` (`test_listar_biblioteca_*`, `test_excluir_curriculo_*`, `test_excluir_analise_*`).

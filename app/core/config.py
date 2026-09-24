@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     anthropic_model_name: str = "claude-3-5-haiku-20241022"
     max_upload_size_mb: int = 5
     max_vaga_description_chars: int = 5000
+    # RN-010: o currículo original não fica armazenado por mais de 90 dias após a última
+    # atividade (upload, edição ou análise). A biblioteca (US-018) deixa de listar o que
+    # passou desse prazo.
+    retencao_curriculo_dias: int = 90
     # Origens autorizadas a chamar a API (CORS). Em produção, configurar via env var
     # CORS_ORIGINS com o domínio real do front-end — nunca deixar em "*" com uma API
     # que expõe dados de usuário autenticado.

@@ -11,6 +11,14 @@ export function listarCurriculos(email) {
   return requisitar("/analises/curriculos", { params: { email } });
 }
 
+export function listarBibliotecaCurriculos(email) {
+  return requisitar("/analises/curriculos/biblioteca", { params: { email } });
+}
+
+export function excluirCurriculo(idCurriculo, email) {
+  return requisitar(`/analises/curriculos/${idCurriculo}`, { method: "DELETE", params: { email } });
+}
+
 export function obterDetalhesCurriculo(idCurriculo, email) {
   return requisitar(`/analises/curriculos/${idCurriculo}`, { params: { email } });
 }

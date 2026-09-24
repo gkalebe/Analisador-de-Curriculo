@@ -26,3 +26,7 @@ export function criarAnalise(emailOuPayload, idVaga, file) {
 export function listarAnalises(email) {
   return requisitar("/analises", { params: { email } });
 }
+
+export function excluirAnalise(idAnalise, email) {
+  return requisitar(`/analises/${idAnalise}`, { method: "DELETE", params: { email } });
+}

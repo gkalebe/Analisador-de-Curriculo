@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +22,21 @@ class CurriculoItemResponse(BaseModel):
 
 class CurriculoListResponse(BaseModel):
     curriculos: list[CurriculoItemResponse]
+
+
+class BibliotecaCurriculoItemResponse(BaseModel):
+    id_curriculo: uuid.UUID
+    nome_arquivo: str
+    data_upload: datetime
+    origem: Literal["usuario", "ia"]
+    vaga_titulo: str | None = None
+    possui_arquivo: bool
+    ultima_atividade: datetime
+
+
+class BibliotecaCurriculosResponse(BaseModel):
+    enviados_por_mim: list[BibliotecaCurriculoItemResponse]
+    gerados_por_ia: list[BibliotecaCurriculoItemResponse]
 
 
 class CurriculoDetalhesResponse(BaseModel):

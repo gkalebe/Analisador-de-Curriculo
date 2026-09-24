@@ -4,6 +4,7 @@ import { lerSessao, limparSessao } from "../models/usuario.js";
 const ITENS = [
   { chave: "analise", rotulo: "Nova análise", icone: "ti-search", rota: "/analises/nova" },
   { chave: "historico", rotulo: "Histórico", icone: "ti-history", rota: "/analises/historico" },
+  { chave: "biblioteca", rotulo: "Biblioteca", icone: "ti-folder", rota: "/analises/biblioteca" },
   { chave: "vaga", rotulo: "Cadastrar vaga", icone: "ti-briefcase", rota: "/analises/vagas/nova" },
   { chave: "curriculo", rotulo: "Currículo", icone: "ti-file-text", rota: "/analises/upload" },
   { chave: "editar", rotulo: "Editar currículo", icone: "ti-edit", rota: "/analises/editar" },
