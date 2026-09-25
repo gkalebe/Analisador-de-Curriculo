@@ -14,7 +14,14 @@ from app.core.service.chat_service import (
     PerguntaVaziaError,
     VagaNaoEncontradaError,
 )
-from app.web.schemas_chat import ChatEnviarResponse, ChatHistoricoResponse, ChatMensagemRequest, MensagemChatResponse
+from app.web.schemas_chat import (
+    ChatEncerrarRequest,
+    ChatEncerrarResponse,
+    ChatEnviarResponse,
+    ChatHistoricoResponse,
+    ChatMensagemRequest,
+    MensagemChatResponse,
+)
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -116,6 +123,36 @@ def enviar_mensagem_geral(
         mensagem_usuario=MensagemChatResponse.model_validate(mensagem_usuario),
         mensagem_assistente=MensagemChatResponse.model_validate(mensagem_assistente),
     )
+
+
+@router.post("/encerrar", response_model=ChatEncerrarResponse)
+def encerrar_conversa(
+    payload: ChatEncerrarRequest,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> ChatEncerrarResponse:
+    """
+    Chamado quando o usuário sai do ChatBOT: apaga a conversa do banco, preservando antes
+    apenas as perguntas (anonimizadas, sem resposta, sem vínculo com o usuário) na árvore
+    de dados do sistema.
+    """
+    usuario = usuario_repository.buscar_por_email(payload.email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        removidas = chat_service.encerrar_conversa(
+            id_usuario=usuario.id_usuario,
+            id_curriculo=payload.id_curriculo,
+            id_vaga=payload.id_vaga,
+        )
+    except ContextoChatObrigatorioError as erro:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(erro)) from erro
+
+    return ChatEncerrarResponse(mensagens_removidas=removidas)
 
 
 # --- Rotas retrocompatíveis para currículo ---

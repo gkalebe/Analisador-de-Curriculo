@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
+import VisualizadorPdf from "../components/VisualizadorPdf.jsx";
+import LimiteDeErro from "../components/LimiteDeErro.jsx";
 import { exportarCurriculo, listarTemplates } from "../api/templateApi.js";
 import { listarAnalises } from "../api/analiseApi.js";
 import { ApiError } from "../api/client.js";
@@ -14,7 +16,9 @@ export default function PreviewExportarCurriculo() {
   const [templates, setTemplates] = useState([]);
   const [analises, setAnalises] = useState([]);
   const [idCurriculoSelecionado, setIdCurriculoSelecionado] = useState("");
-  const [urlPreview, setUrlPreview] = useState("");
+  const [versaoSelecionada, setVersaoSelecionada] = useState("original");
+  const [blobPreview, setBlobPreview] = useState(null);
+  const [mostrarPreview, setMostrarPreview] = useState(false);
   const [carregandoPreview, setCarregandoPreview] = useState(false);
   const [exportando, setExportando] = useState("");
   const [erro, setErro] = useState("");
@@ -29,12 +33,6 @@ export default function PreviewExportarCurriculo() {
       .catch(() => {});
   }, [emailInicial]);
 
-  useEffect(() => {
-    return () => {
-      if (urlPreview) URL.revokeObjectURL(urlPreview);
-    };
-  }, [urlPreview]);
-
   function entrarComEmail(evento) {
     evento.preventDefault();
     setSearchParams({ email: emailCampo, template: idTemplate });
@@ -47,9 +45,15 @@ export default function PreviewExportarCurriculo() {
     setErro("");
     setCarregandoPreview(true);
     try {
-      const { blob } = await exportarCurriculo(emailInicial, idCurriculoSelecionado, idTemplate, "pdf");
-      if (urlPreview) URL.revokeObjectURL(urlPreview);
-      setUrlPreview(URL.createObjectURL(blob));
+      const { blob } = await exportarCurriculo(
+        emailInicial,
+        idCurriculoSelecionado,
+        idTemplate,
+        "pdf",
+        versaoSelecionada,
+      );
+      setBlobPreview(blob);
+      setMostrarPreview(true);
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível gerar a pré-visualização.");
     } finally {
@@ -57,12 +61,22 @@ export default function PreviewExportarCurriculo() {
     }
   }
 
+  function fecharPreview() {
+    setMostrarPreview(false);
+  }
+
   async function exportar(formato) {
     if (!idCurriculoSelecionado) return;
     setErro("");
     setExportando(formato);
     try {
-      const { blob, nomeArquivo } = await exportarCurriculo(emailInicial, idCurriculoSelecionado, idTemplate, formato);
+      const { blob, nomeArquivo } = await exportarCurriculo(
+        emailInicial,
+        idCurriculoSelecionado,
+        idTemplate,
+        formato,
+        versaoSelecionada,
+      );
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -153,8 +167,9 @@ export default function PreviewExportarCurriculo() {
                         checked={idCurriculoSelecionado === analise.id_curriculo}
                         onChange={(e) => {
                           setIdCurriculoSelecionado(e.target.value);
-                          if (urlPreview) URL.revokeObjectURL(urlPreview);
-                          setUrlPreview("");
+                          setVersaoSelecionada(analise.curriculo_possui_edicao ? "editada" : "original");
+                          setMostrarPreview(false);
+                          setBlobPreview(null);
                         }}
                         className="mt-1"
                       />
@@ -165,12 +180,52 @@ export default function PreviewExportarCurriculo() {
                         {analise.pontuacao != null && (
                           <p className="text-sm text-gray-500">Pontuação: {analise.pontuacao}</p>
                         )}
+                        {analise.curriculo_possui_edicao && (
+                          <p className="text-xs font-semibold text-[#1e5e3f]">Possui uma versão editada</p>
+                        )}
                       </div>
                     </label>
                   </li>
                 ))}
               </ul>
             )}
+
+            {idCurriculoSelecionado && (() => {
+              const analiseSelecionada = analises.find((a) => a.id_curriculo === idCurriculoSelecionado);
+              return (
+                analiseSelecionada?.curriculo_possui_edicao && (
+                  <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                    <span className="text-sm font-bold text-gray-700">Versão a exportar:</span>
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="versao"
+                        checked={versaoSelecionada === "editada"}
+                        onChange={() => {
+                          setVersaoSelecionada("editada");
+                          setMostrarPreview(false);
+                          setBlobPreview(null);
+                        }}
+                      />
+                      Editada
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input
+                        type="radio"
+                        name="versao"
+                        checked={versaoSelecionada === "original"}
+                        onChange={() => {
+                          setVersaoSelecionada("original");
+                          setMostrarPreview(false);
+                          setBlobPreview(null);
+                        }}
+                      />
+                      Original
+                    </label>
+                  </div>
+                )
+              );
+            })()}
 
             {idCurriculoSelecionado && (
               <div className="flex flex-wrap gap-3">
@@ -198,13 +253,64 @@ export default function PreviewExportarCurriculo() {
               </div>
             )}
 
-            {urlPreview && (
-              <iframe
-                title="Pré-visualização do currículo"
-                src={urlPreview}
-                className="h-[600px] w-full rounded-lg border border-gray-200"
-              />
-            )}
+          </div>
+        )}
+
+        {/* Modal / Visualizador de Pré-visualização, no mesmo padrão da aba de Currículo */}
+        {mostrarPreview && blobPreview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-black bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              {/* Cabeçalho */}
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gray-50">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-[#f0fdf4] border border-[#1e5e3f]/20 flex items-center justify-center flex-shrink-0">
+                    <i className="ti ti-file-description text-[24px] text-[#1e5e3f]"></i>
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-brand text-lg font-bold text-black truncate">
+                      Pré-visualização
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {templateEscolhido ? `Template: ${templateEscolhido.nome}` : "Currículo exportado"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={fecharPreview}
+                  className="rounded-lg p-2 text-gray-400 hover:bg-gray-200 hover:text-black transition-colors"
+                  aria-label="Fechar"
+                >
+                  <i className="ti ti-x text-[20px]"></i>
+                </button>
+              </div>
+
+              {/* Conteúdo */}
+              <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
+                <LimiteDeErro chave={idCurriculoSelecionado + idTemplate}>
+                  <VisualizadorPdf blob={blobPreview} />
+                </LimiteDeErro>
+              </div>
+
+              {/* Rodapé com Ações */}
+              <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4 bg-gray-50">
+                <button
+                  type="button"
+                  onClick={() => exportar("pdf")}
+                  disabled={exportando === "pdf"}
+                  className="flex items-center gap-2 rounded-md border border-[#1e5e3f] bg-white px-4 py-2 text-sm font-semibold text-[#1e5e3f] hover:bg-[#f0fdf4] disabled:opacity-60 transition-colors"
+                >
+                  <i className="ti ti-download"></i> {exportando === "pdf" ? "Exportando..." : "Baixar PDF"}
+                </button>
+                <button
+                  type="button"
+                  onClick={fecharPreview}
+                  className="rounded-md bg-gray-800 px-5 py-2 text-sm font-semibold text-white hover:bg-black transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>

@@ -344,7 +344,7 @@ export default function HistoricoAnalises() {
                           <div className="space-y-3">
                             <h4 className="font-brand text-lg font-bold text-black flex items-center gap-2">
                               <i className="ti ti-layout-grid text-[#1e5e3f]"></i>
-                              Diagnóstico Crítico da Estrutura (US-008)
+                              Diagnóstico Crítico da Estrutura
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-2">
@@ -397,7 +397,7 @@ export default function HistoricoAnalises() {
                           <div className="space-y-3">
                             <h4 className="font-brand text-lg font-bold text-black flex items-center gap-2">
                               <i className="ti ti-writing text-[#1e5e3f]"></i>
-                              Sugestões de Reescrita Lado a Lado (US-009)
+                              Sugestões de Reescrita Lado a Lado
                             </h4>
                             <div className="space-y-3">
                               {dadosAts.sugestoes_reescrita.map((sugestao, idx) => (

@@ -13,6 +13,7 @@ class AnaliseResponse(BaseModel):
     data_analise: datetime
     titulo_vaga: str | None = None
     nome_curriculo: str | None = None
+    curriculo_possui_edicao: bool = False
 
     model_config = {"from_attributes": True}
 

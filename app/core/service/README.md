@@ -38,7 +38,7 @@ Provedor de e-mail transacional definido: SendGrid (`app/adapters/email/`), com 
 
 ## US-019 — Cadastrar informações de vaga no banco (concluída)
 
-`AnalisadorService` ganhou `cadastrar_vaga(id_usuario, descricao, titulo="", requisitos="", area="")` e `listar_vagas_usuario(id_usuario)`, além das exceções `DescricaoVagaObrigatoriaError` (descrição vazia/só espaços) e `DescricaoVagaMuitoLongaError` (acima de `max_vaga_description_chars`, em `app/core/config.py`). `cadastrar_vaga` valida e delega a persistência para `VagaRepository.criar` (já implementado, US-019 back); `listar_vagas_usuario` delega para `VagaRepository.listar_por_usuario`, usado pela tela de reaproveitamento de vagas salvas. Testado em `tests/unit/test_analisador_service.py` com um fake de repositório em memória.
+`AnalisadorService` ganhou `cadastrar_vaga(id_usuario, descricao, titulo="", requisitos="", area="")` e `listar_vagas_usuario(id_usuario)`, além das exceções `DescricaoVagaObrigatoriaError` (descrição vazia/só espaços), `DescricaoVagaMuitoLongaError` (acima de `max_vaga_description_chars`, em `app/core/config.py`) e `VagaDuplicadaError` (mesma descrição já cadastrada pelo mesmo usuário, comparação case-insensitive e sem espaços nas pontas — `vagas_router.py` converte em `409`). `cadastrar_vaga` valida, confere duplicata contra `VagaRepository.listar_por_usuario` e delega a persistência para `VagaRepository.criar` (já implementado, US-019 back); `listar_vagas_usuario` delega para `VagaRepository.listar_por_usuario`, usado pela tela de reaproveitamento de vagas salvas — essa mesma tela (`NovaVaga.jsx`) também limpa o formulário após salvar com sucesso, para não deixar o texto da vaga anterior pronto para ser reenviado sem querer. Testado em `tests/unit/test_analisador_service.py` com um fake de repositório em memória.
 
 ## US-005/US-006/US-007 — Comparar currículo com vaga (concluída)
 
@@ -76,3 +76,15 @@ Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) atribuída a ele no kan
 Decisão deliberada: essa contagem de lacunas **não usa IA** — é heurística de texto simples sobre campos que já existem (`Vaga.requisitos`, `Curriculo.texto_extraido`), evitando 1 chamada de IA por análise só para montar o painel (custo, latência e mais um ponto de falha) e mantendo o painel disponível mesmo sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` configurada. Se o time decidir que a extração precisa ser semântica (sinônimos, etc.) em vez de substring, isso é uma evolução futura, não um requisito da issue #20.
 
 Testes: `tests/unit/test_plano_service.py`.
+
+## Pipeline de geração estruturada de currículo (fora do backlog de USs, pedido direto do Kevin)
+
+Novo, independente do fluxo de exportação de templates acima (que continua existindo e funcionando como está) — resolve o mesmo problema (currículo final a partir de dados extraídos por IA) de um jeito que elimina corte/perda de informação: em vez da IA reescrever texto livre que depois é encaixado em seções fixas, a IA só preenche um schema Pydantic fixo, e a montagem do documento é 100% determinística.
+
+`ValidadorCurriculoEstruturado` (Etapa 2 do pipeline) valida o JSON da Etapa 1 contra `DadosCurriculoEstruturado` sem chamar IA; se um campo de texto obrigatório (`nome_completo`, `titulo_profissional`, `resumo_profissional` — ver `CAMPOS_TEXTO_OBRIGATORIOS` em `app/adapters/ai_service/curriculo_schema.py`) vier vazio, faz um retry cirúrgico só daquele campo via `GeradorCurriculoEstruturadoIA.regenerar_campo`, e loga quais campos precisaram de retry (`validar_e_reparar` retorna essa lista) para dar visibilidade da qualidade do prompt da Etapa 1 ao longo do tempo.
+
+`CurriculoEstruturadoService.gerar_curriculo_documento(informacoes_brutas, id_template, formato, diretorio_saida)` é a orquestração de ponta a ponta (Etapa 1 → 2 → 3), recebendo o formato desejado (`"docx"` ou `"pdf"`) e devolvendo `(caminho_arquivo, campos_com_retry)`.
+
+Detalhes de cada etapa (Etapa 1 e Etapa 3, incluindo o motivo de cada decisão técnica) documentados em `app/adapters/README.md`. Exemplo de uso completo: `exemplo_pipeline_curriculo.py` (raiz do projeto) — roda as 3 etapas com dados fictícios, com fallback automático para não depender de `GEMINI_API_KEY` configurada.
+
+Ainda não tem router/endpoint HTTP nem persistência — só a biblioteca do pipeline; quem for integrar à API decide se substitui a exportação de templates existente ou convive como uma segunda opção.

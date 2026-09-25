@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     anthropic_model_name: str = "claude-3-5-haiku-20241022"
     max_upload_size_mb: int = 5
     max_vaga_description_chars: int = 5000
+    # Origens autorizadas a chamar a API (CORS). Em produção, configurar via env var
+    # CORS_ORIGINS com o domínio real do front-end — nunca deixar em "*" com uma API
+    # que expõe dados de usuário autenticado.
+    cors_origins: str = "http://localhost:5173,http://localhost:4173"
     frontend_login_url: str = "http://localhost:8000/login"
     frontend_reset_password_url: str = "http://localhost:8000/usuarios/redefinir-senha"
     smtp_host: str = ""
@@ -25,6 +29,10 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_use_tls: bool = True
     sendgrid_api_key: str = ""
+
+    @property
+    def cors_origins_lista(self) -> list[str]:
+        return [origem.strip() for origem in self.cors_origins.split(",") if origem.strip()]
 
     @property
     def database_url_resolvida(self) -> str:

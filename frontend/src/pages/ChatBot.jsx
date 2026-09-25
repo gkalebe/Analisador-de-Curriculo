@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Sidebar from "../components/Sidebar.jsx";
-import { enviarMensagemChat, listarMensagensChat } from "../api/chatApi.js";
+import { enviarMensagemChat, encerrarConversaChat, listarMensagensChat } from "../api/chatApi.js";
 import { listarCurriculos } from "../api/curriculoApi.js";
 import { listarVagas } from "../api/vagasApi.js";
 import { lerSessao } from "../models/usuario.js";
@@ -25,6 +25,7 @@ export default function ChatBot() {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const fimDaListaRef = useRef(null);
+  const contextoAtualRef = useRef({ idCurriculo: "", idVaga: "" });
 
   // Carrega currículos e vagas do usuário
   useEffect(() => {
@@ -78,6 +79,31 @@ export default function ChatBot() {
   useEffect(() => {
     fimDaListaRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [mensagens, enviando]);
+
+  // Mantém a referência do contexto atual (currículo/vaga selecionados) sempre atualizada,
+  // para o efeito de limpeza abaixo saber qual conversa encerrar ao desmontar.
+  useEffect(() => {
+    contextoAtualRef.current = { idCurriculo: idCurriculoSelecionado, idVaga: idVagaSelecionada };
+  }, [idCurriculoSelecionado, idVagaSelecionada]);
+
+  // Ao sair do ChatBOT (trocar de página ou fechar a aba), a conversa é apagada do banco —
+  // as perguntas do usuário são preservadas antes, anonimizadas, na árvore de dados do
+  // sistema (ver ChatService.encerrar_conversa no backend).
+  useEffect(() => {
+    function encerrarContextoAtual() {
+      const { idCurriculo, idVaga } = contextoAtualRef.current;
+      if (!emailInicial || (!idCurriculo && !idVaga)) return;
+      encerrarConversaChat({ email: emailInicial, idCurriculo: idCurriculo || undefined, idVaga: idVaga || undefined }).catch(
+        () => {},
+      );
+    }
+
+    window.addEventListener("pagehide", encerrarContextoAtual);
+    return () => {
+      window.removeEventListener("pagehide", encerrarContextoAtual);
+      encerrarContextoAtual();
+    };
+  }, [emailInicial]);
 
   const modoIntegrado = Boolean(idCurriculoSelecionado && idVagaSelecionada);
   const modoApenasCurriculo = Boolean(idCurriculoSelecionado && !idVagaSelecionada);

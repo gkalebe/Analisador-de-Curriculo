@@ -33,3 +33,18 @@ export function enviarMensagemChat(contextoOuIdCurriculo, emailOpcional, pergunt
     body: { email: emailOpcional, pergunta: perguntaOpcional },
   });
 }
+
+/**
+ * Encerra a conversa (chamado ao sair do ChatBOT): apaga as mensagens do banco, preservando
+ * antes apenas as perguntas anonimizadas na árvore de dados do sistema.
+ */
+export function encerrarConversaChat({ email, idCurriculo, idVaga }) {
+  return requisitar("/chat/encerrar", {
+    method: "POST",
+    body: {
+      email,
+      id_curriculo: idCurriculo || null,
+      id_vaga: idVaga || null,
+    },
+  });
+}

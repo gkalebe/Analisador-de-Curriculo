@@ -91,3 +91,21 @@ def test_dividir_habilidades_separa_por_virgula_e_ignora_vazios(exporter):
     texto = "Python, , FastAPI ,SQL"
 
     assert exporter._dividir_habilidades(texto) == ["Python", "FastAPI", "SQL"]
+
+
+def test_sanitizar_texto_pdf_remove_emoji_em_vez_de_substituir_por_interrogacao(exporter):
+    texto = "🖥️ Linguagens de Programação: C, Python, Java"
+
+    resultado = exporter._sanitizar_texto_pdf(texto)
+
+    assert "?" not in resultado
+    assert resultado == "Linguagens de Programação: C, Python, Java"
+
+
+def test_gerar_pdf_com_emojis_no_conteudo_nao_quebra(exporter):
+    dados = dict(DADOS_ESTRUTURADOS)
+    dados["habilidades"] = "💻 Linguagens de Programação: C, Python\n🌐 Desenvolvimento Web: HTML, CSS"
+
+    for id_template in CurriculoExporter.TEMPLATES_SUPORTADOS:
+        conteudo = exporter.gerar_pdf(dados, id_template)
+        assert conteudo.startswith(b"%PDF")

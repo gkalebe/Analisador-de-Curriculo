@@ -9,6 +9,7 @@ from app.core.service.template_service import (
     FormatoExportacaoInvalidoError,
     NenhumaAnaliseEncontradaError,
     TemplateNaoEncontradoError,
+    VersaoExportacaoInvalidaError,
 )
 from app.main import app
 from app.web.routers.templates_router import get_template_service, get_usuario_repository
@@ -30,20 +31,25 @@ class TemplateServiceFalso:
         self.deve_recusar_curriculo = False
         self.deve_recusar_template = False
         self.deve_recusar_formato = False
+        self.deve_recusar_versao = False
         self.conteudo_exportado = (b"conteudo-pdf", "curriculo.pdf", "application/pdf")
+        self.ultima_versao_recebida = None
 
     def listar_templates(self, id_usuario):
         if self.deve_recusar_sem_analise:
             raise NenhumaAnaliseEncontradaError
         return TEMPLATES
 
-    def exportar_curriculo(self, id_usuario, id_curriculo, id_template, formato):
+    def exportar_curriculo(self, id_usuario, id_curriculo, id_template, formato, versao="original"):
+        self.ultima_versao_recebida = versao
         if self.deve_recusar_curriculo:
             raise CurriculoNaoEncontradoError
         if self.deve_recusar_template:
             raise TemplateNaoEncontradoError(id_template)
         if self.deve_recusar_formato:
             raise FormatoExportacaoInvalidoError(formato)
+        if self.deve_recusar_versao:
+            raise VersaoExportacaoInvalidaError(versao)
         return self.conteudo_exportado
 
 
@@ -102,7 +108,7 @@ def test_exportar_curriculo_com_email_desconhecido_retorna_404():
         params={
             "email": "nao-cadastrado@example.com",
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
         },
     )
@@ -121,7 +127,7 @@ def test_exportar_curriculo_com_sucesso():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
         },
     )
@@ -144,7 +150,7 @@ def test_exportar_curriculo_com_curriculo_nao_encontrado_retorna_404():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "pdf",
         },
     )
@@ -186,10 +192,53 @@ def test_exportar_curriculo_com_formato_invalido_retorna_400():
         params={
             "email": usuario.email,
             "id_curriculo": str(uuid.uuid4()),
-            "id_template": "moderno",
+            "id_template": "generico",
             "formato": "jpg",
         },
     )
 
     app.dependency_overrides.clear()
     assert response.status_code == 400
+
+
+def test_exportar_curriculo_com_versao_invalida_retorna_400():
+    usuario = _usuario()
+    service_falso = TemplateServiceFalso()
+    service_falso.deve_recusar_versao = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_template_service] = lambda: service_falso
+
+    response = client.get(
+        "/templates/exportar",
+        params={
+            "email": usuario.email,
+            "id_curriculo": str(uuid.uuid4()),
+            "id_template": "generico",
+            "formato": "pdf",
+            "versao": "rascunho",
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+
+
+def test_exportar_curriculo_repassa_versao_default_original():
+    usuario = _usuario()
+    service_falso = TemplateServiceFalso()
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_template_service] = lambda: service_falso
+
+    response = client.get(
+        "/templates/exportar",
+        params={
+            "email": usuario.email,
+            "id_curriculo": str(uuid.uuid4()),
+            "id_template": "generico",
+            "formato": "pdf",
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert service_falso.ultima_versao_recebida == "original"

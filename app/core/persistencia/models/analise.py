@@ -36,3 +36,7 @@ class Analise(Base):
     @property
     def nome_curriculo(self) -> str | None:
         return self.curriculo.nome_arquivo if self.curriculo else None
+
+    @property
+    def curriculo_possui_edicao(self) -> bool:
+        return bool(self.curriculo and self.curriculo.dados_editados)

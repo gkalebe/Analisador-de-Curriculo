@@ -33,3 +33,30 @@ export function baixarArquivoCurriculo(idCurriculo, email) {
   return requisitarArquivo(`/analises/curriculos/${idCurriculo}/download`, { params: { email } });
 }
 
+export function obterEdicaoCurriculo(idCurriculo, email) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao`, { params: { email } });
+}
+
+export function salvarEdicaoEstruturada(idCurriculo, email, dados) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao`, {
+    method: "PUT",
+    params: { email },
+    body: dados,
+  });
+}
+
+export function salvarEdicaoTextoLivre(idCurriculo, email, texto) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao/texto-livre`, {
+    method: "POST",
+    params: { email },
+    body: { texto },
+  });
+}
+
+export function aplicarSugestoesCurriculo(idCurriculo, email) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao/aplicar-sugestoes`, {
+    method: "POST",
+    params: { email },
+  });
+}
+

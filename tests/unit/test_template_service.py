@@ -12,6 +12,7 @@ from app.core.service.template_service import (
     NenhumaAnaliseEncontradaError,
     TemplateNaoEncontradoError,
     TemplateService,
+    VersaoExportacaoInvalidaError,
 )
 
 
@@ -29,6 +30,10 @@ class CurriculoRepositorioFalso:
 
     def buscar_por_id(self, id_curriculo: uuid.UUID) -> Curriculo | None:
         return next((c for c in self.curriculos if c.id_curriculo == id_curriculo), None)
+
+    def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
+        curriculo.dados_extraidos = dados_extraidos
+        return curriculo
 
 
 class AIServiceAdapterFalso:
@@ -101,7 +106,7 @@ def test_exportar_curriculo_com_sucesso_usa_dados_estruturados_da_ia():
     service = _criar_service_com_fakes(curriculos=[curriculo], exporter=exporter)
 
     conteudo, nome_arquivo, media_type = service.exportar_curriculo(
-        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="moderno", formato="pdf"
+        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="generico", formato="pdf"
     )
 
     assert conteudo == b"conteudo-pdf"
@@ -118,7 +123,7 @@ def test_exportar_curriculo_formato_docx():
     service = _criar_service_com_fakes(curriculos=[curriculo])
 
     conteudo, _, media_type = service.exportar_curriculo(
-        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="classico", formato="docx"
+        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="tecnologia", formato="docx"
     )
 
     assert conteudo == b"conteudo-docx"
@@ -135,7 +140,7 @@ def test_exportar_curriculo_com_ia_indisponivel_usa_fallback_com_texto_bruto():
     service = _criar_service_com_fakes(curriculos=[curriculo], ai_adapter=ai_adapter, exporter=exporter)
 
     conteudo, _, _ = service.exportar_curriculo(
-        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="minimalista", formato="pdf"
+        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="estagio", formato="pdf"
     )
 
     assert conteudo == b"conteudo-pdf"
@@ -153,7 +158,7 @@ def test_exportar_curriculo_com_ia_sem_configuracao_usa_fallback():
     service = _criar_service_com_fakes(curriculos=[curriculo], ai_adapter=ai_adapter)
 
     conteudo, _, _ = service.exportar_curriculo(
-        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="moderno", formato="pdf"
+        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="generico", formato="pdf"
     )
 
     assert conteudo == b"conteudo-pdf"
@@ -169,7 +174,7 @@ def test_exportar_curriculo_com_curriculo_de_outro_usuario_lanca_erro():
 
     with pytest.raises(CurriculoNaoEncontradoError):
         service.exportar_curriculo(
-            id_usuario=outro, id_curriculo=curriculo.id_curriculo, id_template="moderno", formato="pdf"
+            id_usuario=outro, id_curriculo=curriculo.id_curriculo, id_template="generico", formato="pdf"
         )
 
 
@@ -195,5 +200,82 @@ def test_exportar_curriculo_com_formato_invalido_lanca_erro():
 
     with pytest.raises(FormatoExportacaoInvalidoError):
         service.exportar_curriculo(
-            id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="moderno", formato="jpg"
+            id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="generico", formato="jpg"
         )
+
+
+def test_exportar_curriculo_com_versao_invalida_lanca_erro():
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=uuid.uuid4(), id_usuario=id_usuario, nome_arquivo="curriculo.pdf", texto_extraido="texto"
+    )
+    service = _criar_service_com_fakes(curriculos=[curriculo])
+
+    with pytest.raises(VersaoExportacaoInvalidaError):
+        service.exportar_curriculo(
+            id_usuario=id_usuario,
+            id_curriculo=curriculo.id_curriculo,
+            id_template="generico",
+            formato="pdf",
+            versao="rascunho",
+        )
+
+
+def test_exportar_curriculo_versao_editada_usa_dados_editados_sem_chamar_ia():
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=uuid.uuid4(),
+        id_usuario=id_usuario,
+        nome_arquivo="curriculo.pdf",
+        texto_extraido="texto bruto do currículo",
+        dados_editados={
+            "nome": "Ana Silva Editada",
+            "email": "ana.editada@email.com",
+            "telefone": "",
+            "resumo": "Resumo revisado.",
+            "formacao": "",
+            "experiencia_profissional": "",
+            "habilidades": "Python",
+        },
+    )
+    exporter = CurriculoExporterFalso()
+    ai_adapter = AIServiceAdapterFalso(erro=AssertionError("IA não deveria ser chamada para versão editada"))
+    service = _criar_service_com_fakes(curriculos=[curriculo], exporter=exporter, ai_adapter=ai_adapter)
+
+    conteudo, nome_arquivo, _ = service.exportar_curriculo(
+        id_usuario=id_usuario,
+        id_curriculo=curriculo.id_curriculo,
+        id_template="generico",
+        formato="pdf",
+        versao="editada",
+    )
+
+    assert conteudo == b"conteudo-pdf"
+    assert "Ana Silva Editada" in nome_arquivo
+    assert exporter.chamadas[0][1]["nome"] == "Ana Silva Editada"
+    assert exporter.chamadas[0][1]["resumo"] == "Resumo revisado."
+
+
+def test_exportar_curriculo_versao_editada_sem_edicao_cai_para_original():
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=uuid.uuid4(),
+        id_usuario=id_usuario,
+        nome_arquivo="curriculo.pdf",
+        texto_extraido="texto bruto do currículo",
+        dados_editados=None,
+    )
+    exporter = CurriculoExporterFalso()
+    service = _criar_service_com_fakes(curriculos=[curriculo], exporter=exporter)
+
+    conteudo, nome_arquivo, _ = service.exportar_curriculo(
+        id_usuario=id_usuario,
+        id_curriculo=curriculo.id_curriculo,
+        id_template="generico",
+        formato="pdf",
+        versao="editada",
+    )
+
+    assert conteudo == b"conteudo-pdf"
+    assert "Ana Silva" in nome_arquivo
+    assert exporter.chamadas[0][1]["nome"] == "Ana Silva"

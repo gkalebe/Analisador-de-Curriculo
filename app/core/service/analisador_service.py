@@ -13,6 +13,18 @@ from app.core.persistencia.models.candidato import Candidato
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
+from app.core.service.extracao_curriculo import (
+    aplicar_sugestoes_em_dados_curriculo,
+    extrair_dados_estruturados_curriculo,
+    normalizar_dados_editados,
+    obter_dados_curriculo_com_cache,
+)
+
+# Mesmos 4 campos estruturados usados na tela de edição (EditarCurriculo.jsx) — a IA já
+# devolve qual desses campos cada sugestão de reescrita tem como alvo (ver
+# AIServiceAdapter._montar_prompt_comparacao), então o front não precisa mais adivinhar o
+# bloco certo por sobreposição de palavras.
+CAMPOS_CURRICULO_VALIDOS = {"resumo", "formacao", "experiencia_profissional", "habilidades"}
 
 
 class DescricaoVagaObrigatoriaError(Exception):
@@ -20,6 +32,10 @@ class DescricaoVagaObrigatoriaError(Exception):
 
 
 class DescricaoVagaMuitoLongaError(Exception):
+    pass
+
+
+class VagaDuplicadaError(Exception):
     pass
 
 
@@ -32,6 +48,10 @@ class CurriculoNaoEncontradoError(Exception):
 
 
 class CurriculoArquivoNaoEncontradoError(Exception):
+    pass
+
+
+class NenhumaSugestaoDisponivelError(Exception):
     pass
 
 
@@ -80,6 +100,15 @@ class AnalisadorService:
             raise DescricaoVagaObrigatoriaError
         if len(descricao_normalizada) > self.settings.max_vaga_description_chars:
             raise DescricaoVagaMuitoLongaError
+
+        # Compara com as vagas já salvas do usuário para recusar duplicata exata (mesma
+        # descrição, ignorando maiúsculas/minúsculas e espaços nas pontas) — evita que o
+        # mesmo texto colado duas vezes (ex.: formulário que não limpa após salvar) vire
+        # duas vagas idênticas no histórico do usuário.
+        descricao_para_comparacao = descricao_normalizada.lower()
+        vagas_existentes = self.vaga_repository.listar_por_usuario(id_usuario)
+        if any((vaga_existente.descricao or "").strip().lower() == descricao_para_comparacao for vaga_existente in vagas_existentes):
+            raise VagaDuplicadaError
 
         vaga = Vaga(
             titulo=(titulo or "").strip() or None,
@@ -219,38 +248,100 @@ class AnalisadorService:
     def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
         return self.analise_repository.listar_por_usuario(id_usuario)
 
-    def _extrair_dados_estruturados(self, texto_extraido: str) -> dict | None:
-        texto = (texto_extraido or "").strip()
-        if not texto:
-            return None
+    def obter_dados_edicao_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
 
-        try:
-            resultado_ia = self.ai_service_adapter.extrair_dados_estruturados(texto)
-        except (Exception,):
-            return None
-
-        if not resultado_ia or not str(resultado_ia).strip():
-            return None
-
-        texto_json = (resultado_ia or "").strip()
-        if texto_json.startswith("```"):
-            texto_json = texto_json.strip("`").strip()
-            if texto_json.lower().startswith("json"):
-                texto_json = texto_json[4:].strip()
-
-        try:
-            dados = json.loads(texto_json)
-        except (json.JSONDecodeError, TypeError, ValueError):
-            return None
+        dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
 
         return {
-            "nome": str(dados.get("nome") or "") or None,
-            "email": str(dados.get("email") or "") or None,
-            "telefone": str(dados.get("telefone") or "") or None,
-            "resumo": str(dados.get("resumo") or "") or None,
-            "formacao": str(dados.get("formacao") or "") or None,
-            "experiencia_profissional": str(dados.get("experiencia_profissional") or "") or None,
-            "habilidades": str(dados.get("habilidades") or "") or None,
+            "id_curriculo": curriculo.id_curriculo,
+            "dados": dados,
+            "possui_edicao": curriculo.dados_editados is not None,
+            "editado_em": curriculo.editado_em,
+            "sugestoes": self._obter_sugestoes_mais_recentes(id_usuario, id_curriculo),
+        }
+
+    def salvar_edicao_estruturada_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, dados: dict) -> Curriculo:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        dados_completos = normalizar_dados_editados(dados, curriculo.texto_extraido or "")
+        return self.curriculo_repository.salvar_edicao(curriculo, dados_completos)
+
+    def salvar_edicao_texto_livre_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, texto: str) -> Curriculo:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto)
+        dados["texto_bruto"] = texto
+        return self.curriculo_repository.salvar_edicao(curriculo, dados)
+
+    def aplicar_sugestoes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> Curriculo:
+        """Pede à IA uma versão dos dados do currículo com as sugestões da última análise
+        (palavras-chave faltantes, itens a remover/reorganizar, reescritas) já aplicadas, e
+        salva o resultado como `dados_editados` — pronto para revisão/exportação, sem
+        precisar o usuário reescrever campo a campo manualmente.
+
+        Levanta `NenhumaSugestaoDisponivelError` se este currículo ainda não tem nenhuma
+        análise com diagnóstico salvo.
+        """
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        sugestoes = self._obter_sugestoes_mais_recentes(id_usuario, id_curriculo)
+        if not sugestoes:
+            raise NenhumaSugestaoDisponivelError
+
+        dados_atuais = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+        dados_aplicados = aplicar_sugestoes_em_dados_curriculo(
+            self.ai_service_adapter, dados_atuais, sugestoes, curriculo.texto_extraido or ""
+        )
+        return self.curriculo_repository.salvar_edicao(curriculo, dados_aplicados)
+
+    def _obter_sugestoes_mais_recentes(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict | None:
+        # Mesma normalização de chaves usada em NovaAnalise.jsx/HistoricoAnalises.jsx: a IA
+        # (ver AIServiceAdapter._montar_prompt_comparacao) devolve "correspondentes"/"ausentes",
+        # "o_que_reorganizar"/"o_que_retirar" e "sugestao_otimizada"/"motivo" — normalizamos
+        # para os nomes amigáveis usados na tela de edição, com fallback para os nomes crus.
+        analise = self.analise_repository.buscar_mais_recente_por_curriculo(id_usuario, id_curriculo)
+        if analise is None or not analise.observacoes:
+            return None
+        try:
+            dados = json.loads(analise.observacoes)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        if not isinstance(dados, dict):
+            return None
+
+        palavras_chave = dados.get("palavras_chave") or {}
+        diagnostico = dados.get("diagnostico_ats") or {}
+        sugestoes = dados.get("sugestoes_reescrita") or []
+        if not isinstance(sugestoes, list):
+            sugestoes = []
+
+        return {
+            "resumo": dados.get("resumo") or dados.get("explicacao_ats") or dados.get("observacoes"),
+            "palavras_chave_faltantes": palavras_chave.get("faltantes") or palavras_chave.get("ausentes") or [],
+            "diagnostico_ats": {
+                "pontos_fortes": diagnostico.get("pontos_fortes") or [],
+                "a_reorganizar": diagnostico.get("a_reorganizar") or diagnostico.get("o_que_reorganizar") or [],
+                "a_remover": diagnostico.get("a_remover") or diagnostico.get("o_que_retirar") or [],
+            },
+            "sugestoes_reescrita": [
+                {
+                    "campo": s.get("campo") if s.get("campo") in CAMPOS_CURRICULO_VALIDOS else "",
+                    "trecho_original": s.get("trecho_original") or "",
+                    "versao_otimizada": s.get("versao_otimizada") or s.get("sugestao_otimizada") or "",
+                    "justificativa": s.get("justificativa") or s.get("motivo") or "",
+                }
+                for s in sugestoes
+                if isinstance(s, dict)
+            ],
         }
 
     def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:

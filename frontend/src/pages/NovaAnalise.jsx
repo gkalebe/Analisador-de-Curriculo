@@ -332,20 +332,20 @@ export default function NovaAnalise() {
                         )}
                       </div>
                       <p className="text-[11px] text-amber-800 leading-tight">
-                        * Inclua estes termos apenas se você tiver real vivência neles (RN-001: veracidade absoluta).
+                        * Inclua estes termos apenas se você tiver real vivência neles (veracidade absoluta).
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Diagnóstico Estrutural ATS (US-008) */}
+              {/* Diagnóstico Estrutural ATS */}
               {dadosAts?.diagnostico_ats && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <i className="ti ti-layout-grid text-[22px] text-[#1e5e3f]"></i>
                     <h3 className="font-brand text-xl font-bold text-black">
-                      Diagnóstico Crítico da Estrutura (US-008)
+                      Diagnóstico Crítico da Estrutura
                     </h3>
                   </div>
 
@@ -401,18 +401,18 @@ export default function NovaAnalise() {
                 </div>
               )}
 
-              {/* Sugestões de Reescrita Lado a Lado (US-009 & RN-001) */}
+              {/* Sugestões de Reescrita Lado a Lado */}
               {dadosAts?.sugestoes_reescrita && dadosAts.sugestoes_reescrita.length > 0 && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <i className="ti ti-writing text-[22px] text-[#1e5e3f]"></i>
                       <h3 className="font-brand text-xl font-bold text-black">
-                        Sugestões de Reescrita Lado a Lado (US-009)
+                        Sugestões de Reescrita Lado a Lado
                       </h3>
                     </div>
                     <span className="text-xs text-gray-500 hidden sm:inline">
-                      Sem inventar qualificações (RN-001)
+                      Sem inventar qualificações
                     </span>
                   </div>
 
@@ -487,7 +487,7 @@ export default function NovaAnalise() {
               {/* Rodapé do Diagnóstico com Ações */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-200">
                 <p className="text-xs text-gray-500">
-                  Pronto para aplicar as melhorias? Utilize nossos modelos diagramados para leitura de robôs ATS.
+                  Pronto para aplicar as melhorias? Transforme este diagnóstico num currículo em template ATS.
                 </p>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <button
@@ -498,10 +498,10 @@ export default function NovaAnalise() {
                     Testar outra vaga / currículo
                   </button>
                   <Link
-                    to={`/templates?email=${encodeURIComponent(emailInicial)}`}
+                    to={`/analises/editar?email=${encodeURIComponent(emailInicial)}&curriculo=${resultado.id_curriculo}`}
                     className="flex-1 sm:flex-none text-center rounded-lg bg-[#1e5e3f] px-5 py-2 text-sm font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors"
                   >
-                    Ver Templates ATS
+                    Transformar em Template ATS
                   </Link>
                 </div>
               </div>

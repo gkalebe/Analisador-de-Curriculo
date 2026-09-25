@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -75,8 +76,10 @@ class GeminiClient(AIServiceClient):
             except (
                 google.api_core.exceptions.ServiceUnavailable,
                 google.api_core.exceptions.TooManyRequests,
+                google.api_core.exceptions.DeadlineExceeded,
+                requests.exceptions.Timeout,
             ) as erro:
-                # Erros transitórios de sobrecarga momentânea do modelo: vale uma nova tentativa rápida.
+                # Erros transitórios (sobrecarga momentânea ou timeout de leitura): vale nova tentativa.
                 ultimo_erro = erro
                 logger.warning(
                     "Gemini indisponível (tentativa %d/%d): %r", tentativa, MAX_TENTATIVAS_GEMINI, erro
@@ -155,11 +158,27 @@ class AIServiceAdapter:
         prompt = self._montar_prompt_extracao(texto_curriculo)
         return self.cliente.gerar_resposta(prompt, temperatura=0.2)
 
-    def responder_chat_curriculo(
-        self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str
+    def aplicar_sugestoes_curriculo(self, dados_atuais: dict, sugestoes: dict) -> str:
+        prompt = self._montar_prompt_aplicar_sugestoes(dados_atuais, sugestoes)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
+
+    def responder_chat(
+        self,
+        historico: list[tuple[str, str]],
+        pergunta: str,
+        texto_curriculo: str | None = None,
+        texto_vaga: str | None = None,
     ) -> str:
-        prompt = self._montar_prompt_chat(texto_curriculo, historico, pergunta)
+        prompt = self._montar_prompt_chat(historico, pergunta, texto_curriculo, texto_vaga)
         return self.cliente.gerar_resposta(prompt, temperatura=0.5)
+
+    def gerar_perguntas_entrevista(self, texto_vaga: str) -> str:
+        prompt = self._montar_prompt_perguntas_entrevista(texto_vaga)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.6)
+
+    def avaliar_resposta_entrevista(self, texto_vaga: str, pergunta: str, tipo: str, resposta: str) -> str:
+        prompt = self._montar_prompt_feedback_entrevista(texto_vaga, pergunta, tipo, resposta)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
         return (
@@ -182,7 +201,12 @@ class AIServiceAdapter:
             "(usando verbos de ação fortes, palavras-chave precisas da vaga e quantificação de impactos).\n"
             "2. Aponte termos técnicos da vaga que estão presentes e os que estão ausentes.\n"
             "3. Forneça sugestões concretas de reescrita lado a lado (trecho original vs trecho "
-            "otimizado para ATS).\n\n"
+            "otimizado para ATS).\n"
+            "4. Para CADA sugestão de reescrita, identifique com certeza em qual campo do currículo "
+            "estruturado o trecho original está: 'resumo' (resumo profissional), 'formacao' (formação "
+            "acadêmica), 'experiencia_profissional' (experiências de trabalho) ou 'habilidades' "
+            "(habilidades técnicas/comportamentais). Use EXATAMENTE um desses 4 valores no campo "
+            "\"campo\" — nunca deixe em branco e nunca invente um valor fora dessa lista.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
             "{\n"
@@ -200,6 +224,7 @@ class AIServiceAdapter:
             "  },\n"
             '  "sugestoes_reescrita": [\n'
             "    {\n"
+            '      "campo": "<resumo | formacao | experiencia_profissional | habilidades>",\n'
             '      "trecho_original": "<trecho exato do currículo original que está genérico ou fraco>",\n'
             '      "sugestao_otimizada": "<versão reescrita com verbos de ação e foco em ATS, SEM inventar fatos>",\n'
             '      "motivo": "<por que essa versão melhora a pontuação em robôs ATS e recrutadores>"\n'
@@ -224,20 +249,124 @@ class AIServiceAdapter:
             f"Currículo:\n{texto_curriculo}"
         )
 
-    def _montar_prompt_chat(self, texto_curriculo: str, historico: list[tuple[str, str]], pergunta: str) -> str:
+    def _montar_prompt_aplicar_sugestoes(self, dados_atuais: dict, sugestoes: dict) -> str:
+        diagnostico = sugestoes.get("diagnostico_ats") or {}
+        reescritas = sugestoes.get("sugestoes_reescrita") or []
+        linhas_reescritas = "\n".join(
+            f'- Trecho original: "{item.get("trecho_original", "")}" → '
+            f'Versão sugerida: "{item.get("versao_otimizada", "")}"'
+            for item in reescritas
+            if isinstance(item, dict) and (item.get("trecho_original") or item.get("versao_otimizada"))
+        ) or "(nenhuma)"
+
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Você já analisou este currículo antes e deu o diagnóstico abaixo. Agora, aplique "
+            "esse diagnóstico DIRETAMENTE nos campos do currículo — não descreva o que deveria mudar, "
+            "entregue os campos já corrigidos.\n\n"
+            "REGRAS ESTRITAS:\n"
+            "1. Remova do currículo os itens listados em 'A remover' (ex.: se for uma formação, tire a "
+            "linha inteira de 'formacao'; se for um termo vago numa frase, reescreva a frase sem ele).\n"
+            "2. Reorganize conforme 'A reorganizar' (ex.: ordem de destaque, agrupamento).\n"
+            "3. Troque cada trecho original pela versão otimizada listada em 'Reescritas sugeridas', "
+            "quando esse trecho aparecer no campo correspondente.\n"
+            "4. Incorpore as 'Palavras-chave faltantes' de forma natural e verdadeira nos campos onde "
+            "fizer sentido (resumo, experiência, habilidades) — SOMENTE se algo no currículo atual já "
+            "sustentar aquilo; NUNCA invente uma ferramenta, empresa, cargo ou tempo de experiência que "
+            "o candidato não tenha.\n"
+            "5. Preserve tudo que não foi mencionado no diagnóstico exatamente como está.\n"
+            "6. Responda ESTRITAMENTE em JSON válido, sem texto fora do JSON e sem markdown, no mesmo "
+            "formato exato dos campos de entrada: "
+            '{"nome": "...", "email": "...", "telefone": "...", "resumo": "...", "formacao": "...", '
+            '"experiencia_profissional": "...", "habilidades": "..."}.\n\n'
+            f"CAMPOS ATUAIS DO CURRÍCULO:\n{json.dumps(dados_atuais, ensure_ascii=False, indent=2)}\n\n"
+            f"PONTOS FORTES (manter): {diagnostico.get('pontos_fortes') or []}\n"
+            f"A REORGANIZAR: {diagnostico.get('a_reorganizar') or []}\n"
+            f"A REMOVER: {diagnostico.get('a_remover') or []}\n"
+            f"PALAVRAS-CHAVE FALTANTES: {sugestoes.get('palavras_chave_faltantes') or []}\n"
+            f"REESCRITAS SUGERIDAS:\n{linhas_reescritas}\n"
+        )
+
+    def _montar_prompt_chat(
+        self,
+        historico: list[tuple[str, str]],
+        pergunta: str,
+        texto_curriculo: str | None = None,
+        texto_vaga: str | None = None,
+    ) -> str:
         linhas_historico = "\n".join(
             f"{'Candidato' if autor == 'usuario' else 'Assistente'}: {conteudo}" for autor, conteudo in historico
         )
+
+        blocos_contexto = []
+        if texto_curriculo:
+            blocos_contexto.append(f"Currículo do candidato:\n{texto_curriculo}")
+        if texto_vaga:
+            blocos_contexto.append(f"Vaga em discussão:\n{texto_vaga}")
+        contexto = "\n\n".join(blocos_contexto) if blocos_contexto else "(nenhum currículo ou vaga selecionado)"
+
         return (
             f"{PERSONA_ESPECIALISTA_RH}\n"
-            "TAREFA: Converse diretamente com o candidato dono do currículo abaixo, tirando dúvidas e "
-            "dando orientações de carreira baseadas nesse currículo. Responda de forma direta, objetiva "
-            "e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
+            "TAREFA: Converse diretamente com o candidato, tirando dúvidas e dando orientações de carreira "
+            "com base no contexto abaixo (currículo e/ou vaga, conforme disponível). Responda de forma "
+            "direta, objetiva e natural, como em uma conversa de chat — sem soar robótico ou genérico.\n"
             "REGRAS ADICIONAIS:\n"
-            "1. Se a pergunta não tiver relação com o currículo ou a carreira do candidato, explique "
-            "educadamente que você só pode ajudar com isso.\n"
-            "2. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
-            f"Currículo do candidato:\n{texto_curriculo}\n\n"
+            "1. Se a pergunta não tiver relação com o currículo, a vaga ou a carreira do candidato, "
+            "explique educadamente que você só pode ajudar com isso.\n"
+            "2. Se houver currículo e vaga ao mesmo tempo, correlacione os dois na resposta quando fizer "
+            "sentido (aderência, lacunas, como se preparar).\n"
+            "3. Responda apenas com o texto da sua resposta, sem JSON e sem blocos markdown.\n\n"
+            f"{contexto}\n\n"
             f"Conversa até aqui:\n{linhas_historico or '(nenhuma mensagem anterior)'}\n\n"
             f"Nova pergunta do candidato: {pergunta}"
+        )
+
+    def _montar_prompt_perguntas_entrevista(self, texto_vaga: str) -> str:
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Monte um roteiro de simulação de entrevista de emprego para a vaga descrita abaixo, "
+            "para o candidato treinar antes do processo seletivo real.\n\n"
+            "DIRETRIZES:\n"
+            "1. Gere exatamente 2 perguntas do tipo comportamental (sobre experiências passadas e soft "
+            "skills, ex.: trabalho em equipe, conflitos, liderança), 2 do tipo técnica (sobre "
+            "conhecimentos e ferramentas específicos exigidos pela vaga) e 2 do tipo situacional "
+            "(cenários hipotéticos relacionados ao dia a dia da vaga).\n"
+            "2. As perguntas devem ser específicas ao conteúdo da vaga, nunca genéricas.\n"
+            "3. Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos "
+            "markdown, no formato exato:\n"
+            "{\n"
+            '  "perguntas": [\n'
+            '    {"tipo": "comportamental", "texto": "<pergunta>"},\n'
+            '    {"tipo": "tecnica", "texto": "<pergunta>"},\n'
+            '    {"tipo": "situacional", "texto": "<pergunta>"}\n'
+            "  ]\n"
+            "}\n\n"
+            f"Descrição da vaga:\n{texto_vaga}"
+        )
+
+    def _montar_prompt_feedback_entrevista(self, texto_vaga: str, pergunta: str, tipo: str, resposta: str) -> str:
+        return (
+            f"{PERSONA_ESPECIALISTA_RH}\n"
+            "TAREFA: Avalie a resposta do candidato a uma pergunta de simulação de entrevista para a "
+            "vaga descrita abaixo, dando feedback construtivo para ele treinar.\n\n"
+            "DIRETRIZES:\n"
+            "1. Avalie a resposta em 4 dimensões: clareza (a resposta é fácil de entender e bem "
+            "estruturada?), objetividade (vai direto ao ponto, sem enrolação?), coerência (a resposta "
+            "faz sentido com o que foi perguntado e é internamente consistente?) e alinhamento "
+            "(quão aderente a resposta está aos requisitos e ao perfil da vaga?).\n"
+            "2. Para cada dimensão, dê uma nota de 0 a 10 e um comentário curto (1 a 2 frases) e "
+            "acionável.\n"
+            "3. Dê também um feedback geral (2 a 3 frases) resumindo o principal ponto a melhorar.\n"
+            "4. Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos "
+            "markdown, no formato exato:\n"
+            "{\n"
+            '  "clareza": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "objetividade": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "coerencia": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "alinhamento": {"nota": <0 a 10>, "comentario": "<comentário>"},\n'
+            '  "feedback_geral": "<feedback geral>"\n'
+            "}\n\n"
+            f"Descrição da vaga:\n{texto_vaga}\n\n"
+            f"Pergunta ({tipo}): {pergunta}\n\n"
+            f"Resposta do candidato: {resposta}"
         )

@@ -32,3 +32,11 @@ class AnaliseRepository:
             .order_by(Analise.data_analise.desc())
         )
         return list(self.db.execute(stmt).scalars().all())
+
+    def buscar_mais_recente_por_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> Analise | None:
+        stmt = (
+            select(Analise)
+            .where(Analise.id_usuario == id_usuario, Analise.id_curriculo == id_curriculo)
+            .order_by(Analise.data_analise.desc())
+        )
+        return self.db.execute(stmt).scalars().first()

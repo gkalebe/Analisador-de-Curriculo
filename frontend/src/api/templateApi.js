@@ -4,8 +4,8 @@ export function listarTemplates(email) {
   return requisitar("/templates", { params: { email } });
 }
 
-export function exportarCurriculo(email, idCurriculo, idTemplate, formato) {
+export function exportarCurriculo(email, idCurriculo, idTemplate, formato, versao = "original") {
   return requisitarArquivo("/templates/exportar", {
-    params: { email, id_curriculo: idCurriculo, id_template: idTemplate, formato },
+    params: { email, id_curriculo: idCurriculo, id_template: idTemplate, formato, versao },
   });
 }

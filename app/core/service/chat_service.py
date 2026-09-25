@@ -6,6 +6,7 @@ from app.adapters.ai_service.ai_service_adapter import AIServiceAdapter
 from app.core.persistencia.chat_repository import ChatRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
 from app.core.persistencia.models.mensagem_chat import MensagemChat
+from app.core.persistencia.pergunta_anonimizada_repository import PerguntaAnonimizadaRepository
 from app.core.persistencia.vaga_repository import VagaRepository
 
 
@@ -35,6 +36,7 @@ class ChatService:
         self.chat_repository = ChatRepository(db)
         self.curriculo_repository = CurriculoRepository(db)
         self.vaga_repository = VagaRepository(db)
+        self.pergunta_repository = PerguntaAnonimizadaRepository(db)
         self.ai_service_adapter = ai_service_adapter or AIServiceAdapter()
 
     @staticmethod
@@ -95,6 +97,17 @@ class ChatService:
         )
         historico = [(mensagem.autor, mensagem.conteudo) for mensagem in mensagens_anteriores]
 
+        # Só gravamos a pergunta do usuário DEPOIS que a IA responder com sucesso. Se
+        # persistíssemos antes e a chamada à IA falhasse (ex.: indisponibilidade
+        # temporária do Gemini), a pergunta ficava salva sem resposta — órfã no
+        # histórico para sempre, aparecendo como um espaço em branco na conversa.
+        resposta_texto = self.ai_service_adapter.responder_chat(
+            texto_curriculo=texto_curriculo,
+            historico=historico,
+            pergunta=pergunta_normalizada,
+            texto_vaga=texto_vaga,
+        )
+
         mensagem_usuario = self.chat_repository.criar(
             MensagemChat(
                 id_usuario=id_usuario,
@@ -103,13 +116,6 @@ class ChatService:
                 autor="usuario",
                 conteudo=pergunta_normalizada,
             )
-        )
-
-        resposta_texto = self.ai_service_adapter.responder_chat(
-            texto_curriculo=texto_curriculo,
-            historico=historico,
-            pergunta=pergunta_normalizada,
-            texto_vaga=texto_vaga,
         )
 
         mensagem_assistente = self.chat_repository.criar(
@@ -144,3 +150,28 @@ class ChatService:
                 raise VagaNaoEncontradaError
 
         return self.chat_repository.listar(id_usuario, id_curriculo=id_curriculo, id_vaga=id_vaga)
+
+    def encerrar_conversa(
+        self,
+        id_usuario: uuid.UUID,
+        id_curriculo: uuid.UUID | None = None,
+        id_vaga: uuid.UUID | None = None,
+    ) -> int:
+        """
+        Encerra (sai d)o ChatBOT: extrai as perguntas do usuário para a árvore de dados —
+        só o texto da pergunta, anonimizado, sem resposta e sem nenhum vínculo com o usuário,
+        currículo ou vaga — e então apaga a conversa inteira do banco.
+        """
+        if id_curriculo is None and id_vaga is None:
+            raise ContextoChatObrigatorioError("Selecione um currículo, uma vaga ou ambos.")
+
+        mensagens = self.chat_repository.listar(id_usuario, id_curriculo=id_curriculo, id_vaga=id_vaga)
+        if not mensagens:
+            return 0
+
+        perguntas = [m.conteudo for m in mensagens if m.autor == "usuario" and m.conteudo and m.conteudo.strip()]
+        if perguntas:
+            self.pergunta_repository.criar_lote(perguntas)
+
+        self.chat_repository.excluir(mensagens)
+        return len(mensagens)
