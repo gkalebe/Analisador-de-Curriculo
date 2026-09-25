@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.database import Base
 from app.core.persistencia.curriculo_repository import CurriculoRepository
+from app.core.persistencia.models.candidato import Candidato
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.usuario import Usuario
 
@@ -84,3 +85,42 @@ def test_listar_curriculos_por_usuario(db_session):
     assert len(lista) == 2
     assert lista[0].nome_arquivo == "curriculo2.docx"
     assert lista[1].nome_arquivo == "curriculo1.pdf"
+
+
+def test_candidato_pode_salvar_resumo_do_curriculo(db_session):
+    id_usuario = uuid.uuid4()
+    usuario = Usuario(
+        id_usuario=id_usuario,
+        nome="Teste resumo",
+        email="resumo@example.com",
+        senha_hash="hash123",
+        perfil="candidato",
+    )
+    db_session.add(usuario)
+    db_session.commit()
+
+    curriculo = Curriculo(
+        nome_arquivo="resumo.pdf",
+        status_processamento="concluido",
+        id_usuario=id_usuario,
+    )
+    db_session.add(curriculo)
+    db_session.commit()
+    db_session.refresh(curriculo)
+
+    candidato = Candidato(
+        nome="Ana Silva",
+        email="ana@email.com",
+        telefone="(61) 99999-0000",
+        resumo="Resumo profissional da candidata",
+        formacao="Ciência da Computação",
+        experiencia_profissional="Analista de sistemas",
+        habilidades="Python, FastAPI, SQL",
+        id_curriculo=curriculo.id_curriculo,
+    )
+    db_session.add(candidato)
+    db_session.commit()
+    db_session.refresh(candidato)
+
+    assert candidato.resumo == "Resumo profissional da candidata"
+    assert candidato.curriculo.id_curriculo == curriculo.id_curriculo

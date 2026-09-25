@@ -4,8 +4,10 @@ import Sidebar from "../components/Sidebar.jsx";
 import VisualizadorPdf from "../components/VisualizadorPdf.jsx";
 import LimiteDeErro from "../components/LimiteDeErro.jsx";
 import {
+  atualizarCurriculo,
   enviarCurriculo,
   listarCurriculos,
+  obterDetalhesCurriculo,
   obterUrlDownloadCurriculo,
 } from "../api/curriculoApi.js";
 import {
@@ -25,9 +27,22 @@ export default function UploadCurriculo() {
   const [arrastando, setArrastando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
   const [resultado, setResultado] = useState(null);
   const [curriculosSalvos, setCurriculosSalvos] = useState([]);
   const [curriculoSelecionado, setCurriculoSelecionado] = useState(null);
+  const [curriculoDetalhes, setCurriculoDetalhes] = useState(null);
+  const [editandoCurriculo, setEditandoCurriculo] = useState(false);
+  const [dadosCurriculo, setDadosCurriculo] = useState({
+    nome: "",
+    email: "",
+    telefone: "",
+    resumo: "",
+    formacao: "",
+    experiencia_profissional: "",
+    habilidades: "",
+  });
+  const [salvandoCurriculo, setSalvandoCurriculo] = useState(false);
 
   useEffect(() => {
     if (!emailInicial) return;
@@ -82,12 +97,63 @@ export default function UploadCurriculo() {
     }
   }
 
-  function abrirCurriculoOriginal(curriculo) {
+  async function abrirCurriculoOriginal(curriculo) {
+    setErro("");
+    setSucesso("");
     setCurriculoSelecionado(curriculo);
+    setEditandoCurriculo(false);
+    setCurriculoDetalhes(null);
+    try {
+      const detalhes = await obterDetalhesCurriculo(curriculo.id_curriculo, emailInicial);
+      setCurriculoDetalhes(detalhes);
+      setDadosCurriculo({
+        nome: detalhes?.dados?.nome || "",
+        email: detalhes?.dados?.email || "",
+        telefone: detalhes?.dados?.telefone || "",
+        resumo: detalhes?.dados?.resumo || "",
+        formacao: detalhes?.dados?.formacao || "",
+        experiencia_profissional: detalhes?.dados?.experiencia_profissional || "",
+        habilidades: detalhes?.dados?.habilidades || "",
+      });
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível carregar o currículo.");
+    }
   }
 
   function fecharCurriculoOriginal() {
     setCurriculoSelecionado(null);
+    setCurriculoDetalhes(null);
+    setEditandoCurriculo(false);
+    setErro("");
+    setSucesso("");
+  }
+
+  async function salvarEdicaoCurriculo(evento) {
+    evento.preventDefault();
+    if (!curriculoSelecionado) return;
+
+    try {
+      setErro("");
+      setSucesso("");
+      setSalvandoCurriculo(true);
+      const atualizado = await atualizarCurriculo(curriculoSelecionado.id_curriculo, emailInicial, dadosCurriculo);
+      setCurriculoDetalhes(atualizado);
+      setDadosCurriculo({
+        nome: atualizado?.dados?.nome || "",
+        email: atualizado?.dados?.email || "",
+        telefone: atualizado?.dados?.telefone || "",
+        resumo: atualizado?.dados?.resumo || "",
+        formacao: atualizado?.dados?.formacao || "",
+        experiencia_profissional: atualizado?.dados?.experiencia_profissional || "",
+        habilidades: atualizado?.dados?.habilidades || "",
+      });
+      setEditandoCurriculo(false);
+      setSucesso("Currículo atualizado com sucesso.");
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível atualizar este currículo.");
+    } finally {
+      setSalvandoCurriculo(false);
+    }
   }
 
   return (
@@ -119,7 +185,10 @@ export default function UploadCurriculo() {
         )}
 
         {erro && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{erro}</div>}
-        {resultado && (
+        {sucesso && (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">{sucesso}</div>
+        )}
+        {resultado && !sucesso && (
           <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">
             Currículo <strong>{resultado.nome_arquivo}</strong> enviado e salvo com sucesso.
           </div>
@@ -277,22 +346,106 @@ export default function UploadCurriculo() {
                 </button>
               </div>
 
-              {/* Conteúdo: o arquivo original, como o usuário enviou. Único contêiner com
-                  scroll do modal — evita aninhar dois overflow-auto, que é o que estava
-                  impedindo a barra de rolagem de aparecer. */}
               <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
-                {curriculoSelecionado.nome_arquivo?.toLowerCase().endsWith(".pdf") ? (
-                  <LimiteDeErro chave={curriculoSelecionado.id_curriculo}>
-                    <VisualizadorPdf idCurriculo={curriculoSelecionado.id_curriculo} email={emailInicial} />
-                  </LimiteDeErro>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center gap-2 text-center text-gray-500 p-6">
-                    <i className="ti ti-file-text text-[32px] text-gray-400"></i>
-                    <p className="text-sm">
-                      Este formato (.docx) não tem pré-visualização própria ainda.
-                    </p>
-                    <p className="text-xs text-gray-400">Baixe o arquivo original abaixo para abri-lo no Word.</p>
+                {!editandoCurriculo ? (
+                  <div className="space-y-4 p-6">
+                    <div className="rounded-lg border border-[#dfdfe0] bg-white p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h4 className="font-brand text-xl text-black">Dados do currículo</h4>
+                        <button
+                          type="button"
+                          onClick={() => setEditandoCurriculo(true)}
+                          className="rounded-md border border-[#1e5e3f] bg-[#f0fdf4] px-3 py-1.5 text-sm font-semibold text-[#1e5e3f]"
+                        >
+                          Editar
+                        </button>
+                      </div>
+
+                      {curriculoDetalhes?.dados ? (
+                        <div className="space-y-3 text-sm text-gray-700">
+                          <p><span className="font-semibold">Nome:</span> {curriculoDetalhes.dados.nome || "-"}</p>
+                          <p><span className="font-semibold">Email:</span> {curriculoDetalhes.dados.email || "-"}</p>
+                          <p><span className="font-semibold">Telefone:</span> {curriculoDetalhes.dados.telefone || "-"}</p>
+                          <p><span className="font-semibold">Resumo:</span> {curriculoDetalhes.dados.resumo || "-"}</p>
+                          <p><span className="font-semibold">Formação:</span> {curriculoDetalhes.dados.formacao || "-"}</p>
+                          <p><span className="font-semibold">Experiência:</span> {curriculoDetalhes.dados.experiencia_profissional || "-"}</p>
+                          <p><span className="font-semibold">Habilidades:</span> {curriculoDetalhes.dados.habilidades || "-"}</p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">Ainda não há dados estruturados para este currículo.</p>
+                      )}
+                    </div>
+
+                    {curriculoSelecionado.nome_arquivo?.toLowerCase().endsWith(".pdf") ? (
+                      <LimiteDeErro chave={curriculoSelecionado.id_curriculo}>
+                        <VisualizadorPdf idCurriculo={curriculoSelecionado.id_curriculo} email={emailInicial} />
+                      </LimiteDeErro>
+                    ) : (
+                      <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 bg-white text-center text-gray-500 p-6">
+                        <i className="ti ti-file-text text-[32px] text-gray-400"></i>
+                        <p className="text-sm">
+                          Este formato (.docx) não tem pré-visualização própria ainda.
+                        </p>
+                        <p className="text-xs text-gray-400">Baixe o arquivo original abaixo para abri-lo no Word.</p>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <form onSubmit={salvarEdicaoCurriculo} className="space-y-4 p-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-brand text-xl text-black">Editar dados do currículo</h4>
+                      <button
+                        type="button"
+                        onClick={() => setEditandoCurriculo(false)}
+                        className="text-sm font-medium text-gray-600 underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="space-y-1 text-sm text-gray-700 md:col-span-2">
+                        <span className="font-medium">Nome</span>
+                        <input value={dadosCurriculo.nome} onChange={(e) => setDadosCurriculo({ ...dadosCurriculo, nome: e.target.value })} className="w-full rounded border border-[#dfdfe0] px-3 py-2" />
+                      </label>
+
+                      <label className="space-y-1 text-sm text-gray-700">
+                        <span className="font-medium">Email</span>
+                        <input type="email" value={dadosCurriculo.email} onChange={(e) => setDadosCurriculo({ ...dadosCurriculo, email: e.target.value })} className="w-full rounded border border-[#dfdfe0] px-3 py-2" />
+                      </label>
+
+                      <label className="space-y-1 text-sm text-gray-700">
+                        <span className="font-medium">Telefone</span>
+                        <input value={dadosCurriculo.telefone} onChange={(e) => setDadosCurriculo({ ...dadosCurriculo, telefone: e.target.value })} className="w-full rounded border border-[#dfdfe0] px-3 py-2" />
+                      </label>
+
+                      <label className="space-y-1 text-sm text-gray-700 md:col-span-2">
+                        <span className="font-medium">Resumo</span>
+                        <textarea rows={4} value={dadosCurriculo.resumo} onChange={(e) => setDadosCurriculo({ ...dadosCurriculo, resumo: e.target.value })} className="w-full rounded border border-[#dfdfe0] px-3 py-2" />
+                      </label>
+
+                      <label className="space-y-1 text-sm text-gray-700 md:col-span-2">
+                        <span className="font-medium">Formação</span>
+                        <textarea rows={3} value={dadosCurriculo.formacao} onChange={(e) => setDadosCurriculo({ ...dadosCurriculo, formacao: e.target.value })} className="w-full rounded border border-[#dfdfe0] px-3 py-2" />
+                      </label>
+
+                      <label className="space-y-1 text-sm text-gray-700 md:col-span-2">
+                        <span className="font-medium">Experiência profissional</span>
+                        <textarea rows={4} value={dadosCurriculo.experiencia_profissional} onChange={(e) => setDadosCurriculo({ ...dadosCurriculo, experiencia_profissional: e.target.value })} className="w-full rounded border border-[#dfdfe0] px-3 py-2" />
+                      </label>
+
+                      <label className="space-y-1 text-sm text-gray-700 md:col-span-2">
+                        <span className="font-medium">Habilidades</span>
+                        <textarea rows={3} value={dadosCurriculo.habilidades} onChange={(e) => setDadosCurriculo({ ...dadosCurriculo, habilidades: e.target.value })} className="w-full rounded border border-[#dfdfe0] px-3 py-2" />
+                      </label>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button type="submit" disabled={salvandoCurriculo} className="rounded-md bg-[#1e5e3f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+                        {salvandoCurriculo ? "Salvando..." : "Salvar alterações"}
+                      </button>
+                    </div>
+                  </form>
                 )}
               </div>
 

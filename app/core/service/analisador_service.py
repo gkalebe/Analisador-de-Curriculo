@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.core.persistencia.analise_repository import AnaliseRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
 from app.core.persistencia.models.analise import Analise
+from app.core.persistencia.models.candidato import Candidato
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
@@ -55,10 +56,15 @@ class AnalisadorService:
         )
         self.curriculo_repository.criar(novo_curriculo)
 
+        dados_estruturados = self._extrair_dados_estruturados(texto_extraido)
+        if dados_estruturados:
+            self.curriculo_repository.salvar_candidato(novo_curriculo.id_curriculo, dados_estruturados)
+
         return {
             "id_curriculo": str(novo_curriculo.id_curriculo),
             "nome_arquivo": nome_arquivo,
             "tamanho_texto_extraido": len(texto_extraido),
+            "dados": dados_estruturados,
         }
 
     def cadastrar_vaga(
@@ -169,13 +175,36 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
+        candidato = self.curriculo_repository.buscar_candidato(curriculo.id_curriculo)
+        dados = None
+        if candidato is not None:
+            dados = {
+                "nome": candidato.nome,
+                "email": candidato.email,
+                "telefone": candidato.telefone,
+                "resumo": candidato.resumo,
+                "formacao": candidato.formacao,
+                "experiencia_profissional": candidato.experiencia_profissional,
+                "habilidades": candidato.habilidades,
+            }
+
         return {
             "id_curriculo": curriculo.id_curriculo,
             "nome_arquivo": curriculo.nome_arquivo,
             "data_upload": curriculo.data_upload,
             "status_processamento": curriculo.status_processamento,
             "texto_extraido": curriculo.texto_extraido,
+            "dados": dados,
         }
+
+    def atualizar_dados_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, dados: dict) -> dict:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        payload = {chave: (valor if valor is not None else "") for chave, valor in (dados or {}).items()}
+        self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, payload)
+        return self.obter_detalhes_curriculo(id_usuario, id_curriculo)
 
     def obter_arquivo_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> tuple[bytes, str]:
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
@@ -189,6 +218,40 @@ class AnalisadorService:
 
     def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
         return self.analise_repository.listar_por_usuario(id_usuario)
+
+    def _extrair_dados_estruturados(self, texto_extraido: str) -> dict | None:
+        texto = (texto_extraido or "").strip()
+        if not texto:
+            return None
+
+        try:
+            resultado_ia = self.ai_service_adapter.extrair_dados_estruturados(texto)
+        except (Exception,):
+            return None
+
+        if not resultado_ia or not str(resultado_ia).strip():
+            return None
+
+        texto_json = (resultado_ia or "").strip()
+        if texto_json.startswith("```"):
+            texto_json = texto_json.strip("`").strip()
+            if texto_json.lower().startswith("json"):
+                texto_json = texto_json[4:].strip()
+
+        try:
+            dados = json.loads(texto_json)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return None
+
+        return {
+            "nome": str(dados.get("nome") or "") or None,
+            "email": str(dados.get("email") or "") or None,
+            "telefone": str(dados.get("telefone") or "") or None,
+            "resumo": str(dados.get("resumo") or "") or None,
+            "formacao": str(dados.get("formacao") or "") or None,
+            "experiencia_profissional": str(dados.get("experiencia_profissional") or "") or None,
+            "habilidades": str(dados.get("habilidades") or "") or None,
+        }
 
     def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:
         texto = (resultado_ia or "").strip()

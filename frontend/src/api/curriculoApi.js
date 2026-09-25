@@ -15,6 +15,14 @@ export function obterDetalhesCurriculo(idCurriculo, email) {
   return requisitar(`/analises/curriculos/${idCurriculo}`, { params: { email } });
 }
 
+export function atualizarCurriculo(idCurriculo, email, dados) {
+  return requisitar(`/analises/curriculos/${idCurriculo}`, {
+    method: "PUT",
+    params: { email },
+    body: dados,
+  });
+}
+
 export function obterUrlDownloadCurriculo(idCurriculo, email) {
   const url = new URL(`/analises/curriculos/${idCurriculo}/download`, API_URL);
   url.searchParams.set("email", email);

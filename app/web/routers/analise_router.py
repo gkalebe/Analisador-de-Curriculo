@@ -15,6 +15,7 @@ from app.core.service.analisador_service import (
 )
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
+    CurriculoAtualizacaoRequest,
     CurriculoDetalhesResponse,
     CurriculoItemResponse,
     CurriculoListResponse,
@@ -237,6 +238,32 @@ def obter_detalhes_curriculo(
 
     try:
         detalhes = analisador_service.obter_detalhes_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return CurriculoDetalhesResponse.model_validate(detalhes)
+
+
+@router.put("/curriculos/{id_curriculo}", response_model=CurriculoDetalhesResponse)
+def atualizar_curriculo(
+    id_curriculo: uuid.UUID,
+    payload: CurriculoAtualizacaoRequest,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoDetalhesResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        detalhes = analisador_service.atualizar_dados_curriculo(usuario.id_usuario, id_curriculo, payload.model_dump())
     except CurriculoNaoEncontradoError as erro:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
