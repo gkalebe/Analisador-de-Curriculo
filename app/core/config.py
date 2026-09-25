@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     # Origens autorizadas a chamar a API (CORS). Em produção, configurar via env var
     # CORS_ORIGINS com o domínio real do front-end — nunca deixar em "*" com uma API
     # que expõe dados de usuário autenticado.
-    cors_origins: str = "http://localhost:5173,http://localhost:4173"
+    cors_origins: str = (
+        "http://localhost:5173,http://localhost:4173,"
+        "http://127.0.0.1:5173,http://127.0.0.1:4173"
+    )
     frontend_login_url: str = "http://localhost:8000/login"
     frontend_reset_password_url: str = "http://localhost:8000/usuarios/redefinir-senha"
     smtp_host: str = ""

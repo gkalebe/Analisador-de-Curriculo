@@ -18,6 +18,7 @@ from app.core.service.extracao_curriculo import SugestaoNaoAplicadaError
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     CurriculoAtualizacaoRequest,
+    CurriculoCriacaoManualRequest,
     CurriculoDetalhesResponse,
     CurriculoEdicaoEstruturadaRequest,
     CurriculoEdicaoResponse,
@@ -234,7 +235,45 @@ def listar_curriculos(
         )
 
     curriculos = analisador_service.listar_curriculos_usuario(usuario.id_usuario)
-    return CurriculoListResponse(curriculos=[CurriculoItemResponse.model_validate(c) for c in curriculos])
+    return CurriculoListResponse(
+        curriculos=[
+            CurriculoItemResponse(
+                id_curriculo=curriculo.id_curriculo,
+                nome_arquivo=curriculo.nome_arquivo,
+                nome_curriculo=curriculo.nome_curriculo,
+                data_upload=curriculo.data_upload,
+                status_processamento=curriculo.status_processamento,
+                possui_arquivo=curriculo.conteudo_arquivo is not None,
+            )
+            for curriculo in curriculos
+        ]
+    )
+
+
+@router.post("/curriculos", response_model=CurriculoDetalhesResponse, status_code=status.HTTP_201_CREATED)
+def criar_curriculo_manual(
+    payload: CurriculoCriacaoManualRequest,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoDetalhesResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        curriculo = analisador_service.criar_curriculo_manual(
+            usuario.id_usuario,
+            payload.nome_curriculo,
+            payload.model_dump(exclude={"nome_curriculo"}),
+        )
+        detalhes = analisador_service.obter_detalhes_curriculo(usuario.id_usuario, curriculo.id_curriculo)
+    except ValueError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
+    return CurriculoDetalhesResponse.model_validate(detalhes)
 
 
 @router.get("/curriculos/{id_curriculo}", response_model=CurriculoDetalhesResponse)
@@ -260,6 +299,30 @@ def obter_detalhes_curriculo(
         ) from erro
 
     return CurriculoDetalhesResponse.model_validate(detalhes)
+
+
+@router.delete("/curriculos/{id_curriculo}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> Response:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.excluir_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/curriculos/{id_curriculo}", response_model=CurriculoDetalhesResponse)

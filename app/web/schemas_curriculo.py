@@ -15,7 +15,11 @@ class CurriculoDadosEstruturados(BaseModel):
 
 
 class CurriculoAtualizacaoRequest(CurriculoDadosEstruturados):
-    pass
+    nome_curriculo: str | None = None
+
+
+class CurriculoCriacaoManualRequest(CurriculoDadosEstruturados):
+    nome_curriculo: str
 
 
 class CurriculoEdicaoEstruturadaRequest(CurriculoDadosEstruturados):
@@ -38,8 +42,10 @@ class CurriculoItemResponse(BaseModel):
 
     id_curriculo: uuid.UUID
     nome_arquivo: str
+    nome_curriculo: str | None = None
     data_upload: datetime
     status_processamento: str
+    possui_arquivo: bool = False
 
 
 class CurriculoListResponse(BaseModel):
@@ -51,9 +57,11 @@ class CurriculoDetalhesResponse(BaseModel):
 
     id_curriculo: uuid.UUID
     nome_arquivo: str
+    nome_curriculo: str | None = None
     data_upload: datetime
     status_processamento: str
     texto_extraido: str | None = None
+    possui_arquivo: bool = False
     dados: CurriculoDadosEstruturados | None = None
 
 

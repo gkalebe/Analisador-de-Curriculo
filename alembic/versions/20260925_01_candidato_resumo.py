@@ -1,7 +1,7 @@
 """add resumo to candidato
 
 Revision ID: 20260925_01
-Revises: 20260917_01
+Revises: 20260921_01
 """
 
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 revision = "20260925_01"
-down_revision = "20260917_01"
+down_revision = "20260921_01"
 branch_labels = None
 depends_on = None
 
