@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
+import urllib.parse
 
 from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
 from app.adapters.curriculo_parser.curriculo_parser import CurriculoParser, FormatoNaoSuportadoError
@@ -381,10 +382,12 @@ def baixar_arquivo_curriculo(
     eh_pdf = nome_arquivo.lower().endswith(".pdf")
     media_type = "application/pdf" if eh_pdf else "application/octet-stream"
     disposicao = "inline" if eh_pdf else "attachment"
+    nome_arquivo_encoded = urllib.parse.quote(nome_arquivo)
+
     return Response(
         content=conteudo_arquivo,
         media_type=media_type,
-        headers={"Content-Disposition": f'{disposicao}; filename="{nome_arquivo}"'},
+        headers={"Content-Disposition": f"{disposicao}; filename*=utf-8''{nome_arquivo_encoded}"},
     )
 
 
