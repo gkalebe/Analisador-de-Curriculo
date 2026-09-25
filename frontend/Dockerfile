@@ -1,9 +1,10 @@
-FROM node:20-alpine AS build
+FROM node:22-slim AS build
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --include=dev --legacy-peer-deps --omit=optional --ignore-scripts --no-audit --no-fund
+RUN npm install --no-save --ignore-scripts --no-audit --no-fund @rolldown/binding-linux-arm64-gnu@1.2.9
 
 COPY . .
 RUN npm run build

@@ -20,6 +20,11 @@ class VagaCreateRequest(BaseModel):
         return valor_normalizado
 
 
+class VagaImportRequest(BaseModel):
+    email: EmailStr
+    url: str = Field(min_length=1, max_length=2048)
+
+
 class VagaResponse(BaseModel):
     id_vaga: uuid.UUID
     titulo: str | None

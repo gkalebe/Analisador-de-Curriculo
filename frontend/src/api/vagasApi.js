@@ -7,3 +7,7 @@ export function listarVagas(email) {
 export function criarVaga(formulario) {
   return requisitar("/api/vagas", { method: "POST", body: formulario });
 }
+
+export function importarVaga(email, url) {
+  return requisitar("/api/vagas/importar", { method: "POST", body: { email, url } });
+}

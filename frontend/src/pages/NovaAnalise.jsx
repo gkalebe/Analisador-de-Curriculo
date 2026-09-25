@@ -7,6 +7,7 @@ import { listarCurriculos } from "../api/curriculoApi.js";
 import { formatarDataUpload, formatarTamanhoArquivo, validarArquivoCurriculo } from "../models/curriculo.js";
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
+import ImportarVagaButton from "../components/ImportarVagaButton.jsx";
 
 export default function NovaAnalise() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -112,6 +113,12 @@ export default function NovaAnalise() {
     setArrastando(false);
     const file = evento.dataTransfer.files?.[0];
     if (file) selecionarArquivo(file);
+  }
+
+  function aoImportarVaga(vaga) {
+    setVagas((atuais) => [vaga, ...atuais]);
+    setIdVagaSelecionada(vaga.id_vaga);
+    setErro("");
   }
 
   async function aoEnviar(evento) {
@@ -511,9 +518,12 @@ export default function NovaAnalise() {
 
         {emailInicial && (
           <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-6">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
               <i className="ti ti-briefcase text-[28px] text-[#1e5e3f]"></i>
               <h2 className="font-brand text-[28px] text-black">1. Escolha a vaga</h2>
+              </div>
+              <ImportarVagaButton email={emailInicial} onImported={aoImportarVaga} disabled={!emailInicial} />
             </div>
 
             {vagas.length === 0 && (
