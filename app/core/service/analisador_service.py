@@ -9,7 +9,6 @@ from app.core.config import get_settings
 from app.core.persistencia.analise_repository import AnaliseRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
 from app.core.persistencia.models.analise import Analise
-from app.core.persistencia.models.candidato import Candidato
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
