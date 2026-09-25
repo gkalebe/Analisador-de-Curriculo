@@ -20,6 +20,7 @@ class Curriculo(Base):
 
     id_curriculo: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nome_arquivo: Mapped[str] = mapped_column(String(255), nullable=False)
+    nome_curriculo: Mapped[str | None] = mapped_column(String(255), nullable=True)
     data_upload: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     status_processamento: Mapped[str] = mapped_column(String(50), nullable=False, default="pendente")
     texto_extraido: Mapped[str | None] = mapped_column(Text, nullable=True)

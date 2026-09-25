@@ -75,11 +75,32 @@ class AnalisadorService:
         )
         self.curriculo_repository.criar(novo_curriculo)
 
+        dados_estruturados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
+        if dados_estruturados:
+            self.curriculo_repository.salvar_candidato(novo_curriculo.id_curriculo, dados_estruturados)
+
         return {
             "id_curriculo": str(novo_curriculo.id_curriculo),
             "nome_arquivo": nome_arquivo,
             "tamanho_texto_extraido": len(texto_extraido),
+            "dados": dados_estruturados,
         }
+
+    def criar_curriculo_manual(self, id_usuario: uuid.UUID, nome_curriculo: str, dados: dict) -> Curriculo:
+        nome_normalizado = (nome_curriculo or "").strip()
+        if not nome_normalizado:
+            raise ValueError("Informe um nome para o currículo.")
+
+        curriculo = Curriculo(
+            nome_arquivo=nome_normalizado,
+            nome_curriculo=nome_normalizado,
+            id_usuario=id_usuario,
+            status_processamento="concluido",
+            texto_extraido=dados.get("resumo") or "",
+        )
+        self.curriculo_repository.criar(curriculo)
+        self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados)
+        return curriculo
 
     def cadastrar_vaga(
         self,
@@ -193,18 +214,53 @@ class AnalisadorService:
     def listar_curriculos_usuario(self, id_usuario: uuid.UUID) -> list[Curriculo]:
         return self.curriculo_repository.listar_por_usuario(id_usuario)
 
+    def excluir_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> None:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+        self.curriculo_repository.excluir(curriculo)
+
     def obter_detalhes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict:
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
+        candidato = self.curriculo_repository.buscar_candidato(curriculo.id_curriculo)
+        dados = None
+        if candidato is not None:
+            dados = {
+                "nome": candidato.nome,
+                "email": candidato.email,
+                "telefone": candidato.telefone,
+                "resumo": candidato.resumo,
+                "formacao": candidato.formacao,
+                "experiencia_profissional": candidato.experiencia_profissional,
+                "habilidades": candidato.habilidades,
+            }
+
         return {
             "id_curriculo": curriculo.id_curriculo,
             "nome_arquivo": curriculo.nome_arquivo,
+            "nome_curriculo": curriculo.nome_curriculo,
             "data_upload": curriculo.data_upload,
             "status_processamento": curriculo.status_processamento,
             "texto_extraido": curriculo.texto_extraido,
+            "possui_arquivo": curriculo.conteudo_arquivo is not None,
+            "dados": dados,
         }
+
+    def atualizar_dados_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, dados: dict) -> dict:
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        payload = {chave: (valor if valor is not None else "") for chave, valor in (dados or {}).items()}
+        nome_curriculo = payload.pop("nome_curriculo", None)
+        if nome_curriculo is not None and nome_curriculo.strip():
+            curriculo.nome_curriculo = nome_curriculo.strip()
+            curriculo.nome_arquivo = curriculo.nome_arquivo if curriculo.conteudo_arquivo else nome_curriculo.strip()
+        self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, payload)
+        return self.obter_detalhes_curriculo(id_usuario, id_curriculo)
 
     def obter_arquivo_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> tuple[bytes, str]:
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)

@@ -498,7 +498,7 @@ export default function NovaAnalise() {
                     Testar outra vaga / currículo
                   </button>
                   <Link
-                    to={`/analises/editar?email=${encodeURIComponent(emailInicial)}&curriculo=${resultado.id_curriculo}`}
+                    to={`/analises/upload?email=${encodeURIComponent(emailInicial)}`}
                     className="flex-1 sm:flex-none text-center rounded-lg bg-[#1e5e3f] px-5 py-2 text-sm font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors"
                   >
                     Transformar em Template ATS

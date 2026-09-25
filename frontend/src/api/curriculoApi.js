@@ -11,8 +11,31 @@ export function listarCurriculos(email) {
   return requisitar("/analises/curriculos", { params: { email } });
 }
 
+export function criarCurriculoManual(email, dados) {
+  return requisitar("/analises/curriculos", {
+    method: "POST",
+    params: { email },
+    body: dados,
+  });
+}
+
 export function obterDetalhesCurriculo(idCurriculo, email) {
   return requisitar(`/analises/curriculos/${idCurriculo}`, { params: { email } });
+}
+
+export function atualizarCurriculo(idCurriculo, email, dados) {
+  return requisitar(`/analises/curriculos/${idCurriculo}`, {
+    method: "PUT",
+    params: { email },
+    body: dados,
+  });
+}
+
+export function excluirCurriculo(idCurriculo, email) {
+  return requisitar(`/analises/curriculos/${idCurriculo}`, {
+    method: "DELETE",
+    params: { email },
+  });
 }
 
 export function obterUrlDownloadCurriculo(idCurriculo, email) {
