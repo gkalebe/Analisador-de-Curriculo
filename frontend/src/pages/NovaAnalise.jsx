@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import { criarAnalise } from "../api/analiseApi.js";
 import { listarVagas } from "../api/vagasApi.js";
@@ -8,9 +8,11 @@ import { formatarDataUpload, formatarTamanhoArquivo, validarArquivoCurriculo } f
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
 import ImportarVagaButton from "../components/ImportarVagaButton.jsx";
+import { montarRotaGaleriaTemplates, prepararCurriculoParaTemplate } from "../models/templateAts.js";
 
 export default function NovaAnalise() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
@@ -26,6 +28,21 @@ export default function NovaAnalise() {
   const [avisoIndisponivel, setAvisoIndisponivel] = useState("");
   const [resultado, setResultado] = useState(null);
   const [copiadoIdx, setCopiadoIdx] = useState(null);
+  const [transformando, setTransformando] = useState(false);
+
+  // "Transformar em Template ATS": aplica as sugestões desta análise no currículo (IA) e
+  // leva para a galeria já com o currículo selecionado — antes o botão só abria a aba de
+  // upload e nenhuma reescrita acontecia.
+  async function transformarEmTemplateAts() {
+    if (!resultado?.id_curriculo || transformando) return;
+    setTransformando(true);
+    try {
+      const { versao, aviso } = await prepararCurriculoParaTemplate(resultado.id_curriculo, emailInicial);
+      navigate(montarRotaGaleriaTemplates(emailInicial, resultado.id_curriculo, versao, aviso));
+    } finally {
+      setTransformando(false);
+    }
+  }
 
   function copiarTexto(texto, idx) {
     if (!navigator.clipboard) return;
@@ -236,7 +253,7 @@ export default function NovaAnalise() {
                     Nova análise
                   </button>
                   <Link
-                    to={`/templates?email=${encodeURIComponent(emailInicial)}`}
+                    to={montarRotaGaleriaTemplates(emailInicial, resultado.id_curriculo, "original")}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-[#1e5e3f] px-3 py-2 text-xs font-semibold text-white hover:bg-[#174a32] transition-colors"
                   >
                     <i className="ti ti-template text-sm"></i>
@@ -504,12 +521,15 @@ export default function NovaAnalise() {
                   >
                     Testar outra vaga / currículo
                   </button>
-                  <Link
-                    to={`/analises/upload?email=${encodeURIComponent(emailInicial)}`}
-                    className="flex-1 sm:flex-none text-center rounded-lg bg-[#1e5e3f] px-5 py-2 text-sm font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors"
+                  <button
+                    type="button"
+                    onClick={transformarEmTemplateAts}
+                    disabled={transformando}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 text-center rounded-lg bg-[#1e5e3f] px-5 py-2 text-sm font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors disabled:opacity-60 disabled:cursor-wait"
                   >
-                    Transformar em Template ATS
-                  </Link>
+                    {transformando && <i className="ti ti-loader animate-spin"></i>}
+                    {transformando ? "Aplicando sugestões..." : "Transformar em Template ATS"}
+                  </button>
                 </div>
               </div>
             </div>

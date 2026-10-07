@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import AnelProgresso, { classificarAderencia } from "../components/AnelProgresso.jsx";
 import { listarAnalises } from "../api/analiseApi.js";
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
+import { montarRotaGaleriaTemplates, prepararCurriculoParaTemplate } from "../models/templateAts.js";
 
 function extrairDadosAts(observacoes) {
   if (!observacoes) return null;
@@ -41,6 +42,7 @@ function extrairDadosAts(observacoes) {
 
 export default function VisualizarAnalise() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
   const idAnalise = searchParams.get("id") || "";
 
@@ -48,6 +50,18 @@ export default function VisualizarAnalise() {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [transformando, setTransformando] = useState(false);
+
+  async function exportarCurriculoOtimizado() {
+    if (!analise?.id_curriculo || transformando) return;
+    setTransformando(true);
+    try {
+      const { versao, aviso } = await prepararCurriculoParaTemplate(analise.id_curriculo, emailInicial);
+      navigate(montarRotaGaleriaTemplates(emailInicial, analise.id_curriculo, versao, aviso));
+    } finally {
+      setTransformando(false);
+    }
+  }
 
   useEffect(() => {
     if (!emailInicial || !idAnalise) return;
@@ -266,13 +280,15 @@ export default function VisualizarAnalise() {
 
         {/* Ações finais */}
         <div className="flex flex-col sm:flex-row gap-3 pb-6">
-          <Link
-            to={`/templates?email=${encodeURIComponent(emailInicial)}`}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[#1e5e3f] px-5 py-3 font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors"
+          <button
+            type="button"
+            onClick={exportarCurriculoOtimizado}
+            disabled={transformando}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[#1e5e3f] px-5 py-3 font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors disabled:opacity-60 disabled:cursor-wait"
           >
-            <i className="ti ti-download"></i>
-            Exportar Currículo Otimizado
-          </Link>
+            <i className={`ti ${transformando ? "ti-loader animate-spin" : "ti-download"}`}></i>
+            {transformando ? "Aplicando sugestões..." : "Exportar Currículo Otimizado"}
+          </button>
           <button
             type="button"
             onClick={copiarReescritas}

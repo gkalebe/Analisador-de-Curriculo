@@ -6,17 +6,36 @@ import LimiteDeErro from "../components/LimiteDeErro.jsx";
 import { exportarCurriculo, listarTemplates } from "../api/templateApi.js";
 import { listarAnalises } from "../api/analiseApi.js";
 import { ApiError } from "../api/client.js";
+import { lerSessao } from "../models/usuario.js";
+
+/**
+ * Uma entrada por currículo (a análise mais recente de cada um). A lista vem de /analises,
+ * então o mesmo currículo analisado para duas vagas aparecia duas vezes — e, como o radio
+ * usa id_curriculo como value, os dois ficavam marcados ao mesmo tempo.
+ */
+function agruparPorCurriculo(analises) {
+  const porCurriculo = new Map();
+  for (const analise of analises) {
+    const existente = porCurriculo.get(analise.id_curriculo);
+    if (!existente || new Date(analise.data_analise) > new Date(existente.data_analise)) {
+      porCurriculo.set(analise.id_curriculo, analise);
+    }
+  }
+  return [...porCurriculo.values()];
+}
 
 export default function PreviewExportarCurriculo() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || "";
+  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
   const idTemplate = searchParams.get("template") || "";
+  const idCurriculoInicial = searchParams.get("curriculo") || "";
+  const versaoInicial = searchParams.get("versao") === "editada" ? "editada" : "original";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [templates, setTemplates] = useState([]);
   const [analises, setAnalises] = useState([]);
-  const [idCurriculoSelecionado, setIdCurriculoSelecionado] = useState("");
-  const [versaoSelecionada, setVersaoSelecionada] = useState("original");
+  const [idCurriculoSelecionado, setIdCurriculoSelecionado] = useState(idCurriculoInicial);
+  const [versaoSelecionada, setVersaoSelecionada] = useState(versaoInicial);
   const [blobPreview, setBlobPreview] = useState(null);
   const [mostrarPreview, setMostrarPreview] = useState(false);
   const [carregandoPreview, setCarregandoPreview] = useState(false);
@@ -29,13 +48,22 @@ export default function PreviewExportarCurriculo() {
       .then((resposta) => setTemplates(resposta.templates))
       .catch(() => {});
     listarAnalises(emailInicial)
-      .then((resposta) => setAnalises(resposta.analises))
+      .then((resposta) => {
+        const agrupadas = agruparPorCurriculo(resposta.analises || []);
+        setAnalises(agrupadas);
+        // Pré-seleção vinda do fluxo "Transformar em Template ATS": se o currículo já tem a
+        // versão reescrita salva, exporta a editada por padrão.
+        const preSelecionada = agrupadas.find((a) => a.id_curriculo === idCurriculoInicial);
+        if (preSelecionada) {
+          setVersaoSelecionada(preSelecionada.curriculo_possui_edicao ? versaoInicial : "original");
+        }
+      })
       .catch(() => {});
-  }, [emailInicial]);
+  }, [emailInicial, idCurriculoInicial, versaoInicial]);
 
   function entrarComEmail(evento) {
     evento.preventDefault();
-    setSearchParams({ email: emailCampo, template: idTemplate });
+    setSearchParams({ email: emailCampo, template: idTemplate, ...(idCurriculoInicial ? { curriculo: idCurriculoInicial } : {}) });
   }
 
   const templateEscolhido = templates.find((t) => t.id_template === idTemplate);
@@ -174,14 +202,16 @@ export default function PreviewExportarCurriculo() {
                         className="mt-1"
                       />
                       <div>
-                        <p className="font-medium">
-                          Análise de {new Date(analise.data_analise).toLocaleDateString("pt-BR")}
+                        <p className="font-medium">{analise.nome_curriculo || "Currículo"}</p>
+                        <p className="text-sm text-gray-500">
+                          Última análise em {new Date(analise.data_analise).toLocaleDateString("pt-BR")}
+                          {analise.titulo_vaga ? ` · ${analise.titulo_vaga}` : ""}
+                          {analise.pontuacao != null ? ` · Pontuação: ${Math.round(analise.pontuacao)}` : ""}
                         </p>
-                        {analise.pontuacao != null && (
-                          <p className="text-sm text-gray-500">Pontuação: {analise.pontuacao}</p>
-                        )}
                         {analise.curriculo_possui_edicao && (
-                          <p className="text-xs font-semibold text-[#1e5e3f]">Possui uma versão editada</p>
+                          <p className="text-xs font-semibold text-[#1e5e3f]">
+                            <i className="ti ti-sparkles mr-1"></i>Possui uma versão otimizada com as sugestões da análise
+                          </p>
                         )}
                       </div>
                     </label>
@@ -207,7 +237,7 @@ export default function PreviewExportarCurriculo() {
                           setBlobPreview(null);
                         }}
                       />
-                      Editada
+                      Otimizada (sugestões aplicadas)
                     </label>
                     <label className="flex items-center gap-1.5 text-sm cursor-pointer">
                       <input

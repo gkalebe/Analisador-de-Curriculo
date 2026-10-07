@@ -31,7 +31,6 @@ from app.core.service.analisador_service import (
     NenhumaSugestaoDisponivelError,
     VagaNaoEncontradaError,
 )
-from app.core.service.extracao_curriculo import SugestaoNaoAplicadaError
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     BibliotecaCurriculoItemResponse,
@@ -559,8 +558,10 @@ def aplicar_sugestoes_curriculo(
             detail="Não encontramos um usuário cadastrado com esse e-mail.",
         )
 
+    # Reescrita determinística a partir da análise salva: nenhuma chamada de IA aqui (ver
+    # reescrita_curriculo.py). O relatório diz o que foi e o que não foi aplicado.
     try:
-        analisador_service.aplicar_sugestoes_curriculo(usuario.id_usuario, id_curriculo)
+        _, relatorio = analisador_service.aplicar_sugestoes_curriculo(usuario.id_usuario, id_curriculo)
         dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
     except CurriculoNaoEncontradoError as erro:
         raise HTTPException(
@@ -572,14 +573,5 @@ def aplicar_sugestoes_curriculo(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ainda não há uma análise deste currículo com sugestões para aplicar.",
         ) from erro
-    except IAConfiguracaoAusenteError as erro:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
-    except IAIndisponivelError as erro:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
-    except SugestaoNaoAplicadaError as erro:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="A IA não conseguiu aplicar as sugestões. Tente novamente em instantes.",
-        ) from erro
 
-    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+    return CurriculoEdicaoResponse.model_validate({**dados_edicao, "relatorio_aplicacao": relatorio})
