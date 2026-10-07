@@ -18,6 +18,7 @@ class Candidato(Base):
     nome: Mapped[str] = mapped_column(String(150), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=True)
     telefone: Mapped[str] = mapped_column(String(30), nullable=True)
+    resumo: Mapped[str | None] = mapped_column(Text, nullable=True)
     formacao: Mapped[str] = mapped_column(Text, nullable=True)
     experiencia_profissional: Mapped[str] = mapped_column(Text, nullable=True)
     habilidades: Mapped[str] = mapped_column(Text, nullable=True)

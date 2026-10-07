@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import VisualizadorPdf from "../components/VisualizadorPdf.jsx";
 import LimiteDeErro from "../components/LimiteDeErro.jsx";
 import {
+  excluirCurriculo,
   enviarCurriculo,
   listarCurriculos,
   obterUrlDownloadCurriculo,
@@ -25,6 +26,7 @@ export default function UploadCurriculo() {
   const [arrastando, setArrastando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
   const [resultado, setResultado] = useState(null);
   const [curriculosSalvos, setCurriculosSalvos] = useState([]);
   const [curriculoSelecionado, setCurriculoSelecionado] = useState(null);
@@ -74,20 +76,36 @@ export default function UploadCurriculo() {
       setResultado(resposta);
       setArquivo(null);
       const listaAtualizada = await listarCurriculos(emailInicial);
-      setCurriculosSalvos(listaAtualizada.curriculos || []);
-    } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível enviar o currículo. Tente novamente.");
+      const curriculosAtualizados = listaAtualizada.curriculos || [];
+      setCurriculosSalvos(curriculosAtualizados);
     } finally {
       setEnviando(false);
     }
   }
 
+  async function excluirDaLista(curriculo) {
+    if (!window.confirm(`Excluir o currículo "${curriculo.nome_curriculo || curriculo.nome_arquivo}"?`)) return;
+    try {
+      setErro("");
+      await excluirCurriculo(curriculo.id_curriculo, emailInicial);
+      setCurriculosSalvos((atuais) => atuais.filter((item) => item.id_curriculo !== curriculo.id_curriculo));
+      if (curriculoSelecionado?.id_curriculo === curriculo.id_curriculo) fecharCurriculoOriginal();
+      setSucesso("Currículo excluído.");
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível excluir o currículo.");
+    }
+  }
+
   function abrirCurriculoOriginal(curriculo) {
+    setErro("");
+    setSucesso("");
     setCurriculoSelecionado(curriculo);
   }
 
   function fecharCurriculoOriginal() {
     setCurriculoSelecionado(null);
+    setErro("");
+    setSucesso("");
   }
 
   return (
@@ -119,7 +137,10 @@ export default function UploadCurriculo() {
         )}
 
         {erro && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{erro}</div>}
-        {resultado && (
+        {sucesso && (
+          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">{sucesso}</div>
+        )}
+        {resultado && !sucesso && (
           <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">
             Currículo <strong>{resultado.nome_arquivo}</strong> enviado e salvo com sucesso.
           </div>
@@ -169,13 +190,15 @@ export default function UploadCurriculo() {
                 )}
               </label>
 
-              <button
-                type="submit"
-                disabled={!arquivo || enviando}
-                className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-5 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60 transition-colors"
-              >
-                <i className="ti ti-send"></i> {enviando ? "Enviando e salvando..." : "Salvar currículo"}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={!arquivo || enviando}
+                  className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-5 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60 transition-colors"
+                >
+                  <i className="ti ti-send"></i> {enviando ? "Enviando e salvando..." : "Salvar currículo"}
+                </button>
+              </div>
             </form>
           </div>
         )}
@@ -230,6 +253,16 @@ export default function UploadCurriculo() {
                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-[#1e5e3f] bg-[#f0fdf4] hover:bg-[#e0f7ea] border border-[#1e5e3f]/30 rounded-md transition-colors"
                         >
                           <i className="ti ti-eye text-[16px]"></i> Abrir
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            excluirDaLista(curr);
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-md transition-colors"
+                        >
+                          <i className="ti ti-trash text-[16px]"></i> Excluir
                         </button>
                       </div>
                     </div>
