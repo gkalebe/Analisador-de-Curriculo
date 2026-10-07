@@ -240,16 +240,39 @@ class AIServiceAdapter:
             "acadêmica), 'experiencia_profissional' (experiências de trabalho) ou 'habilidades' "
             "(habilidades técnicas/comportamentais). Use EXATAMENTE um desses 4 valores no campo "
             "\"campo\" — nunca deixe em branco e nunca invente um valor fora dessa lista.\n"
-            "5. Em \"trecho_original\", copie o trecho EXATAMENTE como está no currículo (mesmas palavras, "
-            "mesma pontuação), sem parafrasear: esse texto será localizado automaticamente no currículo "
-            "para ser substituído pela versão otimizada. Prefira trechos que sejam uma frase ou um item "
-            "inteiro. Em \"o_que_retirar\", cite o item inteiro a remover (ex.: o nome da formação, da "
-            "habilidade ou o bullet completo), também copiado exatamente.\n"
-            "6. Em \"curriculo_estruturado\", estruture o currículo INTEIRO como foi enviado (sem aplicar "
-            "nenhuma sugestão ainda), preservando TODO o conteúdo: todas as experiências com todas as suas "
-            "responsabilidades em 'descricao_bullets', todas as formações, habilidades, idiomas, "
-            "certificações, e qualquer outra seção em 'secoes_adicionais' com o título original. NUNCA "
-            "resuma, corte ou invente. Campo sem informação: string vazia ou lista vazia.\n\n"
+            "5. Primeiro preencha \"curriculo_estruturado\": estruture o currículo INTEIRO como foi enviado "
+            "(sem aplicar nenhuma sugestão ainda), preservando TODO o conteúdo: todas as experiências com "
+            "todas as suas responsabilidades em 'descricao_bullets' (uma por item), todas as formações, "
+            "habilidades (uma por item), idiomas, certificações, e qualquer outra seção em "
+            "'secoes_adicionais' com o título original. NUNCA resuma, corte ou invente. Campo sem "
+            "informação: string vazia ou lista vazia.\n"
+            "6. As sugestões serão aplicadas AUTOMATICAMENTE, por busca de texto, em cima desse "
+            "\"curriculo_estruturado\" — não há revisão humana entre a sua resposta e a substituição. Por "
+            "isso, cada \"trecho_original\" deve ser a cópia IDÊNTICA (mesmas palavras, pontuação, "
+            "maiúsculas e acentos) de UM item que você mesmo escreveu em \"curriculo_estruturado\": um "
+            "bullet inteiro de 'descricao_bullets', uma frase inteira de 'resumo_profissional', um item "
+            "de 'habilidades_tecnicas' ou o 'curso' de uma formação. Nunca parafraseie, nunca junte dois "
+            "itens num trecho só, nunca cite um pedaço de palavra. Se o trecho não bater exatamente, a "
+            "sugestão é descartada.\n"
+            "7. \"sugestao_otimizada\" substitui o trecho inteiro no mesmo lugar: deve ser um texto "
+            "completo e autossuficiente, no mesmo formato do item (um bullet continua um bullet; se fizer "
+            "sentido dividir em dois bullets, separe-os com quebra de linha \\n).\n"
+            "8. Palavras-chave da vaga ausentes: quando o currículo JÁ SUSTENTA a competência (ex.: o "
+            "candidato descreve uso de containers e a vaga pede Docker; descreve testes automatizados e "
+            "a vaga pede TDD), crie uma sugestão de reescrita que incorpore o termo exato da vaga no "
+            "trecho correspondente — essa é a forma de a palavra-chave entrar no currículo. Palavras-chave "
+            "SEM nenhuma sustentação no currículo ficam apenas em 'ausentes' e NUNCA entram em uma "
+            "reescrita.\n"
+            "9. \"o_que_retirar\" só aceita ITENS INTEIROS a remover, copiados idênticos de "
+            "\"curriculo_estruturado\" (uma formação irrelevante, uma habilidade genérica, um bullet "
+            "redundante, uma certificação obsoleta). Se o problema é um termo vago ou clichê DENTRO de uma "
+            "frase ('proativo', 'dinâmico', 'responsável por'), NÃO o coloque em 'o_que_retirar': crie uma "
+            "sugestão de reescrita com a frase inteira como trecho original e a versão sem o termo.\n"
+            "10. Cobertura: gere entre 4 e 10 sugestões de reescrita, priorizando o resumo profissional e "
+            "os bullets de experiência mais fracos ou menos alinhados à vaga, uma sugestão por item. Se o "
+            "currículo for curto e não houver 4 trechos a melhorar, gere menos — nunca invente problemas.\n"
+            "11. \"o_que_reorganizar\" é orientação para o candidato ler (a ordem das seções no documento "
+            "final é fixa, no padrão ATS); seja breve. Mantenha \"motivo\" em 1 frase curta.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
             "{\n"
@@ -263,14 +286,14 @@ class AIServiceAdapter:
             '  "diagnostico_ats": {\n'
             '    "pontos_fortes": ["<ponto 1>", "<ponto 2>"],\n'
             '    "o_que_reorganizar": ["<orientação prática de destaque ou ordem>"],\n'
-            '    "o_que_retirar": ["<termos vagos, clichês ou elementos irrelevantes para cortar>"]\n'
+            '    "o_que_retirar": ["<item INTEIRO a remover, copiado idêntico de curriculo_estruturado>"]\n'
             "  },\n"
             '  "sugestoes_reescrita": [\n'
             "    {\n"
             '      "campo": "<resumo | formacao | experiencia_profissional | habilidades>",\n'
-            '      "trecho_original": "<trecho exato do currículo original que está genérico ou fraco>",\n'
-            '      "sugestao_otimizada": "<versão reescrita com verbos de ação e foco em ATS, SEM inventar fatos>",\n'
-            '      "motivo": "<por que essa versão melhora a pontuação em robôs ATS e recrutadores>"\n'
+            '      "trecho_original": "<cópia idêntica de UM item de curriculo_estruturado (bullet, frase do resumo, habilidade ou curso)>",\n'
+            '      "sugestao_otimizada": "<versão reescrita completa que substitui o item, com verbos de ação e termos da vaga que o currículo sustenta, SEM inventar fatos>",\n'
+            '      "motivo": "<1 frase: por que melhora em ATS/recrutadores>"\n'
             "    }\n"
             "  ],\n"
             f'  "curriculo_estruturado": {FORMATO_JSON_CURRICULO_ESTRUTURADO}\n'
