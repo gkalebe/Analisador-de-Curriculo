@@ -40,3 +40,7 @@ class AnaliseRepository:
             .order_by(Analise.data_analise.desc())
         )
         return self.db.execute(stmt).scalars().first()
+
+    def excluir(self, analise: Analise) -> None:
+        self.db.delete(analise)
+        self.db.commit()

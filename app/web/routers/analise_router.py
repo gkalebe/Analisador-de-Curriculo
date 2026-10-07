@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.analisador_service import (
     AnalisadorService,
+    AnaliseNaoEncontradaError,
     CurriculoArquivoNaoEncontradoError,
     CurriculoNaoEncontradoError,
     NenhumaSugestaoDisponivelError,
@@ -20,6 +21,8 @@ from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     CurriculoAtualizacaoRequest,
     CurriculoCriacaoManualRequest,
+    BibliotecaCurriculoItemResponse,
+    BibliotecaCurriculosResponse,
     CurriculoDetalhesResponse,
     CurriculoEdicaoEstruturadaRequest,
     CurriculoEdicaoResponse,
@@ -222,6 +225,31 @@ def listar_analises(
     return AnaliseListResponse(analises=[AnaliseResponse.model_validate(a) for a in analises])
 
 
+@router.delete("/{id_analise}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_analise(
+    id_analise: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> Response:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.excluir_analise(usuario.id_usuario, id_analise)
+    except AnaliseNaoEncontradaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Análise não encontrada para este usuário.",
+        ) from erro
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/curriculos", response_model=CurriculoListResponse)
 def listar_curriculos(
     email: str,
@@ -275,6 +303,56 @@ def criar_curriculo_manual(
     except ValueError as erro:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
     return CurriculoDetalhesResponse.model_validate(detalhes)
+
+
+# Declarada antes de /curriculos/{id_curriculo} de propósito: o FastAPI resolve as rotas na
+# ordem de registro, e "biblioteca" cairia no path param de UUID (422) se viesse depois.
+@router.get("/curriculos/biblioteca", response_model=BibliotecaCurriculosResponse)
+def listar_biblioteca_curriculos(
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> BibliotecaCurriculosResponse:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    itens = [
+        BibliotecaCurriculoItemResponse.model_validate(item)
+        for item in analisador_service.listar_biblioteca_curriculos(usuario.id_usuario)
+    ]
+    return BibliotecaCurriculosResponse(
+        enviados_por_mim=[item for item in itens if item.origem == "usuario"],
+        gerados_por_ia=[item for item in itens if item.origem == "ia"],
+    )
+
+
+@router.delete("/curriculos/{id_curriculo}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_curriculo(
+    id_curriculo: uuid.UUID,
+    email: str,
+    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> Response:
+    usuario = usuario_repository.buscar_por_email(email)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Não encontramos um usuário cadastrado com esse e-mail.",
+        )
+
+    try:
+        analisador_service.excluir_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/curriculos/{id_curriculo}", response_model=CurriculoDetalhesResponse)

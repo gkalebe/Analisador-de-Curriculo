@@ -6,7 +6,11 @@ from fastapi.testclient import TestClient
 
 from app.adapters.curriculo_parser.curriculo_parser import FormatoNaoSuportadoError
 from app.core.persistencia.models import Usuario
-from app.core.service.analisador_service import VagaNaoEncontradaError
+from app.core.service.analisador_service import (
+    AnaliseNaoEncontradaError,
+    CurriculoNaoEncontradoError,
+    VagaNaoEncontradaError,
+)
 from app.main import app
 from app.web.routers.analise_router import get_analisador_service, get_usuario_repository
 
@@ -31,6 +35,11 @@ class AnalisadorServiceFalso:
         self.analises_criadas: list[dict] = []
         self.analises_para_listar: list = []
         self.arquivo_curriculo: tuple[bytes, str] = (b"conteudo pdf", "curriculo.pdf")
+        self.deve_recusar_analise_nao_encontrada = False
+        self.analises_excluidas: list = []
+        self.biblioteca: list[dict] = []
+        self.curriculos_excluidos: list = []
+        self.deve_recusar_curriculo_nao_encontrado = False
 
     def processar_upload_curriculo(self, conteudo, nome_arquivo, extensao, id_usuario):
         if self.deve_recusar_formato:
@@ -68,6 +77,19 @@ class AnalisadorServiceFalso:
 
     def obter_arquivo_curriculo(self, id_usuario, id_curriculo):
         return self.arquivo_curriculo
+
+    def excluir_analise(self, id_usuario, id_analise):
+        if self.deve_recusar_analise_nao_encontrada:
+            raise AnaliseNaoEncontradaError
+        self.analises_excluidas.append(id_analise)
+
+    def listar_biblioteca_curriculos(self, id_usuario):
+        return self.biblioteca
+
+    def excluir_curriculo(self, id_usuario, id_curriculo):
+        if self.deve_recusar_curriculo_nao_encontrado:
+            raise CurriculoNaoEncontradoError
+        self.curriculos_excluidos.append(id_curriculo)
 
 
 def _usuario() -> Usuario:
@@ -310,3 +332,137 @@ def test_baixar_arquivo_curriculo_docx_retorna_content_disposition_attachment():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.headers["content-disposition"].startswith("attachment")
+
+
+def test_excluir_analise_com_sucesso_retorna_204():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    id_analise = uuid.uuid4()
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.delete(f"/analises/{id_analise}", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 204
+    assert service_falso.analises_excluidas == [id_analise]
+
+
+def test_excluir_analise_com_email_desconhecido_retorna_404():
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.delete(f"/analises/{uuid.uuid4()}", params={"email": "nao-cadastrado@example.com"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+
+def test_excluir_analise_inexistente_retorna_404():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_analise_nao_encontrada = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.delete(f"/analises/{uuid.uuid4()}", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+def test_listar_biblioteca_curriculos_agrupa_por_origem():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    agora = datetime.now(timezone.utc)
+    service_falso.biblioteca = [
+        {
+            "id_curriculo": uuid.uuid4(),
+            "nome_arquivo": "original.pdf",
+            "data_upload": agora,
+            "origem": "usuario",
+            "vaga_titulo": "Dev Python",
+            "possui_arquivo": True,
+            "ultima_atividade": agora,
+        },
+        {
+            "id_curriculo": uuid.uuid4(),
+            "nome_arquivo": "otimizado.pdf",
+            "data_upload": agora,
+            "origem": "ia",
+            "vaga_titulo": None,
+            "possui_arquivo": True,
+            "ultima_atividade": agora,
+        },
+    ]
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.get("/analises/curriculos/biblioteca", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    corpo = response.json()
+    assert [item["nome_arquivo"] for item in corpo["enviados_por_mim"]] == ["original.pdf"]
+    assert [item["nome_arquivo"] for item in corpo["gerados_por_ia"]] == ["otimizado.pdf"]
+    assert corpo["enviados_por_mim"][0]["vaga_titulo"] == "Dev Python"
+
+
+def test_listar_biblioteca_curriculos_vazia_retorna_listas_vazias():
+    usuario = _usuario()
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.get("/analises/curriculos/biblioteca", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json() == {"enviados_por_mim": [], "gerados_por_ia": []}
+
+
+def test_listar_biblioteca_curriculos_com_email_desconhecido_retorna_404():
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.get("/analises/curriculos/biblioteca", params={"email": "nao-cadastrado@example.com"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+
+def test_excluir_curriculo_com_sucesso_retorna_204():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    id_curriculo = uuid.uuid4()
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.delete(f"/analises/curriculos/{id_curriculo}", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 204
+    assert service_falso.curriculos_excluidos == [id_curriculo]
+
+
+def test_excluir_curriculo_com_email_desconhecido_retorna_404():
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    response = client.delete(
+        f"/analises/curriculos/{uuid.uuid4()}", params={"email": "nao-cadastrado@example.com"}
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+
+def test_excluir_curriculo_inexistente_retorna_404():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_curriculo_nao_encontrado = True
+    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.delete(f"/analises/curriculos/{uuid.uuid4()}", params={"email": usuario.email})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
