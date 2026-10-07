@@ -3,7 +3,10 @@ import io
 import docx
 import pytest
 
-from app.adapters.curriculo_exporter.curriculo_exporter import CurriculoExporter, TemplateNaoSuportadoError
+from app.adapters.curriculo_exporter.curriculo_exporter import (
+    CurriculoExporter,
+    TemplateNaoSuportadoError,
+)
 
 DADOS_ESTRUTURADOS = {
     "nome": "Ana Silva",

@@ -1,11 +1,26 @@
+import urllib.parse
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
-import urllib.parse
 
-from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
-from app.adapters.curriculo_parser.curriculo_parser import CurriculoParser, FormatoNaoSuportadoError
+from app.adapters.ai_service.ai_service_adapter import (
+    IAConfiguracaoAusenteError,
+    IAIndisponivelError,
+)
+from app.adapters.curriculo_parser.curriculo_parser import (
+    CurriculoParser,
+    FormatoNaoSuportadoError,
+)
 from app.core.database import get_db
 from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.analisador_service import (
@@ -19,10 +34,10 @@ from app.core.service.analisador_service import (
 from app.core.service.extracao_curriculo import SugestaoNaoAplicadaError
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
-    CurriculoAtualizacaoRequest,
-    CurriculoCriacaoManualRequest,
     BibliotecaCurriculoItemResponse,
     BibliotecaCurriculosResponse,
+    CurriculoAtualizacaoRequest,
+    CurriculoCriacaoManualRequest,
     CurriculoDetalhesResponse,
     CurriculoEdicaoEstruturadaRequest,
     CurriculoEdicaoResponse,
@@ -378,30 +393,6 @@ def obter_detalhes_curriculo(
         ) from erro
 
     return CurriculoDetalhesResponse.model_validate(detalhes)
-
-
-@router.delete("/curriculos/{id_curriculo}", status_code=status.HTTP_204_NO_CONTENT)
-def excluir_curriculo(
-    id_curriculo: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
-    analisador_service: AnalisadorService = Depends(get_analisador_service),
-) -> Response:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
-    try:
-        analisador_service.excluir_curriculo(usuario.id_usuario, id_curriculo)
-    except CurriculoNaoEncontradoError as erro:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Currículo não encontrado para este usuário.",
-        ) from erro
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/curriculos/{id_curriculo}", response_model=CurriculoDetalhesResponse)

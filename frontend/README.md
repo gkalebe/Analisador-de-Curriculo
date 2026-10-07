@@ -18,7 +18,7 @@ Para desenvolvimento com hot reload dentro do Docker, execute na raiz do projeto
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-O Vite observa `frontend/src/` e o Uvicorn observa `app/`. Para parar:
+O Vite observa `frontend/src/` e o Uvicorn observa `app/`. As dependências do frontend ficam em um volume Docker, evitando misturar módulos nativos do container com os do Windows, macOS ou Linux. A SPA ficará disponível em `http://127.0.0.1:4173`. Para parar:
 
 ```
 docker compose -f docker-compose.dev.yml down

@@ -1,6 +1,9 @@
 import pytest
 
-from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
+from app.adapters.ai_service.ai_service_adapter import (
+    IAConfiguracaoAusenteError,
+    IAIndisponivelError,
+)
 from app.adapters.ai_service.curriculo_estruturado_client import (
     GeradorCurriculoEstruturadoIA,
     IARespostaInvalidaError,

@@ -14,7 +14,10 @@ from app.core.service.simulador_service import (
     VagaNaoEncontradaError,
 )
 from app.main import app
-from app.web.routers.simulador_router import get_simulador_service, get_usuario_repository
+from app.web.routers.simulador_router import (
+    get_simulador_service,
+    get_usuario_repository,
+)
 
 client = TestClient(app)
 

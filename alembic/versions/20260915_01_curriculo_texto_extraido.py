@@ -4,9 +4,9 @@ Revision ID: 20260915_01
 Revises: 20260911_01
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "20260915_01"
 down_revision = "db04b235405e"

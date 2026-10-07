@@ -12,7 +12,10 @@ from app.core.service.analisador_service import (
     VagaNaoEncontradaError,
 )
 from app.main import app
-from app.web.routers.analise_router import get_analisador_service, get_usuario_repository
+from app.web.routers.analise_router import (
+    get_analisador_service,
+    get_usuario_repository,
+)
 
 client = TestClient(app)
 

@@ -2,7 +2,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
+from app.adapters.ai_service.ai_service_adapter import (
+    IAConfiguracaoAusenteError,
+    IAIndisponivelError,
+)
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.service.extracao_curriculo import (
     CAMPOS_CURRICULO,

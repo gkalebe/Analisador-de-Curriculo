@@ -12,7 +12,10 @@ from app.core.service.template_service import (
     VersaoExportacaoInvalidaError,
 )
 from app.main import app
-from app.web.routers.templates_router import get_template_service, get_usuario_repository
+from app.web.routers.templates_router import (
+    get_template_service,
+    get_usuario_repository,
+)
 
 client = TestClient(app)
 

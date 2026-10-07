@@ -1,7 +1,10 @@
 import pytest
 
 from app.adapters.ai_service.ai_service_adapter import IAIndisponivelError
-from app.core.service.curriculo_validador import CurriculoInvalidoError, ValidadorCurriculoEstruturado
+from app.core.service.curriculo_validador import (
+    CurriculoInvalidoError,
+    ValidadorCurriculoEstruturado,
+)
 
 DADOS_COMPLETOS = {
     "nome_completo": "Ana Beatriz Souza",

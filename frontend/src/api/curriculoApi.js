@@ -17,6 +17,8 @@ export function criarCurriculoManual(email, dados) {
     params: { email },
     body: dados,
   });
+}
+
 export function listarBibliotecaCurriculos(email) {
   return requisitar("/analises/curriculos/biblioteca", { params: { email } });
 }
@@ -76,4 +78,3 @@ export function aplicarSugestoesCurriculo(idCurriculo, email) {
     params: { email },
   });
 }
-

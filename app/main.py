@@ -5,6 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+import app.core.persistencia.models
+from app.core.config import get_settings
+from app.core.rate_limit import limiter
 from app.web.routers import (
     analise_router,
     auth_router,
@@ -15,10 +18,6 @@ from app.web.routers import (
     templates_router,
     vagas_router,
 )
-
-from app.core.config import get_settings
-from app.core.rate_limit import limiter
-import app.core.persistencia.models  # noqa: F401
 
 logging.basicConfig(level=logging.INFO)
 
