@@ -22,8 +22,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
-from app.adapters.ai_service.curriculo_estruturado_client import GeradorCurriculoEstruturadoIA
+from app.adapters.ai_service.ai_service_adapter import (
+    IAConfiguracaoAusenteError,
+    IAIndisponivelError,
+)
+from app.adapters.ai_service.curriculo_estruturado_client import (
+    GeradorCurriculoEstruturadoIA,
+)
 from app.adapters.ai_service.curriculo_schema import (
     ContatoCurriculo,
     DadosCurriculoEstruturado,
@@ -31,7 +36,9 @@ from app.adapters.ai_service.curriculo_schema import (
     FormacaoCurriculo,
     IdiomaCurriculo,
 )
-from app.adapters.curriculo_exporter.curriculo_template_exporter import ConversaoPdfError
+from app.adapters.curriculo_exporter.curriculo_template_exporter import (
+    ConversaoPdfError,
+)
 from app.core.service.curriculo_estruturado_service import CurriculoEstruturadoService
 
 # Currículo fictício "cru" — texto livre e desorganizado, como um usuário

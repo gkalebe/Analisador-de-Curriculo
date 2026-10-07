@@ -23,6 +23,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
       DATABASE_URL: postgresql+psycopg2://analisador:analisador@db:5432/analisador_curriculos
     env_file:
       - .env

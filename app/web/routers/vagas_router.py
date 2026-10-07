@@ -10,7 +10,12 @@ from app.core.service.analisador_service import (
     VagaDuplicadaError,
 )
 from app.core.service.importador_vaga_service import ImportacaoVagaError, importar_vaga
-from app.web.schemas_vaga import VagaCreateRequest, VagaImportRequest, VagaListResponse, VagaResponse
+from app.web.schemas_vaga import (
+    VagaCreateRequest,
+    VagaImportRequest,
+    VagaListResponse,
+    VagaResponse,
+)
 
 router = APIRouter(prefix="/api/vagas", tags=["Vagas"])
 

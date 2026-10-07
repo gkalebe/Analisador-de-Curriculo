@@ -19,7 +19,10 @@ import json
 
 from pydantic import BaseModel, ValidationError
 
-from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
+from app.adapters.ai_service.ai_service_adapter import (
+    IAConfiguracaoAusenteError,
+    IAIndisponivelError,
+)
 from app.adapters.ai_service.curriculo_schema import DadosCurriculoEstruturado
 from app.core.config import get_settings
 

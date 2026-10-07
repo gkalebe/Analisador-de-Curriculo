@@ -19,12 +19,18 @@ import logging
 
 from pydantic import ValidationError
 
-from app.adapters.ai_service.ai_service_adapter import IAConfiguracaoAusenteError, IAIndisponivelError
+from app.adapters.ai_service.ai_service_adapter import (
+    IAConfiguracaoAusenteError,
+    IAIndisponivelError,
+)
 from app.adapters.ai_service.curriculo_estruturado_client import (
     GeradorCurriculoEstruturadoIA,
     IARespostaInvalidaError,
 )
-from app.adapters.ai_service.curriculo_schema import CAMPOS_TEXTO_OBRIGATORIOS, DadosCurriculoEstruturado
+from app.adapters.ai_service.curriculo_schema import (
+    CAMPOS_TEXTO_OBRIGATORIOS,
+    DadosCurriculoEstruturado,
+)
 
 logger = logging.getLogger(__name__)
 

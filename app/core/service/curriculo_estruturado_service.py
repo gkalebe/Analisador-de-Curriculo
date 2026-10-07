@@ -11,7 +11,9 @@ a ponta (texto bruto do usuário → arquivo .docx/.pdf final).
 import uuid
 from pathlib import Path
 
-from app.adapters.ai_service.curriculo_estruturado_client import GeradorCurriculoEstruturadoIA
+from app.adapters.ai_service.curriculo_estruturado_client import (
+    GeradorCurriculoEstruturadoIA,
+)
 from app.adapters.ai_service.curriculo_schema import DadosCurriculoEstruturado
 from app.adapters.curriculo_exporter.curriculo_template_exporter import (
     TEMPLATES_DOCXTPL,

@@ -11,8 +11,8 @@ from app.core.service.auth_service import (
     AuthService,
     CredenciaisInvalidasError,
     EmailJaCadastradoError,
-    TokenRecuperacaoInvalidoError,
     TokenExclusaoInvalidoError,
+    TokenRecuperacaoInvalidoError,
     pwd_context,
 )
 

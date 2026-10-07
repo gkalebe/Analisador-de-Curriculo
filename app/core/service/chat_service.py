@@ -6,7 +6,9 @@ from app.adapters.ai_service.ai_service_adapter import AIServiceAdapter
 from app.core.persistencia.chat_repository import ChatRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
 from app.core.persistencia.models.mensagem_chat import MensagemChat
-from app.core.persistencia.pergunta_anonimizada_repository import PerguntaAnonimizadaRepository
+from app.core.persistencia.pergunta_anonimizada_repository import (
+    PerguntaAnonimizadaRepository,
+)
 from app.core.persistencia.vaga_repository import VagaRepository
 
 

@@ -5,14 +5,12 @@ Revises: 20260911_01
 Create Date: 2026-09-11 18:00:11.079124
 
 """
-from typing import Sequence, Union
-
-
+from collections.abc import Sequence
 
 revision: str = 'db04b235405e'
-down_revision: Union[str, None] = '20260911_01'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = '20260911_01'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

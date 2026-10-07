@@ -25,6 +25,7 @@ services:
       db:
         condition: service_healthy
     environment:
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
       DATABASE_URL: postgresql+psycopg2://analisador:analisador@db:5432/analisador_curriculos
       WATCHFILES_FORCE_POLLING: "true"
     env_file:
@@ -48,7 +49,9 @@ services:
       - "127.0.0.1:4173:5173"
     volumes:
       - ./frontend:/app
+      - frontend_node_modules_dev:/app/node_modules
 
 
 volumes:
   pgdata_dev:
+  frontend_node_modules_dev:

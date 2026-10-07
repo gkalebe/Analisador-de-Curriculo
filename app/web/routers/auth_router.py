@@ -1,24 +1,23 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.service.auth_service import (
+    FINALIDADE_ACESSO,
+    PRAZO_EXCLUSAO_HORAS,
     AuthService,
     CredenciaisInvalidasError,
     EmailJaCadastradoError,
-    TokenRecuperacaoInvalidoError,
     TokenExclusaoInvalidoError,
+    TokenRecuperacaoInvalidoError,
     UsuarioNaoEncontradoError,
-    FINALIDADE_ACESSO,
-    PRAZO_EXCLUSAO_HORAS,
 )
 from app.web.schemas_auth import (
     CadastrarUsuarioRequest,

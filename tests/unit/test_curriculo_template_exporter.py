@@ -3,7 +3,10 @@ import subprocess
 import docx
 import pytest
 
-from app.adapters.ai_service.curriculo_schema import DadosCurriculoEstruturado, ExperienciaCurriculo
+from app.adapters.ai_service.curriculo_schema import (
+    DadosCurriculoEstruturado,
+    ExperienciaCurriculo,
+)
 from app.adapters.curriculo_exporter.curriculo_template_exporter import (
     ConversaoPdfError,
     MontadorDocumentoCurriculo,

@@ -1,6 +1,8 @@
 import io
-import fitz
+
 import docx
+import fitz
+
 
 class FormatoNaoSuportadoError(Exception):
     pass
