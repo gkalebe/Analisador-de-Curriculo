@@ -41,6 +41,18 @@ class IdiomaCurriculo(BaseModel):
     nivel: str = ""
 
 
+class SecaoAdicionalCurriculo(BaseModel):
+    """Qualquer seção do currículo original que não se encaixe nos campos fixos
+    (projetos, voluntariado, publicações, prêmios, cursos livres, objetivo...).
+
+    Existe para o template ATS preservar as MESMAS seções do currículo enviado:
+    sem isso, tudo que não fosse experiência/formação/habilidade era descartado
+    na extração e simplesmente sumia do documento exportado."""
+
+    titulo: str = ""
+    itens: list[str] = Field(default_factory=list)
+
+
 class DadosCurriculoEstruturado(BaseModel):
     nome_completo: str = ""
     titulo_profissional: str = ""
@@ -51,6 +63,7 @@ class DadosCurriculoEstruturado(BaseModel):
     habilidades_tecnicas: list[str] = Field(default_factory=list)
     idiomas: list[IdiomaCurriculo] = Field(default_factory=list)
     certificacoes: list[str] = Field(default_factory=list)
+    secoes_adicionais: list[SecaoAdicionalCurriculo] = Field(default_factory=list)
 
 
 # Campos de texto simples tratados como obrigatórios pela Etapa 2: um

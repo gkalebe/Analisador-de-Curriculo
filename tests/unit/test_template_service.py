@@ -64,9 +64,11 @@ class CurriculoExporterFalso:
 
 
 RESPOSTA_IA_PADRAO = (
-    '{"nome": "Ana Silva", "email": "ana@email.com", "telefone": "", '
-    '"resumo": "Resumo.", "formacao": "Formação.", '
-    '"experiencia_profissional": "Experiência.", "habilidades": "Python"}'
+    '{"nome_completo": "Ana Silva", "contato": {"email": "ana@email.com"}, '
+    '"resumo_profissional": "Resumo.", "formacao": [{"curso": "Formação."}], '
+    '"experiencias": [{"cargo": "Experiência.", "descricao_bullets": ["Fez A"]}], '
+    '"habilidades_tecnicas": ["Python"], "idiomas": [{"idioma": "Inglês", "nivel": "C1"}], '
+    '"secoes_adicionais": [{"titulo": "Projetos", "itens": ["Projeto A"]}]}'
 )
 
 
@@ -115,7 +117,13 @@ def test_exportar_curriculo_com_sucesso_usa_dados_estruturados_da_ia():
     assert conteudo == b"conteudo-pdf"
     assert media_type == "application/pdf"
     assert "Ana Silva" in nome_arquivo
-    assert exporter.chamadas[0][1]["nome"] == "Ana Silva"
+    dados_exportados = exporter.chamadas[0][1]
+    assert dados_exportados["nome_completo"] == "Ana Silva"
+    # Nada do que a IA extraiu pode se perder a caminho do template.
+    assert dados_exportados["experiencias"][0]["descricao_bullets"] == ["Fez A"]
+    assert dados_exportados["idiomas"] == [{"idioma": "Inglês", "nivel": "C1"}]
+    assert dados_exportados["secoes_adicionais"] == [{"titulo": "Projetos", "itens": ["Projeto A"]}]
+    assert curriculo.dados_extraidos["nome_completo"] == "Ana Silva"
 
 
 def test_exportar_curriculo_formato_docx():
@@ -148,7 +156,7 @@ def test_exportar_curriculo_com_ia_indisponivel_usa_fallback_com_texto_bruto():
 
     assert conteudo == b"conteudo-pdf"
     dados_usados = exporter.chamadas[0][1]
-    assert dados_usados["nome"] == ""
+    assert dados_usados["nome_completo"] == ""
     assert dados_usados["texto_bruto"] == "texto bruto"
 
 
@@ -232,13 +240,10 @@ def test_exportar_curriculo_versao_editada_usa_dados_editados_sem_chamar_ia():
         nome_arquivo="curriculo.pdf",
         texto_extraido="texto bruto do currículo",
         dados_editados={
-            "nome": "Ana Silva Editada",
-            "email": "ana.editada@email.com",
-            "telefone": "",
-            "resumo": "Resumo revisado.",
-            "formacao": "",
-            "experiencia_profissional": "",
-            "habilidades": "Python",
+            "nome_completo": "Ana Silva Editada",
+            "contato": {"email": "ana.editada@email.com"},
+            "resumo_profissional": "Resumo revisado.",
+            "habilidades_tecnicas": ["Python"],
         },
     )
     exporter = CurriculoExporterFalso()
@@ -255,8 +260,8 @@ def test_exportar_curriculo_versao_editada_usa_dados_editados_sem_chamar_ia():
 
     assert conteudo == b"conteudo-pdf"
     assert "Ana Silva Editada" in nome_arquivo
-    assert exporter.chamadas[0][1]["nome"] == "Ana Silva Editada"
-    assert exporter.chamadas[0][1]["resumo"] == "Resumo revisado."
+    assert exporter.chamadas[0][1]["nome_completo"] == "Ana Silva Editada"
+    assert exporter.chamadas[0][1]["resumo_profissional"] == "Resumo revisado."
 
 
 def test_exportar_curriculo_versao_editada_sem_edicao_cai_para_original():
@@ -281,4 +286,26 @@ def test_exportar_curriculo_versao_editada_sem_edicao_cai_para_original():
 
     assert conteudo == b"conteudo-pdf"
     assert "Ana Silva" in nome_arquivo
-    assert exporter.chamadas[0][1]["nome"] == "Ana Silva"
+    assert exporter.chamadas[0][1]["nome_completo"] == "Ana Silva"
+
+
+def test_exportar_curriculo_versao_editada_no_formato_plano_antigo_e_convertida():
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=uuid.uuid4(),
+        id_usuario=id_usuario,
+        nome_arquivo="curriculo.pdf",
+        texto_extraido="texto bruto do currículo",
+        dados_editados={"nome": "Ana Antiga", "habilidades": "Python, SQL", "experiencia_profissional": "Dev — X"},
+    )
+    exporter = CurriculoExporterFalso()
+    service = _criar_service_com_fakes(curriculos=[curriculo], exporter=exporter)
+
+    service.exportar_curriculo(
+        id_usuario=id_usuario, id_curriculo=curriculo.id_curriculo, id_template="generico", formato="pdf", versao="editada"
+    )
+
+    dados_exportados = exporter.chamadas[0][1]
+    assert dados_exportados["nome_completo"] == "Ana Antiga"
+    assert dados_exportados["habilidades_tecnicas"] == ["Python", "SQL"]
+    assert dados_exportados["experiencias"][0]["cargo"] == "Dev — X"

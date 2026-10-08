@@ -24,7 +24,10 @@ class CurriculoCriacaoManualRequest(CurriculoDadosEstruturados):
 
 
 class CurriculoEdicaoEstruturadaRequest(CurriculoDadosEstruturados):
-    pass
+    # Aceita tanto os 7 campos planos (edição campo a campo) quanto o currículo estruturado
+    # completo (mesmo shape devolvido em CurriculoEdicaoResponse.dados) — o service decide
+    # pelo formato recebido.
+    model_config = {"extra": "allow"}
 
 
 class CurriculoEdicaoTextoLivreRequest(BaseModel):
@@ -85,7 +88,9 @@ class CurriculoEdicaoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
     id_curriculo: uuid.UUID
-    dados: dict[str, str] = {}
+    dados: dict = {}
     possui_edicao: bool = False
     editado_em: datetime | None = None
     sugestoes: dict | None = None
+    # Preenchido só pela rota de aplicar sugestões: o que foi/não foi aplicado na reescrita.
+    relatorio_aplicacao: dict | None = None

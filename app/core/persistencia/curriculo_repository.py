@@ -68,6 +68,12 @@ class CurriculoRepository:
         self.db.refresh(curriculo)
         return curriculo
 
+    def salvar_texto_extraido(self, curriculo: Curriculo, texto_extraido: str) -> Curriculo:
+        curriculo.texto_extraido = texto_extraido
+        self.db.commit()
+        self.db.refresh(curriculo)
+        return curriculo
+
     def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
         curriculo.dados_extraidos = dados_extraidos
         self.db.commit()

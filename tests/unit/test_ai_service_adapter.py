@@ -31,6 +31,26 @@ def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga():
     assert "Vaga para dev Python." in cliente_falso.prompts_recebidos[0]
 
 
+def test_comparar_curriculo_vaga_pede_curriculo_estruturado_e_trechos_literais_para_reescrita_sem_ia():
+    cliente = AIServiceClientFalso()
+    adapter = AIServiceAdapter(cliente=cliente)
+
+    adapter.comparar_curriculo_vaga("texto do currículo", "texto da vaga")
+
+    prompt = cliente.prompts_recebidos[0]
+    # Contrato com reescrita_curriculo.aplicar_sugestoes_sem_ia: o currículo estruturado vem na
+    # mesma resposta e os trechos/itens a remover são cópias idênticas de itens dele.
+    assert '"curriculo_estruturado"' in prompt
+    assert "secoes_adicionais" in prompt
+    assert "cópia IDÊNTICA" in prompt
+    assert "ITENS INTEIROS" in prompt
+    # Palavras-chave entram só via reescrita e só com sustentação no currículo.
+    assert "JÁ SUSTENTA" in prompt and "NUNCA entram em uma" in prompt
+    # Termo vago dentro de frase vira reescrita, não remoção.
+    assert "NÃO o coloque em 'o_que_retirar'" in prompt
+    assert "entre 4 e 10 sugestões" in prompt
+
+
 def test_analisar_curriculo_envia_prompt_com_curriculo():
     cliente_falso = AIServiceClientFalso()
     adapter = AIServiceAdapter(cliente=cliente_falso)
