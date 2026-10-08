@@ -28,12 +28,14 @@ Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicio
 - `POST /analises` (rodar uma análise) já está implementado de ponta a ponta — ver seção "Nova análise" abaixo. Devolve `503` se `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` não estiver configurada no `.env`.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.
-- Autenticação via JWT nos endpoints que exigem usuário logado além do login em si — hoje o token é gerado no login mas os demais endpoints ainda identificam o usuário por e-mail, não pelo token.
+- A maioria dos endpoints de currículo, vagas e análise ainda identifica o usuário por e-mail; perfil da conta e exclusão de conta já exigem JWT.
 
 ## US-001/US-002 — Cadastro e login (concluídas)
 
 - `POST /usuarios`: cadastra o usuário e responde `201`, ou `409` se o e-mail já existir. O e-mail de confirmação é enviado em background (`BackgroundTasks`), não bloqueia a resposta.
 - `POST /usuarios/login`: responde `200` com token JWT e dados do usuário, ou `401` genérico para credenciais inválidas (não revela se o e-mail existe).
+- `GET /usuarios/me`: exige `Authorization: Bearer <token>` e retorna nome, e-mail e preferência de notificações do usuário autenticado.
+- `PATCH /usuarios/me`: exige JWT e atualiza o nome e a preferência de notificações por e-mail na tabela `usuario`.
 - Consumidas pelas telas `frontend/src/pages/Cadastro.jsx` e `Login.jsx` (componente compartilhado `AuthCard.jsx`).
 
 ## US-003 — Recuperar senha via e-mail (concluída)

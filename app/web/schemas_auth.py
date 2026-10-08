@@ -72,6 +72,27 @@ class LoginResponse(BaseModel):
     usuario: UsuarioResponse
 
 
+class PerfilUsuarioResponse(BaseModel):
+    id_usuario: uuid.UUID
+    nome: str
+    email: str
+    notificacoes_por_email: bool
+
+    model_config = {"from_attributes": True}
+
+
+class AtualizarPerfilUsuarioRequest(BaseModel):
+    nome: str = Field(min_length=1, max_length=150)
+    notificacoes_por_email: bool
+
+    @field_validator("nome")
+    @classmethod
+    def validar_nome(cls, valor: str) -> str:
+        if not valor.strip():
+            raise ValueError("Nome não pode ser vazio.")
+        return valor.strip()
+
+
 class MensagemResponse(BaseModel):
     mensagem: str
 

@@ -1,4 +1,5 @@
 import { requisitar } from "./client";
+import { lerSessao } from "../models/usuario.js";
 
 export function cadastrarUsuario({ nome, data_nascimento, email, senha }) {
   return requisitar("/usuarios", {
@@ -25,5 +26,46 @@ export function redefinirSenha({ token, nova_senha }) {
   return requisitar("/usuarios/redefinir-senha", {
     method: "POST",
     body: { token, nova_senha },
+  });
+}
+
+export function obterPerfilUsuario() {
+  return requisitar("/usuarios/me", {
+    token: lerSessao()?.accessToken,
+  });
+}
+
+export function atualizarPerfilUsuario({ nome, notificacoes_por_email }) {
+  return requisitar("/usuarios/me", {
+    method: "PATCH",
+    body: { nome, notificacoes_por_email },
+    token: lerSessao()?.accessToken,
+  });
+}
+
+export function obterStatusExclusaoConta() {
+  return requisitar("/usuarios/exclusao", {
+    token: lerSessao()?.accessToken,
+  });
+}
+
+export function solicitarExclusaoConta() {
+  return requisitar("/usuarios/exclusao", {
+    method: "POST",
+    token: lerSessao()?.accessToken,
+  });
+}
+
+export function cancelarExclusaoConta() {
+  return requisitar("/usuarios/exclusao/cancelar", {
+    method: "POST",
+    token: lerSessao()?.accessToken,
+  });
+}
+
+export function confirmarExclusaoConta() {
+  return requisitar("/usuarios/exclusao/confirmar", {
+    method: "POST",
+    token: lerSessao()?.accessToken,
   });
 }

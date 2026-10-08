@@ -16,7 +16,7 @@ export class ApiError extends Error {
  * Wrapper único de fetch usado por toda a camada de API — trata JSON de entrada/saída
  * e transforma respostas de erro em ApiError, para os componentes não lidarem com fetch cru.
  */
-export async function requisitar(caminho, { method = "GET", body, params } = {}) {
+export async function requisitar(caminho, { method = "GET", body, params, token } = {}) {
   const url = new URL(caminho, API_URL);
   if (params) {
     Object.entries(params).forEach(([chave, valor]) => {
@@ -26,9 +26,13 @@ export async function requisitar(caminho, { method = "GET", body, params } = {})
     });
   }
 
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const resposta = await fetch(url, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
 

@@ -52,4 +52,5 @@ export function limparSessao() {
   localStorage.removeItem(CHAVES_SESSAO.token);
   localStorage.removeItem(CHAVES_SESSAO.nome);
   localStorage.removeItem(CHAVES_SESSAO.email);
+  localStorage.removeItem("usuario_notificacoes_email");
 }
