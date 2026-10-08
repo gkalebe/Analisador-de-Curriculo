@@ -41,7 +41,7 @@ function extrairDadosAts(observacoes) {
 
 export default function VisualizarAnalise() {
   const [searchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
   const idAnalise = searchParams.get("id") || "";
 
   const [analise, setAnalise] = useState(null);

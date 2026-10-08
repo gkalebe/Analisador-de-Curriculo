@@ -21,7 +21,7 @@ const DIMENSOES = [
 
 export default function SimulacaoEntrevista() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
   const idVagaParam = searchParams.get("vaga") || "";
   const idSimulacaoParam = searchParams.get("simulacao") || "";
 

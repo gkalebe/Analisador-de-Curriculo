@@ -11,7 +11,8 @@ from app.core.service.analisador_service import (
     VagaDuplicadaError,
 )
 from app.main import app
-from app.web.routers.vagas_router import get_analisador_service, get_usuario_repository
+from app.web.dependencies import get_usuario_atual
+from app.web.routers.vagas_router import get_analisador_service
 
 client = TestClient(app)
 
@@ -66,20 +67,19 @@ def _usuario() -> Usuario:
 
 
 def test_listar_vagas_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.get("/api/vagas", params={"email": "nao-cadastrado@example.com"})
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_listar_vagas_com_email_conhecido_retorna_lista():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.cadastrar_vaga(usuario.id_usuario, "Vaga para dev Python pleno.")
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.get("/api/vagas", params={"email": usuario.email})
@@ -93,7 +93,7 @@ def test_listar_vagas_com_email_conhecido_retorna_lista():
 
 def test_criar_vaga_com_sucesso():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.post(
@@ -115,7 +115,6 @@ def test_criar_vaga_com_sucesso():
 
 
 def test_criar_vaga_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.post(
@@ -124,12 +123,12 @@ def test_criar_vaga_com_email_desconhecido_retorna_404():
     )
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_criar_vaga_com_descricao_vazia_retorna_422():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.post(
@@ -145,7 +144,7 @@ def test_criar_vaga_com_descricao_longa_retorna_400():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_longa = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.post(
@@ -162,7 +161,7 @@ def test_criar_vaga_com_descricao_duplicada_retorna_409():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_duplicada = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.post(

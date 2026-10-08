@@ -6,10 +6,11 @@ import LimiteDeErro from "../components/LimiteDeErro.jsx";
 import { exportarCurriculo, listarTemplates } from "../api/templateApi.js";
 import { listarAnalises } from "../api/analiseApi.js";
 import { ApiError } from "../api/client.js";
+import { lerSessao } from "../models/usuario.js";
 
 export default function PreviewExportarCurriculo() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
   const idTemplate = searchParams.get("template") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);

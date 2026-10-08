@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class VagaCreateRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr | None = None
     titulo: str = Field(default="", max_length=200)
     descricao: str = Field(min_length=1)
     requisitos: str = Field(default="", max_length=5000)
@@ -21,7 +21,7 @@ class VagaCreateRequest(BaseModel):
 
 
 class VagaImportRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr | None = None
     url: str = Field(min_length=1, max_length=2048)
 
 

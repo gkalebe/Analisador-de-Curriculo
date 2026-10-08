@@ -4,10 +4,10 @@ import Sidebar from "../components/Sidebar.jsx";
 import VisualizadorPdf from "../components/VisualizadorPdf.jsx";
 import LimiteDeErro from "../components/LimiteDeErro.jsx";
 import {
+  baixarArquivoCurriculo,
   excluirCurriculo,
   enviarCurriculo,
   listarCurriculos,
-  obterUrlDownloadCurriculo,
 } from "../api/curriculoApi.js";
 import {
   formatarDataUpload,
@@ -19,7 +19,7 @@ import { ApiError } from "../api/client.js";
 
 export default function UploadCurriculo() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [arquivo, setArquivo] = useState(null);
@@ -106,6 +106,24 @@ export default function UploadCurriculo() {
     setCurriculoSelecionado(null);
     setErro("");
     setSucesso("");
+  }
+
+  async function baixarCurriculoSelecionado() {
+    if (!curriculoSelecionado) return;
+    try {
+      const { blob, nomeArquivo } = await baixarArquivoCurriculo(
+        curriculoSelecionado.id_curriculo,
+        emailInicial,
+      );
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = nomeArquivo || curriculoSelecionado.nome_arquivo;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível baixar este currículo.");
+    }
   }
 
   return (
@@ -331,15 +349,13 @@ export default function UploadCurriculo() {
 
               {/* Rodapé com Ações */}
               <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4 bg-gray-50">
-                <a
-                  href={obterUrlDownloadCurriculo(curriculoSelecionado.id_curriculo, emailInicial)}
-                  target="_blank"
-                  rel="noreferrer"
-                  download={curriculoSelecionado.nome_arquivo}
+                <button
+                  type="button"
+                  onClick={baixarCurriculoSelecionado}
                   className="flex items-center gap-2 rounded-md border border-[#1e5e3f] bg-white px-4 py-2 text-sm font-semibold text-[#1e5e3f] hover:bg-[#f0fdf4] transition-colors"
                 >
                   <i className="ti ti-download"></i> Baixar arquivo original
-                </a>
+                </button>
                 <button
                   type="button"
                   onClick={fecharCurriculoOriginal}

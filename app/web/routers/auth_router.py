@@ -2,15 +2,11 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.service.auth_service import (
-    FINALIDADE_ACESSO,
     PRAZO_EXCLUSAO_HORAS,
     AuthService,
     CredenciaisInvalidasError,
@@ -19,6 +15,7 @@ from app.core.service.auth_service import (
     TokenRecuperacaoInvalidoError,
     UsuarioNaoEncontradoError,
 )
+from app.web.dependencies import get_usuario_autenticado
 from app.web.schemas_auth import (
     AtualizarPerfilUsuarioRequest,
     CadastrarUsuarioRequest,
@@ -37,26 +34,10 @@ router = APIRouter(prefix="/usuarios", tags=["Autenticação"])
 MENSAGEM_RECUPERACAO_SENHA = (
     "Se o e-mail informado estiver cadastrado, enviaremos instruções de recuperação de senha."
 )
-bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     return AuthService(db)
-
-
-def get_usuario_autenticado(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> uuid.UUID:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Autenticação necessária.")
-
-    try:
-        payload = jwt.decode(credentials.credentials, get_settings().secret_key, algorithms=["HS256"])
-        if payload.get("finalidade") != FINALIDADE_ACESSO:
-            raise JWTError
-        return uuid.UUID(payload["sub"])
-    except (JWTError, KeyError, ValueError) as erro:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido ou expirado.") from erro
 
 
 @router.post("", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)

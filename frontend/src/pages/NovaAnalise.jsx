@@ -11,7 +11,7 @@ import ImportarVagaButton from "../components/ImportarVagaButton.jsx";
 
 export default function NovaAnalise() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [vagas, setVagas] = useState([]);

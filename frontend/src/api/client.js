@@ -1,3 +1,5 @@
+import { lerSessao } from "../models/usuario.js";
+
 const urlOriginal = import.meta.env.VITE_API_URL || "http://localhost:8000";
 export const API_URL =
   urlOriginal && !urlOriginal.startsWith("http://") && !urlOriginal.startsWith("https://")
@@ -28,7 +30,8 @@ export async function requisitar(caminho, { method = "GET", body, params, token 
 
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const tokenSessao = token || lerSessao()?.accessToken;
+  if (tokenSessao) headers.Authorization = `Bearer ${tokenSessao}`;
 
   const resposta = await fetch(url, {
     method,
@@ -51,7 +54,12 @@ export async function requisitar(caminho, { method = "GET", body, params, token 
  */
 export async function requisitarComArquivo(caminho, formData) {
   const url = new URL(caminho, API_URL);
-  const resposta = await fetch(url, { method: "POST", body: formData });
+  const token = lerSessao()?.accessToken;
+  const resposta = await fetch(url, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
 
   const corpo = resposta.status === 204 ? null : await resposta.json().catch(() => null);
 
@@ -76,7 +84,10 @@ export async function requisitarArquivo(caminho, { params } = {}) {
     });
   }
 
-  const resposta = await fetch(url);
+  const token = lerSessao()?.accessToken;
+  const resposta = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
 
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => null);
