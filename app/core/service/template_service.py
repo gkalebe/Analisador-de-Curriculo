@@ -7,7 +7,7 @@ from app.adapters.curriculo_exporter.curriculo_exporter import CurriculoExporter
 from app.core.persistencia.analise_repository import AnaliseRepository
 from app.core.persistencia.curriculo_repository import CurriculoRepository
 from app.core.service.extracao_curriculo import (
-    normalizar_dados_editados,
+    normalizar_dados_curriculo,
     obter_dados_curriculo_com_cache,
 )
 
@@ -163,7 +163,7 @@ class TemplateService:
         # sua vez reaproveita a extração já em cache (dados_extraidos) em vez de chamar a IA de
         # novo a cada exportação — ver obter_dados_curriculo_com_cache.
         if versao == "editada" and curriculo.dados_editados:
-            dados = normalizar_dados_editados(curriculo.dados_editados, curriculo.texto_extraido or "")
+            dados = normalizar_dados_curriculo(curriculo.dados_editados, curriculo.texto_extraido or "")
         else:
             dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
 
@@ -174,6 +174,6 @@ class TemplateService:
             conteudo = self.curriculo_exporter.gerar_docx(dados, id_template)
             media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-        nome_base = (dados.get("nome") or curriculo.nome_arquivo.rsplit(".", 1)[0] or "curriculo").strip()
+        nome_base = (dados.get("nome_completo") or curriculo.nome_arquivo.rsplit(".", 1)[0] or "curriculo").strip()
         nome_arquivo = f"{nome_base} - {TEMPLATES_POR_ID[id_template]['nome']}.{formato}"
         return conteudo, nome_arquivo, media_type

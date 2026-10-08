@@ -1,3 +1,5 @@
+import { lerSessao } from "../models/usuario.js";
+
 const urlOriginal = import.meta.env.VITE_API_URL || "http://localhost:8000";
 export const API_URL =
   urlOriginal && !urlOriginal.startsWith("http://") && !urlOriginal.startsWith("https://")
@@ -16,7 +18,7 @@ export class ApiError extends Error {
  * Wrapper único de fetch usado por toda a camada de API — trata JSON de entrada/saída
  * e transforma respostas de erro em ApiError, para os componentes não lidarem com fetch cru.
  */
-export async function requisitar(caminho, { method = "GET", body, params } = {}) {
+export async function requisitar(caminho, { method = "GET", body, params, token } = {}) {
   const url = new URL(caminho, API_URL);
   if (params) {
     Object.entries(params).forEach(([chave, valor]) => {
@@ -26,9 +28,14 @@ export async function requisitar(caminho, { method = "GET", body, params } = {})
     });
   }
 
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  const tokenSessao = token || lerSessao()?.accessToken;
+  if (tokenSessao) headers.Authorization = `Bearer ${tokenSessao}`;
+
   const resposta = await fetch(url, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -47,7 +54,12 @@ export async function requisitar(caminho, { method = "GET", body, params } = {})
  */
 export async function requisitarComArquivo(caminho, formData) {
   const url = new URL(caminho, API_URL);
-  const resposta = await fetch(url, { method: "POST", body: formData });
+  const token = lerSessao()?.accessToken;
+  const resposta = await fetch(url, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  });
 
   const corpo = resposta.status === 204 ? null : await resposta.json().catch(() => null);
 
@@ -72,7 +84,10 @@ export async function requisitarArquivo(caminho, { params } = {}) {
     });
   }
 
-  const resposta = await fetch(url);
+  const token = lerSessao()?.accessToken;
+  const resposta = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
 
   if (!resposta.ok) {
     const corpo = await resposta.json().catch(() => null);

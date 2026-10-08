@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.adapters.ai_service.ai_service_adapter import IAIndisponivelError
 from app.core.persistencia.models.analise import Analise
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
@@ -66,6 +65,19 @@ class CurriculoRepositorioFalso:
     def salvar_dados_extraidos(self, curriculo: Curriculo, dados_extraidos: dict) -> Curriculo:
         curriculo.dados_extraidos = dados_extraidos
         return curriculo
+
+    def salvar_texto_extraido(self, curriculo: Curriculo, texto_extraido: str) -> Curriculo:
+        curriculo.texto_extraido = texto_extraido
+        return curriculo
+
+    def buscar_candidato(self, id_curriculo: uuid.UUID):
+        return getattr(self, "candidatos", {}).get(id_curriculo)
+
+    def salvar_candidato(self, id_curriculo: uuid.UUID, dados: dict):
+        if not hasattr(self, "candidatos"):
+            self.candidatos = {}
+        self.candidatos[id_curriculo] = dict(dados)
+        return self.candidatos[id_curriculo]
 
 
 class AnaliseRepositorioFalso:
@@ -354,6 +366,83 @@ def test_analisar_curriculo_salvo_para_vaga_com_sucesso():
     assert analise.pontuacao == 90.0
 
 
+RESPOSTA_ANALISE_COM_CURRICULO_ESTRUTURADO = json.dumps(
+    {
+        "pontuacao": 80,
+        "resumo": "Boa aderência.",
+        "palavras_chave": {"correspondentes": ["Python"], "ausentes": ["Docker"]},
+        "diagnostico_ats": {"pontos_fortes": [], "o_que_reorganizar": [], "o_que_retirar": []},
+        "sugestoes_reescrita": [],
+        "curriculo_estruturado": {
+            "nome_completo": "Ana Silva",
+            "experiencias": [{"cargo": "Dev", "empresa": "X", "descricao_bullets": ["Fez A", "Fez B"]}],
+            "idiomas": [{"idioma": "Inglês", "nivel": "C1"}],
+            "secoes_adicionais": [{"titulo": "Projetos", "itens": ["Projeto A"]}],
+        },
+    }
+)
+
+
+def test_analisar_curriculo_novo_salva_curriculo_estruturado_devolvido_pela_analise():
+    service = _criar_service_completo_com_fakes()
+    service.ai_service_adapter = AIServiceAdapterFalso(resposta=RESPOSTA_ANALISE_COM_CURRICULO_ESTRUTURADO)
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+
+    analise = service.analisar_curriculo_para_vaga(
+        id_usuario=id_usuario, id_vaga=vaga.id_vaga, conteudo=b"texto do cv", nome_arquivo="cv.pdf", extensao="pdf"
+    )
+
+    curriculo = service.curriculo_repository.buscar_por_id(analise.id_curriculo)
+    assert curriculo.dados_extraidos["nome_completo"] == "Ana Silva"
+    assert curriculo.dados_extraidos["experiencias"][0]["descricao_bullets"] == ["Fez A", "Fez B"]
+    assert curriculo.dados_extraidos["secoes_adicionais"][0]["titulo"] == "Projetos"
+    assert service.curriculo_repository.candidatos[curriculo.id_curriculo]["nome"] == "Ana Silva"
+    # O currículo estruturado fica em dados_extraidos, não inflando as observações da análise.
+    assert "curriculo_estruturado" not in json.loads(analise.observacoes)
+    assert json.loads(analise.observacoes)["palavras_chave"]["ausentes"] == ["Docker"]
+
+
+def test_analisar_curriculo_salvo_nao_sobrescreve_extracao_em_cache():
+    service = _criar_service_completo_com_fakes()
+    service.ai_service_adapter = AIServiceAdapterFalso(resposta=RESPOSTA_ANALISE_COM_CURRICULO_ESTRUTURADO)
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="texto",
+        dados_extraidos={"nome_completo": "Ana Cacheada"},
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    service.analisar_curriculo_salvo_para_vaga(id_usuario=id_usuario, id_vaga=vaga.id_vaga, id_curriculo=curriculo.id_curriculo)
+
+    assert curriculo.dados_extraidos == {"nome_completo": "Ana Cacheada"}
+
+
+def test_analisar_curriculo_salvo_sem_texto_extraido_reextrai_do_arquivo_e_persiste():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+    curriculo = Curriculo(
+        nome_arquivo="curriculo_salvo.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido=None,
+        conteudo_arquivo=b"Texto que estava so no arquivo",
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    analise = service.analisar_curriculo_salvo_para_vaga(
+        id_usuario=id_usuario, id_vaga=vaga.id_vaga, id_curriculo=curriculo.id_curriculo
+    )
+
+    assert analise.id_curriculo == curriculo.id_curriculo
+    assert curriculo.texto_extraido == "Texto que estava so no arquivo"
+
+
 def test_analisar_curriculo_salvo_curriculo_inexistente_lanca_erro():
     service = _criar_service_completo_com_fakes()
     id_usuario = uuid.uuid4()
@@ -435,7 +524,7 @@ def test_obter_dados_edicao_curriculo_sem_edicao_extrai_via_ia():
     resultado = service.obter_dados_edicao_curriculo(id_usuario, curriculo.id_curriculo)
 
     assert resultado["possui_edicao"] is False
-    assert resultado["dados"]["nome"] == "Ana Silva"
+    assert resultado["dados"]["nome_completo"] == "Ana Silva"
     assert resultado["sugestoes"] is None
 
 
@@ -448,7 +537,7 @@ def test_obter_dados_edicao_curriculo_com_edicao_usa_dados_salvos_e_sugestoes():
         id_usuario=id_usuario,
         status_processamento="concluido",
         texto_extraido="texto bruto",
-        dados_editados={"nome": "Ana Editada"},
+        dados_editados={"nome_completo": "Ana Editada"},
     )
     service.curriculo_repository.criar(curriculo)
 
@@ -482,7 +571,7 @@ def test_obter_dados_edicao_curriculo_com_edicao_usa_dados_salvos_e_sugestoes():
     resultado = service.obter_dados_edicao_curriculo(id_usuario, curriculo.id_curriculo)
 
     assert resultado["possui_edicao"] is True
-    assert resultado["dados"]["nome"] == "Ana Editada"
+    assert resultado["dados"]["nome_completo"] == "Ana Editada"
     assert resultado["sugestoes"]["palavras_chave_faltantes"] == ["Docker"]
     assert resultado["sugestoes"]["diagnostico_ats"]["a_reorganizar"] == ["Mover resumo para o topo"]
     assert resultado["sugestoes"]["diagnostico_ats"]["a_remover"] == ["Clichês"]
@@ -514,10 +603,10 @@ def test_obter_dados_edicao_curriculo_reaproveita_extracao_em_cache_sem_chamar_i
     primeiro = service.obter_dados_edicao_curriculo(id_usuario, curriculo.id_curriculo)
     segundo = service.obter_dados_edicao_curriculo(id_usuario, curriculo.id_curriculo)
 
-    assert primeiro["dados"]["nome"] == "Ana Silva"
-    assert segundo["dados"]["nome"] == "Ana Silva"
+    assert primeiro["dados"]["nome_completo"] == "Ana Silva"
+    assert segundo["dados"]["nome_completo"] == "Ana Silva"
     assert len(chamadas) == 1
-    assert curriculo.dados_extraidos["nome"] == "Ana Silva"
+    assert curriculo.dados_extraidos["nome_completo"] == "Ana Silva"
 
 
 def _preparar_curriculo_com_sugestoes(service, id_usuario: uuid.UUID, dados_editados: dict | None = None) -> Curriculo:
@@ -547,24 +636,68 @@ def _preparar_curriculo_com_sugestoes(service, id_usuario: uuid.UUID, dados_edit
     return curriculo
 
 
-def test_aplicar_sugestoes_curriculo_salva_como_edicao():
+def test_aplicar_sugestoes_curriculo_reescreve_sem_ia_e_salva_como_edicao():
     service = _criar_service_completo_com_fakes()
     id_usuario = uuid.uuid4()
     curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
-    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: (
-        '{"nome": "Ana Silva", "email": "", "telefone": "", "resumo": "fez coisas", '
-        '"formacao": "", "experiencia_profissional": "", "habilidades": "Python"}'
-    )
-    service.ai_service_adapter.aplicar_sugestoes_curriculo = lambda dados, sugestoes: (
-        '{"nome": "", "email": "", "telefone": "", "resumo": "liderou automações", '
-        '"formacao": "Engenharia", "experiencia_profissional": "", "habilidades": "Python, Docker"}'
-    )
+    curriculo.dados_extraidos = {
+        "nome_completo": "Ana Silva",
+        "resumo_profissional": "Ela fez coisas na empresa",
+        "formacao": [{"curso": "Ensino Médio"}, {"curso": "Engenharia"}],
+        "habilidades_tecnicas": ["Python"],
+    }
+    chamadas_ia = []
+    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: chamadas_ia.append(texto) or "{}"
 
-    resultado = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+    resultado, relatorio = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
 
-    assert resultado.dados_editados["resumo"] == "liderou automações"
-    assert resultado.dados_editados["habilidades"] == "Python, Docker"
+    assert chamadas_ia == []
+    assert resultado.dados_editados["resumo_profissional"] == "Ela liderou automações na empresa"
+    assert [f["curso"] for f in resultado.dados_editados["formacao"]] == ["Engenharia"]
+    assert resultado.dados_editados["nome_completo"] == "Ana Silva"
     assert resultado.editado_em is not None
+    assert relatorio["total_aplicadas"] == 2
+    assert relatorio["palavras_chave_faltantes"] == ["Docker"]
+
+
+def test_aplicar_sugestoes_curriculo_parte_sempre_do_original_e_nao_acumula_edicoes():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
+    curriculo.dados_extraidos = {"resumo_profissional": "Ela fez coisas"}
+
+    primeiro, _ = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+    segundo, relatorio = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+
+    assert primeiro.dados_editados["resumo_profissional"] == "Ela liderou automações"
+    assert segundo.dados_editados["resumo_profissional"] == "Ela liderou automações"
+    assert relatorio["reescritas"]["aplicadas"] == 1
+
+
+def test_aplicar_sugestoes_curriculo_sem_nada_aplicavel_nao_salva_edicao():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
+    curriculo.dados_extraidos = {"resumo_profissional": "Texto sem relação com as sugestões"}
+
+    resultado, relatorio = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+
+    assert resultado.dados_editados is None
+    assert relatorio["total_aplicadas"] == 0
+    assert relatorio["reescritas"]["nao_aplicadas"] == ["fez coisas"]
+
+
+def test_aplicar_sugestoes_curriculo_extrai_via_ia_so_se_nao_houver_cache():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
+    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: '{"resumo_profissional": "Ela fez coisas"}'
+
+    resultado, relatorio = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+
+    assert resultado.dados_editados["resumo_profissional"] == "Ela liderou automações"
+    assert curriculo.dados_extraidos["resumo_profissional"] == "Ela fez coisas"
+    assert relatorio["total_aplicadas"] == 1
 
 
 def test_aplicar_sugestoes_curriculo_sem_sugestoes_disponiveis_lanca_erro():
@@ -586,22 +719,6 @@ def test_aplicar_sugestoes_curriculo_inexistente_lanca_erro():
         service.aplicar_sugestoes_curriculo(uuid.uuid4(), uuid.uuid4())
 
 
-def test_aplicar_sugestoes_curriculo_com_falha_na_ia_propaga_erro():
-    service = _criar_service_completo_com_fakes()
-    id_usuario = uuid.uuid4()
-    curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
-    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: (
-        '{"nome": "Ana Silva", "email": "", "telefone": "", "resumo": "", '
-        '"formacao": "", "experiencia_profissional": "", "habilidades": ""}'
-    )
-    service.ai_service_adapter.aplicar_sugestoes_curriculo = lambda dados, sugestoes: (_ for _ in ()).throw(
-        IAIndisponivelError("timeout")
-    )
-
-    with pytest.raises(IAIndisponivelError):
-        service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
-
-
 def test_salvar_edicao_estruturada_curriculo_persiste_dados_completos():
     service = _criar_service_completo_com_fakes()
     id_usuario = uuid.uuid4()
@@ -614,8 +731,52 @@ def test_salvar_edicao_estruturada_curriculo_persiste_dados_completos():
         id_usuario, curriculo.id_curriculo, {"nome": "Ana Nova", "resumo": "Resumo novo"}
     )
 
-    assert resultado.dados_editados["nome"] == "Ana Nova"
-    assert resultado.dados_editados["resumo"] == "Resumo novo"
+    assert resultado.dados_editados["nome_completo"] == "Ana Nova"
+    assert resultado.dados_editados["resumo_profissional"] == "Resumo novo"
+    assert resultado.dados_editados["texto_bruto"] == "texto bruto"
+
+
+def test_salvar_edicao_estruturada_plana_preserva_secoes_que_os_7_campos_nao_representam():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="texto bruto",
+        dados_extraidos={
+            "nome_completo": "Ana",
+            "experiencias": [{"cargo": "Dev", "empresa": "X", "descricao_bullets": ["Fez A", "Fez B"]}],
+            "idiomas": [{"idioma": "Inglês", "nivel": "C1"}],
+            "secoes_adicionais": [{"titulo": "Projetos", "itens": ["Projeto A"]}],
+        },
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    resultado = service.salvar_edicao_estruturada_curriculo(id_usuario, curriculo.id_curriculo, {"resumo": "Resumo novo"})
+
+    assert resultado.dados_editados["resumo_profissional"] == "Resumo novo"
+    assert resultado.dados_editados["experiencias"][0]["descricao_bullets"] == ["Fez A", "Fez B"]
+    assert resultado.dados_editados["idiomas"] == [{"idioma": "Inglês", "nivel": "C1"}]
+    assert resultado.dados_editados["secoes_adicionais"] == [{"titulo": "Projetos", "itens": ["Projeto A"]}]
+
+
+def test_salvar_edicao_estruturada_aceita_payload_no_formato_estruturado_completo():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf", id_usuario=id_usuario, status_processamento="concluido", texto_extraido="texto bruto"
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    resultado = service.salvar_edicao_estruturada_curriculo(
+        id_usuario,
+        curriculo.id_curriculo,
+        {"nome_completo": "Ana", "certificacoes": ["AWS"], "secoes_adicionais": [{"titulo": "Prêmios", "itens": ["Top 1"]}]},
+    )
+
+    assert resultado.dados_editados["certificacoes"] == ["AWS"]
+    assert resultado.dados_editados["secoes_adicionais"][0]["titulo"] == "Prêmios"
     assert resultado.dados_editados["texto_bruto"] == "texto bruto"
 
 
@@ -640,7 +801,7 @@ def test_salvar_edicao_texto_livre_curriculo_extrai_via_ia_e_persiste():
 
     resultado = service.salvar_edicao_texto_livre_curriculo(id_usuario, curriculo.id_curriculo, "texto colado novo")
 
-    assert resultado.dados_editados["nome"] == "Ana via texto"
+    assert resultado.dados_editados["nome_completo"] == "Ana via texto"
     assert resultado.dados_editados["texto_bruto"] == "texto colado novo"
 
 

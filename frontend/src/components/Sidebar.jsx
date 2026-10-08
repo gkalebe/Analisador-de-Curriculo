@@ -14,7 +14,9 @@ const ITENS = [
 
 export default function Sidebar({ email, ativo }) {
   const navigate = useNavigate();
-  const emailAtivo = email || lerSessao()?.email || "";
+  const sessao = lerSessao();
+  const emailAtivo = email || sessao?.email || "";
+  const nomeAtivo = sessao?.nome || emailAtivo.split("@")[0];
 
   function irPara(rota) {
     navigate(emailAtivo ? `${rota}?email=${encodeURIComponent(emailAtivo)}` : rota);
@@ -58,15 +60,20 @@ export default function Sidebar({ email, ativo }) {
 
       <div className="mt-auto flex flex-col gap-2 pt-4 border-t border-white/10">
         {emailAtivo && (
-          <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+          <button
+            type="button"
+            onClick={() => navigate(`/usuarios/configuracoes?email=${encodeURIComponent(emailAtivo)}`)}
+            className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-white/5 transition-colors"
+            aria-label="Abrir configurações da conta"
+          >
             <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-[#1e5e3f] font-brand text-base font-bold shadow-xs">
               {emailAtivo[0]?.toUpperCase()}
             </span>
             <div className="leading-tight overflow-hidden">
-              <p className="font-brand font-semibold text-sm truncate">{emailAtivo.split("@")[0]}</p>
+              <p className="font-brand font-semibold text-sm truncate">{nomeAtivo}</p>
               <p className="text-xs text-white/70 truncate">{emailAtivo}</p>
             </div>
-          </div>
+          </button>
         )}
         <button
           onClick={sair}

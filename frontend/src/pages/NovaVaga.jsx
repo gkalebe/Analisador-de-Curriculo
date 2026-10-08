@@ -10,7 +10,7 @@ const LIMITE_DESCRICAO_PADRAO = 5000;
 
 export default function NovaVaga() {
   const [searchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
 
   const [form, setForm] = useState(novoFormularioVaga(emailInicial));
   const [vagasSalvas, setVagasSalvas] = useState([]);

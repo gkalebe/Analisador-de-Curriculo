@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import { listarTemplates } from "../api/templateApi.js";
 import { ApiError } from "../api/client.js";
+import { lerSessao } from "../models/usuario.js";
+import { montarRotaExportarTemplate } from "../models/templateAts.js";
 
 // Os 5 templates de currículo compartilham a mesma estrutura visual no backend
 // (ver CurriculoExporter.CORES_TEMPLATES) — só o "accent" muda por área de
@@ -31,7 +33,12 @@ function estiloCartao(idTemplate) {
 export default function GaleriaTemplates() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const emailInicial = searchParams.get("email") || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
+  // Vindo de "Transformar em Template ATS": currículo já escolhido (e já reescrito, se
+  // versao=editada) — repassado para a tela de exportação para não pedir de novo.
+  const idCurriculoPreSelecionado = searchParams.get("curriculo") || "";
+  const versaoPreSelecionada = searchParams.get("versao") || "";
+  const avisoFluxo = searchParams.get("aviso") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [templates, setTemplates] = useState([]);
@@ -64,7 +71,7 @@ export default function GaleriaTemplates() {
   }
 
   function usarTemplate(idTemplate) {
-    navigate(`/templates/exportar?email=${encodeURIComponent(emailInicial)}&template=${idTemplate}`);
+    navigate(montarRotaExportarTemplate(emailInicial, idTemplate, idCurriculoPreSelecionado, versaoPreSelecionada));
   }
 
   return (
@@ -93,6 +100,20 @@ export default function GaleriaTemplates() {
               Entrar
             </button>
           </form>
+        )}
+
+        {idCurriculoPreSelecionado && versaoPreSelecionada === "editada" && (
+          <div className="rounded-lg border border-[#1e5e3f]/30 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 space-y-1">
+            <p>
+              <i className="ti ti-sparkles mr-1"></i>
+              Sugestões da análise aplicadas ao seu currículo. Escolha um template para pré-visualizar e exportar a versão otimizada.
+            </p>
+            {avisoFluxo && <p className="text-xs text-emerald-800/80">{avisoFluxo}</p>}
+          </div>
+        )}
+
+        {avisoFluxo && versaoPreSelecionada !== "editada" && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">{avisoFluxo}</div>
         )}
 
         {carregando && <p className="text-sm text-gray-500">Carregando templates...</p>}

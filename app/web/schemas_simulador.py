@@ -5,12 +5,12 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class SimulacaoIniciarRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr | None = None
     id_vaga: uuid.UUID
 
 
 class RespostaSimulacaoRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr | None = None
     resposta: str = Field(min_length=1, max_length=4000)
 
 

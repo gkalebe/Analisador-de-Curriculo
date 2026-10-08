@@ -22,7 +22,6 @@ from app.adapters.curriculo_parser.curriculo_parser import (
     FormatoNaoSuportadoError,
 )
 from app.core.database import get_db
-from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.analisador_service import (
     AnalisadorService,
     AnaliseNaoEncontradaError,
@@ -31,7 +30,7 @@ from app.core.service.analisador_service import (
     NenhumaSugestaoDisponivelError,
     VagaNaoEncontradaError,
 )
-from app.core.service.extracao_curriculo import SugestaoNaoAplicadaError
+from app.web.dependencies import get_usuario_atual
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     BibliotecaCurriculoItemResponse,
@@ -54,24 +53,13 @@ def get_analisador_service(db: Session = Depends(get_db)) -> AnalisadorService:
     return AnalisadorService(db)
 
 
-def get_usuario_repository(db: Session = Depends(get_db)) -> UsuarioRepository:
-    return UsuarioRepository(db)
-
-
 @router.post("/upload", response_model=CurriculoResponse, status_code=status.HTTP_201_CREATED)
 async def upload_curriculo(
-    email: str = Form(...),
+    email: str | None = Form(None),
     file: UploadFile = File(...),
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     nome_arquivo = file.filename or ""
     extensao = nome_arquivo.rsplit(".", 1)[-1].lower() if "." in nome_arquivo else ""
     if extensao not in CurriculoParser.FORMATOS_SUPORTADOS:
@@ -103,20 +91,13 @@ async def upload_curriculo(
 
 @router.post("", response_model=AnaliseResponse, status_code=status.HTTP_201_CREATED)
 async def criar_analise(
-    email: str = Form(...),
+    email: str | None = Form(None),
     id_vaga: uuid.UUID = Form(...),
     id_curriculo: uuid.UUID | None = Form(None),
     file: UploadFile | None = File(None),
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> AnaliseResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     if id_curriculo is not None:
         try:
             analise = analisador_service.analisar_curriculo_salvo_para_vaga(
@@ -218,17 +199,10 @@ async def criar_analise(
 
 @router.get("", response_model=AnaliseListResponse)
 def listar_analises(
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> AnaliseListResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         analises = analisador_service.listar_analises_usuario(usuario.id_usuario)
     except NotImplementedError as erro:
@@ -243,17 +217,10 @@ def listar_analises(
 @router.delete("/{id_analise}", status_code=status.HTTP_204_NO_CONTENT)
 def excluir_analise(
     id_analise: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> Response:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         analisador_service.excluir_analise(usuario.id_usuario, id_analise)
     except AnaliseNaoEncontradaError as erro:
@@ -267,17 +234,10 @@ def excluir_analise(
 
 @router.get("/curriculos", response_model=CurriculoListResponse)
 def listar_curriculos(
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoListResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     curriculos = analisador_service.listar_curriculos_usuario(usuario.id_usuario)
     return CurriculoListResponse(
         curriculos=[
@@ -297,17 +257,10 @@ def listar_curriculos(
 @router.post("/curriculos", response_model=CurriculoDetalhesResponse, status_code=status.HTTP_201_CREATED)
 def criar_curriculo_manual(
     payload: CurriculoCriacaoManualRequest,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoDetalhesResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         curriculo = analisador_service.criar_curriculo_manual(
             usuario.id_usuario,
@@ -324,17 +277,10 @@ def criar_curriculo_manual(
 # ordem de registro, e "biblioteca" cairia no path param de UUID (422) se viesse depois.
 @router.get("/curriculos/biblioteca", response_model=BibliotecaCurriculosResponse)
 def listar_biblioteca_curriculos(
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> BibliotecaCurriculosResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     itens = [
         BibliotecaCurriculoItemResponse.model_validate(item)
         for item in analisador_service.listar_biblioteca_curriculos(usuario.id_usuario)
@@ -348,17 +294,10 @@ def listar_biblioteca_curriculos(
 @router.delete("/curriculos/{id_curriculo}", status_code=status.HTTP_204_NO_CONTENT)
 def excluir_curriculo(
     id_curriculo: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> Response:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         analisador_service.excluir_curriculo(usuario.id_usuario, id_curriculo)
     except CurriculoNaoEncontradoError as erro:
@@ -373,17 +312,10 @@ def excluir_curriculo(
 @router.get("/curriculos/{id_curriculo}", response_model=CurriculoDetalhesResponse)
 def obter_detalhes_curriculo(
     id_curriculo: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoDetalhesResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         detalhes = analisador_service.obter_detalhes_curriculo(usuario.id_usuario, id_curriculo)
     except CurriculoNaoEncontradoError as erro:
@@ -399,17 +331,10 @@ def obter_detalhes_curriculo(
 def atualizar_curriculo(
     id_curriculo: uuid.UUID,
     payload: CurriculoAtualizacaoRequest,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoDetalhesResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         detalhes = analisador_service.atualizar_dados_curriculo(usuario.id_usuario, id_curriculo, payload.model_dump())
     except CurriculoNaoEncontradoError as erro:
@@ -424,17 +349,10 @@ def atualizar_curriculo(
 @router.get("/curriculos/{id_curriculo}/download")
 def baixar_arquivo_curriculo(
     id_curriculo: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ):
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         conteudo_arquivo, nome_arquivo = analisador_service.obter_arquivo_curriculo(usuario.id_usuario, id_curriculo)
     except CurriculoNaoEncontradoError as erro:
@@ -463,17 +381,10 @@ def baixar_arquivo_curriculo(
 @router.get("/curriculos/{id_curriculo}/edicao", response_model=CurriculoEdicaoResponse)
 def obter_edicao_curriculo(
     id_curriculo: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoEdicaoResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
     except CurriculoNaoEncontradoError as erro:
@@ -488,18 +399,11 @@ def obter_edicao_curriculo(
 @router.put("/curriculos/{id_curriculo}/edicao", response_model=CurriculoEdicaoResponse)
 def salvar_edicao_estruturada_curriculo(
     id_curriculo: uuid.UUID,
-    email: str,
     payload: CurriculoEdicaoEstruturadaRequest,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
+    email: str | None = None,
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoEdicaoResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         analisador_service.salvar_edicao_estruturada_curriculo(
             usuario.id_usuario, id_curriculo, payload.model_dump()
@@ -517,18 +421,11 @@ def salvar_edicao_estruturada_curriculo(
 @router.post("/curriculos/{id_curriculo}/edicao/texto-livre", response_model=CurriculoEdicaoResponse)
 def salvar_edicao_texto_livre_curriculo(
     id_curriculo: uuid.UUID,
-    email: str,
     payload: CurriculoEdicaoTextoLivreRequest,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
+    email: str | None = None,
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoEdicaoResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         analisador_service.salvar_edicao_texto_livre_curriculo(usuario.id_usuario, id_curriculo, payload.texto)
         dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
@@ -548,19 +445,14 @@ def salvar_edicao_texto_livre_curriculo(
 @router.post("/curriculos/{id_curriculo}/edicao/aplicar-sugestoes", response_model=CurriculoEdicaoResponse)
 def aplicar_sugestoes_curriculo(
     id_curriculo: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoEdicaoResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
+    # Reescrita determinística a partir da análise salva: nenhuma chamada de IA aqui (ver
+    # reescrita_curriculo.py). O relatório diz o que foi e o que não foi aplicado.
     try:
-        analisador_service.aplicar_sugestoes_curriculo(usuario.id_usuario, id_curriculo)
+        _, relatorio = analisador_service.aplicar_sugestoes_curriculo(usuario.id_usuario, id_curriculo)
         dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
     except CurriculoNaoEncontradoError as erro:
         raise HTTPException(
@@ -572,14 +464,5 @@ def aplicar_sugestoes_curriculo(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ainda não há uma análise deste currículo com sugestões para aplicar.",
         ) from erro
-    except IAConfiguracaoAusenteError as erro:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
-    except IAIndisponivelError as erro:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
-    except SugestaoNaoAplicadaError as erro:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="A IA não conseguiu aplicar as sugestões. Tente novamente em instantes.",
-        ) from erro
 
-    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+    return CurriculoEdicaoResponse.model_validate({**dados_edicao, "relatorio_aplicacao": relatorio})

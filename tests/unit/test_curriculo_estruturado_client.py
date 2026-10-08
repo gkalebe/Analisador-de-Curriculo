@@ -44,7 +44,7 @@ def _configurar_genai_falso(monkeypatch, modelo_falso: ModeloFalso):
 
 
 def test_gerar_sem_api_key_lanca_erro_de_configuracao():
-    gerador = GeradorCurriculoEstruturadoIA(api_key="", model_name="gemini-3.6-flash")
+    gerador = GeradorCurriculoEstruturadoIA(api_key="", model_name="gemini-3.8-flash")
 
     with pytest.raises(IAConfiguracaoAusenteError):
         gerador.gerar("informações brutas quaisquer")

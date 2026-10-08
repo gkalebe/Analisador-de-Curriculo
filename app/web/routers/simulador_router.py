@@ -8,7 +8,6 @@ from app.adapters.ai_service.ai_service_adapter import (
     IAIndisponivelError,
 )
 from app.core.database import get_db
-from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.simulador_service import (
     PerguntaNaoEncontradaError,
     RespostaVaziaError,
@@ -16,6 +15,7 @@ from app.core.service.simulador_service import (
     SimuladorService,
     VagaNaoEncontradaError,
 )
+from app.web.dependencies import get_usuario_atual
 from app.web.schemas_simulador import (
     RespostaSimulacaoRequest,
     SimulacaoIniciarRequest,
@@ -31,28 +31,12 @@ def get_simulador_service(db: Session = Depends(get_db)) -> SimuladorService:
     return SimuladorService(db)
 
 
-def get_usuario_repository(db: Session = Depends(get_db)) -> UsuarioRepository:
-    return UsuarioRepository(db)
-
-
-def _buscar_usuario_ou_404(email: str, usuario_repository: UsuarioRepository):
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-    return usuario
-
-
 @router.post("/iniciar", response_model=SimulacaoResponse, status_code=status.HTTP_201_CREATED)
 def iniciar_simulacao(
     payload: SimulacaoIniciarRequest,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
     simulador_service: SimuladorService = Depends(get_simulador_service),
 ) -> SimulacaoResponse:
-    usuario = _buscar_usuario_ou_404(payload.email, usuario_repository)
-
     try:
         simulacao = simulador_service.iniciar_simulacao(usuario.id_usuario, payload.id_vaga)
     except VagaNaoEncontradaError as erro:
@@ -70,12 +54,10 @@ def iniciar_simulacao(
 
 @router.get("", response_model=SimulacaoListResponse)
 def listar_simulacoes(
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
+    email: str | None = None,
     simulador_service: SimuladorService = Depends(get_simulador_service),
 ) -> SimulacaoListResponse:
-    usuario = _buscar_usuario_ou_404(email, usuario_repository)
-
     simulacoes = simulador_service.listar_simulacoes_usuario(usuario.id_usuario)
     return SimulacaoListResponse(
         simulacoes=[
@@ -94,12 +76,10 @@ def listar_simulacoes(
 @router.get("/{id_simulacao}", response_model=SimulacaoResponse)
 def obter_simulacao(
     id_simulacao: uuid.UUID,
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
+    email: str | None = None,
     simulador_service: SimuladorService = Depends(get_simulador_service),
 ) -> SimulacaoResponse:
-    usuario = _buscar_usuario_ou_404(email, usuario_repository)
-
     try:
         simulacao = simulador_service.obter_simulacao(usuario.id_usuario, id_simulacao)
     except SimulacaoNaoEncontradaError as erro:
@@ -116,11 +96,9 @@ def responder_pergunta(
     id_simulacao: uuid.UUID,
     id_pergunta: uuid.UUID,
     payload: RespostaSimulacaoRequest,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
     simulador_service: SimuladorService = Depends(get_simulador_service),
 ) -> SimulacaoResponse:
-    usuario = _buscar_usuario_ou_404(payload.email, usuario_repository)
-
     try:
         simulacao = simulador_service.responder_pergunta(
             id_usuario=usuario.id_usuario,

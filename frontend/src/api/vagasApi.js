@@ -1,13 +1,14 @@
 import { requisitar } from "./client";
 
 export function listarVagas(email) {
-  return requisitar("/api/vagas", { params: { email } });
+  return requisitar("/api/vagas");
 }
 
 export function criarVaga(formulario) {
-  return requisitar("/api/vagas", { method: "POST", body: formulario });
+  const { email, ...vaga } = formulario;
+  return requisitar("/api/vagas", { method: "POST", body: vaga });
 }
 
 export function importarVaga(email, url) {
-  return requisitar("/api/vagas/importar", { method: "POST", body: { email, url } });
+  return requisitar("/api/vagas/importar", { method: "POST", body: { url } });
 }

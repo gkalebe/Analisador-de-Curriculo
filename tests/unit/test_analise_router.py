@@ -12,9 +12,9 @@ from app.core.service.analisador_service import (
     VagaNaoEncontradaError,
 )
 from app.main import app
+from app.web.dependencies import get_usuario_atual
 from app.web.routers.analise_router import (
     get_analisador_service,
-    get_usuario_repository,
 )
 
 client = TestClient(app)
@@ -106,7 +106,6 @@ def _usuario() -> Usuario:
 
 
 def test_upload_curriculo_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.post(
@@ -116,12 +115,12 @@ def test_upload_curriculo_com_email_desconhecido_retorna_404():
     )
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_upload_curriculo_com_sucesso():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.post(
@@ -141,7 +140,7 @@ def test_upload_curriculo_com_formato_nao_suportado_retorna_400():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_formato = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.post(
@@ -157,7 +156,7 @@ def test_upload_curriculo_com_formato_nao_suportado_retorna_400():
 
 def test_upload_curriculo_com_arquivo_acima_do_limite_retorna_400():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     conteudo_grande = b"a" * (6 * 1024 * 1024)
@@ -173,7 +172,6 @@ def test_upload_curriculo_com_arquivo_acima_do_limite_retorna_400():
 
 
 def test_criar_analise_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.post(
@@ -183,12 +181,12 @@ def test_criar_analise_com_email_desconhecido_retorna_404():
     )
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_criar_analise_com_sucesso():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.post(
@@ -208,7 +206,7 @@ def test_criar_analise_com_vaga_nao_encontrada_retorna_404():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_vaga = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.post(
@@ -226,7 +224,7 @@ def test_criar_analise_com_formato_nao_suportado_retorna_400():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_formato = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.post(
@@ -244,7 +242,7 @@ def test_criar_analise_ainda_nao_implementada_retorna_501():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_nao_implementado = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.post(
@@ -258,13 +256,12 @@ def test_criar_analise_ainda_nao_implementada_retorna_501():
 
 
 def test_listar_analises_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.get("/analises", params={"email": "nao-cadastrado@example.com"})
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_listar_analises_com_sucesso():
@@ -280,7 +277,7 @@ def test_listar_analises_com_sucesso():
             data_analise=datetime.now(timezone.utc),
         )
     ]
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.get("/analises", params={"email": usuario.email})
@@ -294,7 +291,7 @@ def test_listar_analises_ainda_nao_implementada_retorna_501():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_nao_implementado = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.get("/analises", params={"email": usuario.email})
@@ -307,7 +304,7 @@ def test_baixar_arquivo_curriculo_pdf_retorna_content_disposition_inline():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.arquivo_curriculo = (b"conteudo pdf", "curriculo.pdf")
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.get(
@@ -324,7 +321,7 @@ def test_baixar_arquivo_curriculo_docx_retorna_content_disposition_attachment():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.arquivo_curriculo = (b"conteudo docx", "curriculo.docx")
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.get(
@@ -341,7 +338,7 @@ def test_excluir_analise_com_sucesso_retorna_204():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     id_analise = uuid.uuid4()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.delete(f"/analises/{id_analise}", params={"email": usuario.email})
@@ -352,20 +349,19 @@ def test_excluir_analise_com_sucesso_retorna_204():
 
 
 def test_excluir_analise_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.delete(f"/analises/{uuid.uuid4()}", params={"email": "nao-cadastrado@example.com"})
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_excluir_analise_inexistente_retorna_404():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_analise_nao_encontrada = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.delete(f"/analises/{uuid.uuid4()}", params={"email": usuario.email})
@@ -397,7 +393,7 @@ def test_listar_biblioteca_curriculos_agrupa_por_origem():
             "ultima_atividade": agora,
         },
     ]
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.get("/analises/curriculos/biblioteca", params={"email": usuario.email})
@@ -412,7 +408,7 @@ def test_listar_biblioteca_curriculos_agrupa_por_origem():
 
 def test_listar_biblioteca_curriculos_vazia_retorna_listas_vazias():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.get("/analises/curriculos/biblioteca", params={"email": usuario.email})
@@ -423,20 +419,19 @@ def test_listar_biblioteca_curriculos_vazia_retorna_listas_vazias():
 
 
 def test_listar_biblioteca_curriculos_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.get("/analises/curriculos/biblioteca", params={"email": "nao-cadastrado@example.com"})
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_excluir_curriculo_com_sucesso_retorna_204():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     id_curriculo = uuid.uuid4()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.delete(f"/analises/curriculos/{id_curriculo}", params={"email": usuario.email})
@@ -447,7 +442,6 @@ def test_excluir_curriculo_com_sucesso_retorna_204():
 
 
 def test_excluir_curriculo_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
 
     response = client.delete(
@@ -455,14 +449,14 @@ def test_excluir_curriculo_com_email_desconhecido_retorna_404():
     )
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_excluir_curriculo_inexistente_retorna_404():
     usuario = _usuario()
     service_falso = AnalisadorServiceFalso()
     service_falso.deve_recusar_curriculo_nao_encontrado = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_analisador_service] = lambda: service_falso
 
     response = client.delete(f"/analises/curriculos/{uuid.uuid4()}", params={"email": usuario.email})

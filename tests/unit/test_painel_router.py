@@ -4,7 +4,8 @@ from fastapi.testclient import TestClient
 
 from app.core.persistencia.models.usuario import Usuario
 from app.main import app
-from app.web.routers.painel_router import get_plano_service, get_usuario_repository
+from app.web.dependencies import get_usuario_atual
+from app.web.routers.painel_router import get_plano_service
 
 client = TestClient(app)
 
@@ -36,13 +37,12 @@ def _usuario() -> Usuario:
 
 
 def test_obter_historico_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_plano_service] = lambda: PlanoServiceFalso()
 
     response = client.get("/painel/historico", params={"email": "nao-cadastrado@example.com"})
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_obter_historico_com_sucesso():
@@ -59,7 +59,7 @@ def test_obter_historico_com_sucesso():
         ],
         "lacunas_recorrentes": [{"competencia": "Docker", "frequencia": 2}],
     }
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_plano_service] = lambda: service_falso
 
     response = client.get("/painel/historico", params={"email": usuario.email})
@@ -73,7 +73,7 @@ def test_obter_historico_com_sucesso():
 
 def test_obter_historico_sem_analises_retorna_listas_vazias():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_plano_service] = lambda: PlanoServiceFalso()
 
     response = client.get("/painel/historico", params={"email": usuario.email})

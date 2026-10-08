@@ -8,16 +8,13 @@ from fastapi.testclient import TestClient
 from app.core.persistencia.models.mensagem_chat import MensagemChat
 from app.core.persistencia.models.usuario import Usuario
 from app.main import app
-from app.web.routers.chat_router import get_chat_service, get_usuario_repository
+from app.web.dependencies import get_usuario_atual
+from app.web.routers.chat_router import get_chat_service
 
 client = TestClient(app)
 
 
 def test_enviar_mensagem_usuario_nao_encontrado():
-    repo_falso = MagicMock()
-    repo_falso.buscar_por_email.return_value = None
-
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_falso
     try:
         response = client.post(
             "/chat/mensagens",
@@ -27,8 +24,7 @@ def test_enviar_mensagem_usuario_nao_encontrado():
                 "id_curriculo": str(uuid.uuid4()),
             },
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-        assert "Não encontramos um usuário" in response.json()["detail"]
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
     finally:
         app.dependency_overrides.clear()
 
@@ -70,7 +66,7 @@ def test_enviar_mensagem_com_sucesso():
     )
     chat_servico.enviar_mensagem.return_value = (msg_user, msg_ai)
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_chat_service] = lambda: chat_servico
     try:
         response = client.post(
@@ -117,7 +113,7 @@ def test_listar_mensagens_geral():
     )
     chat_servico.listar_historico.return_value = [msg]
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_chat_service] = lambda: chat_servico
     try:
         response = client.get(f"/chat/mensagens?email=teste@example.com&id_vaga={id_vaga}")
@@ -167,7 +163,7 @@ def test_rotas_especificas_vaga():
     chat_servico.enviar_mensagem.return_value = (msg_user, msg_ai)
     chat_servico.listar_historico.return_value = [msg_user, msg_ai]
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_chat_service] = lambda: chat_servico
     try:
         # POST /chat/vagas/{id_vaga}/mensagens

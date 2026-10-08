@@ -6,7 +6,6 @@ import {
   baixarArquivoCurriculo,
   excluirCurriculo,
   listarBibliotecaCurriculos,
-  obterUrlDownloadCurriculo,
 } from "../api/curriculoApi.js";
 import { formatarDataUpload } from "../models/curriculo.js";
 import { lerSessao } from "../models/usuario.js";
@@ -29,7 +28,7 @@ const CATEGORIAS = [
 
 export default function BibliotecaCurriculos() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [biblioteca, setBiblioteca] = useState({ enviados_por_mim: [], gerados_por_ia: [] });
@@ -80,9 +79,31 @@ export default function BibliotecaCurriculos() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível baixar este currículo.");
+    } finally {
+      setBaixando("");
+    }
+  }
+
+  async function visualizar(item) {
+    const janela = window.open("", "_blank");
+    if (!janela) {
+      setErro("Permita pop-ups para visualizar o currículo.");
+      return;
+    }
+
+    setErro("");
+    setBaixando(item.id_curriculo);
+    try {
+      const { blob } = await baixarArquivoCurriculo(item.id_curriculo, emailInicial);
+      const url = URL.createObjectURL(blob);
+      janela.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      janela.close();
+      setErro(e instanceof ApiError ? e.message : "Não foi possível abrir este currículo.");
     } finally {
       setBaixando("");
     }
@@ -216,14 +237,14 @@ export default function BibliotecaCurriculos() {
                         <div className="flex items-center gap-2 shrink-0">
                           {item.possui_arquivo ? (
                             <>
-                              <a
-                                href={obterUrlDownloadCurriculo(item.id_curriculo, emailInicial)}
-                                target="_blank"
-                                rel="noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => visualizar(item)}
+                                disabled={baixando === item.id_curriculo}
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-[#1e5e3f] px-3.5 py-2 text-sm font-bold text-[#1e5e3f] hover:bg-[#1e5e3f]/5 transition-colors"
                               >
                                 <i className="ti ti-eye"></i> Visualizar
-                              </a>
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => baixar(item)}
