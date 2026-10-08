@@ -1,4 +1,3 @@
-import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -8,6 +7,13 @@ from app.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 30
+# Chamadas cujas respostas são grandes (análise + currículo estruturado, extração completa)
+# precisam de mais tempo de leitura: com o modelo sob carga, 30s virava ReadTimeout.
+TIMEOUT_RESPOSTA_LONGA_SEGUNDOS = 90
+# Um currículo completo em JSON estruturado (experiências com bullets, formação, idiomas,
+# seções adicionais) passa fácil de 1.5k tokens; cortar a resposta no meio invalida o JSON
+# inteiro e a extração cai silenciosamente em campos vazios.
+MAX_TOKENS_RESPOSTA = 4096
 TEMPERATURA_PADRAO = 0.4
 MAX_TENTATIVAS_GEMINI = 3
 ESPERA_ENTRE_TENTATIVAS_SEGUNDOS = 3
@@ -44,15 +50,19 @@ class IAIndisponivelError(Exception):
 
 class AIServiceClient(ABC):
     @abstractmethod
-    def gerar_resposta(self, prompt: str, temperatura: float = TEMPERATURA_PADRAO) -> str: ...
+    def gerar_resposta(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> str: ...
 
 
 class GeminiClient(AIServiceClient):
-    def __init__(self, api_key: str, model_name: str = "gemini-3.6-flash"):
+    def __init__(self, api_key: str, model_name: str = "gemini-3.8-flash"):
         self.api_key = api_key
         self.model_name = model_name
 
-    def gerar_resposta(self, prompt: str, temperatura: float = TEMPERATURA_PADRAO) -> str:
+    def gerar_resposta(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> str:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
                 "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
@@ -70,7 +80,7 @@ class GeminiClient(AIServiceClient):
                 resposta = modelo.generate_content(
                     prompt,
                     generation_config=genai.types.GenerationConfig(temperature=temperatura),
-                    request_options={"timeout": TIMEOUT_SEGUNDOS, "retry": None},
+                    request_options={"timeout": timeout_segundos, "retry": None},
                 )
                 return resposta.text
             except (
@@ -90,7 +100,7 @@ class GeminiClient(AIServiceClient):
                 # Demais erros (chave inválida, rede fora do ar etc.) não se beneficiam de retry: falha já.
                 logger.error("Falha ao chamar a API do Gemini: %r", erro, exc_info=True)
                 raise IAIndisponivelError(
-                    f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
+                    f"O serviço de IA (Gemini) não respondeu em {timeout_segundos}s ou recusou a requisição. "
                     "Tente novamente em instantes."
                 ) from erro
 
@@ -101,7 +111,7 @@ class GeminiClient(AIServiceClient):
             exc_info=True,
         )
         raise IAIndisponivelError(
-            f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
+            f"O serviço de IA (Gemini) não respondeu em {timeout_segundos}s ou recusou a requisição. "
             "Tente novamente em instantes."
         ) from ultimo_erro
 
@@ -111,28 +121,51 @@ class ClaudeClient(AIServiceClient):
         self.api_key = api_key
         self.model_name = model_name
 
-    def gerar_resposta(self, prompt: str, temperatura: float = TEMPERATURA_PADRAO) -> str:
+    def gerar_resposta(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> str:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
                 "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
             )
         import anthropic
 
-        cliente = anthropic.Anthropic(api_key=self.api_key, timeout=TIMEOUT_SEGUNDOS, max_retries=0)
+        cliente = anthropic.Anthropic(api_key=self.api_key, timeout=timeout_segundos, max_retries=0)
         try:
             resposta = cliente.messages.create(
                 model=self.model_name,
-                max_tokens=1536,
+                max_tokens=MAX_TOKENS_RESPOSTA,
                 temperature=temperatura,
                 messages=[{"role": "user", "content": prompt}],
             )
         except anthropic.APIError as erro:
             logger.error("Falha ao chamar a API do Claude: %r", erro, exc_info=True)
             raise IAIndisponivelError(
-                f"O serviço de IA (Claude) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
+                f"O serviço de IA (Claude) não respondeu em {timeout_segundos}s ou recusou a requisição. "
                 "Tente novamente em instantes."
             ) from erro
         return "".join(bloco.text for bloco in resposta.content if bloco.type == "text")
+
+
+FORMATO_JSON_CURRICULO_ESTRUTURADO = """{
+  "nome_completo": "<nome completo ou string vazia>",
+  "titulo_profissional": "<cargo/título que resume o perfil, ou string vazia>",
+  "contato": {"email": "", "telefone": "", "linkedin": "", "cidade": ""},
+  "resumo_profissional": "<resumo/objetivo profissional, ou string vazia>",
+  "experiencias": [
+    {
+      "cargo": "", "empresa": "", "periodo_inicio": "", "periodo_fim": "",
+      "descricao_bullets": ["<cada responsabilidade/conquista descrita, uma por item>"]
+    }
+  ],
+  "formacao": [{"curso": "", "instituicao": "", "periodo": ""}],
+  "habilidades_tecnicas": ["<uma habilidade por item>"],
+  "idiomas": [{"idioma": "", "nivel": ""}],
+  "certificacoes": ["<uma certificação/curso por item>"],
+  "secoes_adicionais": [
+    {"titulo": "<título da seção como está no currículo, ex.: Projetos, Voluntariado, Publicações>", "itens": ["<um item por entrada>"]}
+  ]
+}"""
 
 
 class AIServiceAdapter:
@@ -151,16 +184,15 @@ class AIServiceAdapter:
         return self.cliente.gerar_resposta(prompt, temperatura=0.3)
 
     def comparar_curriculo_vaga(self, texto_curriculo: str, texto_vaga: str) -> str:
+        """Análise currículo × vaga. A resposta traz também o currículo estruturado completo
+        (`curriculo_estruturado`), para o fluxo "Transformar em Template ATS" não precisar de
+        uma segunda requisição de extração — ver AnalisadorService."""
         prompt = self._montar_prompt_comparacao(texto_curriculo, texto_vaga)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.3, timeout_segundos=TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
 
     def extrair_dados_estruturados(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_extracao(texto_curriculo)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.2)
-
-    def aplicar_sugestoes_curriculo(self, dados_atuais: dict, sugestoes: dict) -> str:
-        prompt = self._montar_prompt_aplicar_sugestoes(dados_atuais, sugestoes)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
+        return self.cliente.gerar_resposta(prompt, temperatura=0.2, timeout_segundos=TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
 
     def responder_chat(
         self,
@@ -206,7 +238,40 @@ class AIServiceAdapter:
             "estruturado o trecho original está: 'resumo' (resumo profissional), 'formacao' (formação "
             "acadêmica), 'experiencia_profissional' (experiências de trabalho) ou 'habilidades' "
             "(habilidades técnicas/comportamentais). Use EXATAMENTE um desses 4 valores no campo "
-            "\"campo\" — nunca deixe em branco e nunca invente um valor fora dessa lista.\n\n"
+            "\"campo\" — nunca deixe em branco e nunca invente um valor fora dessa lista.\n"
+            "5. Primeiro preencha \"curriculo_estruturado\": estruture o currículo INTEIRO como foi enviado "
+            "(sem aplicar nenhuma sugestão ainda), preservando TODO o conteúdo: todas as experiências com "
+            "todas as suas responsabilidades em 'descricao_bullets' (uma por item), todas as formações, "
+            "habilidades (uma por item), idiomas, certificações, e qualquer outra seção em "
+            "'secoes_adicionais' com o título original. NUNCA resuma, corte ou invente. Campo sem "
+            "informação: string vazia ou lista vazia.\n"
+            "6. As sugestões serão aplicadas AUTOMATICAMENTE, por busca de texto, em cima desse "
+            "\"curriculo_estruturado\" — não há revisão humana entre a sua resposta e a substituição. Por "
+            "isso, cada \"trecho_original\" deve ser a cópia IDÊNTICA (mesmas palavras, pontuação, "
+            "maiúsculas e acentos) de UM item que você mesmo escreveu em \"curriculo_estruturado\": um "
+            "bullet inteiro de 'descricao_bullets', uma frase inteira de 'resumo_profissional', um item "
+            "de 'habilidades_tecnicas' ou o 'curso' de uma formação. Nunca parafraseie, nunca junte dois "
+            "itens num trecho só, nunca cite um pedaço de palavra. Se o trecho não bater exatamente, a "
+            "sugestão é descartada.\n"
+            "7. \"sugestao_otimizada\" substitui o trecho inteiro no mesmo lugar: deve ser um texto "
+            "completo e autossuficiente, no mesmo formato do item (um bullet continua um bullet; se fizer "
+            "sentido dividir em dois bullets, separe-os com quebra de linha \\n).\n"
+            "8. Palavras-chave da vaga ausentes: quando o currículo JÁ SUSTENTA a competência (ex.: o "
+            "candidato descreve uso de containers e a vaga pede Docker; descreve testes automatizados e "
+            "a vaga pede TDD), crie uma sugestão de reescrita que incorpore o termo exato da vaga no "
+            "trecho correspondente — essa é a forma de a palavra-chave entrar no currículo. Palavras-chave "
+            "SEM nenhuma sustentação no currículo ficam apenas em 'ausentes' e NUNCA entram em uma "
+            "reescrita.\n"
+            "9. \"o_que_retirar\" só aceita ITENS INTEIROS a remover, copiados idênticos de "
+            "\"curriculo_estruturado\" (uma formação irrelevante, uma habilidade genérica, um bullet "
+            "redundante, uma certificação obsoleta). Se o problema é um termo vago ou clichê DENTRO de uma "
+            "frase ('proativo', 'dinâmico', 'responsável por'), NÃO o coloque em 'o_que_retirar': crie uma "
+            "sugestão de reescrita com a frase inteira como trecho original e a versão sem o termo.\n"
+            "10. Cobertura: gere entre 4 e 10 sugestões de reescrita, priorizando o resumo profissional e "
+            "os bullets de experiência mais fracos ou menos alinhados à vaga, uma sugestão por item. Se o "
+            "currículo for curto e não houver 4 trechos a melhorar, gere menos — nunca invente problemas.\n"
+            "11. \"o_que_reorganizar\" é orientação para o candidato ler (a ordem das seções no documento "
+            "final é fixa, no padrão ATS); seja breve. Mantenha \"motivo\" em 1 frase curta.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
             "{\n"
@@ -220,16 +285,17 @@ class AIServiceAdapter:
             '  "diagnostico_ats": {\n'
             '    "pontos_fortes": ["<ponto 1>", "<ponto 2>"],\n'
             '    "o_que_reorganizar": ["<orientação prática de destaque ou ordem>"],\n'
-            '    "o_que_retirar": ["<termos vagos, clichês ou elementos irrelevantes para cortar>"]\n'
+            '    "o_que_retirar": ["<item INTEIRO a remover, copiado idêntico de curriculo_estruturado>"]\n'
             "  },\n"
             '  "sugestoes_reescrita": [\n'
             "    {\n"
             '      "campo": "<resumo | formacao | experiencia_profissional | habilidades>",\n'
-            '      "trecho_original": "<trecho exato do currículo original que está genérico ou fraco>",\n'
-            '      "sugestao_otimizada": "<versão reescrita com verbos de ação e foco em ATS, SEM inventar fatos>",\n'
-            '      "motivo": "<por que essa versão melhora a pontuação em robôs ATS e recrutadores>"\n'
+            '      "trecho_original": "<cópia idêntica de UM item de curriculo_estruturado (bullet, frase do resumo, habilidade ou curso)>",\n'
+            '      "sugestao_otimizada": "<versão reescrita completa que substitui o item, com verbos de ação e termos da vaga que o currículo sustenta, SEM inventar fatos>",\n'
+            '      "motivo": "<1 frase: por que melhora em ATS/recrutadores>"\n'
             "    }\n"
-            "  ]\n"
+            "  ],\n"
+            f'  "curriculo_estruturado": {FORMATO_JSON_CURRICULO_ESTRUTURADO}\n'
             "}\n\n"
             f"Descrição da vaga:\n{texto_vaga}\n\n"
             f"Currículo do candidato:\n{texto_curriculo}"
@@ -238,53 +304,25 @@ class AIServiceAdapter:
     def _montar_prompt_extracao(self, texto_curriculo: str) -> str:
         return (
             f"{PERSONA_ESPECIALISTA_RH}\n"
-            "TAREFA: A partir do texto de currículo abaixo, extraia os dados em JSON válido, sem nenhum "
-            "texto fora do JSON e sem markdown, no formato exato "
-            '{"nome": "<nome completo ou string vazia>", "email": "<e-mail ou string vazia>", '
-            '"telefone": "<telefone ou string vazia>", "resumo": "<2 a 3 frases de resumo profissional>", '
-            '"formacao": "<formação acadêmica, um item por linha, separados por \\n, ou string vazia>", '
-            '"experiencia_profissional": "<experiências profissionais, um item por linha, separados '
-            'por \\n, ou string vazia>", "habilidades": "<habilidades técnicas e comportamentais '
-            'separadas por vírgula, ou string vazia>"}.\n\n'
-            f"Currículo:\n{texto_curriculo}"
-        )
-
-    def _montar_prompt_aplicar_sugestoes(self, dados_atuais: dict, sugestoes: dict) -> str:
-        diagnostico = sugestoes.get("diagnostico_ats") or {}
-        reescritas = sugestoes.get("sugestoes_reescrita") or []
-        linhas_reescritas = "\n".join(
-            f'- Trecho original: "{item.get("trecho_original", "")}" → '
-            f'Versão sugerida: "{item.get("versao_otimizada", "")}"'
-            for item in reescritas
-            if isinstance(item, dict) and (item.get("trecho_original") or item.get("versao_otimizada"))
-        ) or "(nenhuma)"
-
-        return (
-            f"{PERSONA_ESPECIALISTA_RH}\n"
-            "TAREFA: Você já analisou este currículo antes e deu o diagnóstico abaixo. Agora, aplique "
-            "esse diagnóstico DIRETAMENTE nos campos do currículo — não descreva o que deveria mudar, "
-            "entregue os campos já corrigidos.\n\n"
+            "TAREFA: Estruture o currículo abaixo no JSON indicado, preservando TODO o conteúdo. O "
+            "resultado será usado para remontar o MESMO currículo em um template ATS — nada pode "
+            "ser perdido, resumido ou inventado.\n\n"
             "REGRAS ESTRITAS:\n"
-            "1. Remova do currículo os itens listados em 'A remover' (ex.: se for uma formação, tire a "
-            "linha inteira de 'formacao'; se for um termo vago numa frase, reescreva a frase sem ele).\n"
-            "2. Reorganize conforme 'A reorganizar' (ex.: ordem de destaque, agrupamento).\n"
-            "3. Troque cada trecho original pela versão otimizada listada em 'Reescritas sugeridas', "
-            "quando esse trecho aparecer no campo correspondente.\n"
-            "4. Incorpore as 'Palavras-chave faltantes' de forma natural e verdadeira nos campos onde "
-            "fizer sentido (resumo, experiência, habilidades) — SOMENTE se algo no currículo atual já "
-            "sustentar aquilo; NUNCA invente uma ferramenta, empresa, cargo ou tempo de experiência que "
-            "o candidato não tenha.\n"
-            "5. Preserve tudo que não foi mencionado no diagnóstico exatamente como está.\n"
-            "6. Responda ESTRITAMENTE em JSON válido, sem texto fora do JSON e sem markdown, no mesmo "
-            "formato exato dos campos de entrada: "
-            '{"nome": "...", "email": "...", "telefone": "...", "resumo": "...", "formacao": "...", '
-            '"experiencia_profissional": "...", "habilidades": "..."}.\n\n'
-            f"CAMPOS ATUAIS DO CURRÍCULO:\n{json.dumps(dados_atuais, ensure_ascii=False, indent=2)}\n\n"
-            f"PONTOS FORTES (manter): {diagnostico.get('pontos_fortes') or []}\n"
-            f"A REORGANIZAR: {diagnostico.get('a_reorganizar') or []}\n"
-            f"A REMOVER: {diagnostico.get('a_remover') or []}\n"
-            f"PALAVRAS-CHAVE FALTANTES: {sugestoes.get('palavras_chave_faltantes') or []}\n"
-            f"REESCRITAS SUGERIDAS:\n{linhas_reescritas}\n"
+            "1. NUNCA resuma, corte ou omita experiências, formações, habilidades, idiomas, "
+            "certificações, projetos ou qualquer outro item do currículo. Liste TODOS, um por item.\n"
+            "2. Em cada experiência, coloque TODAS as responsabilidades/conquistas descritas em "
+            "'descricao_bullets', uma por item, mantendo o texto do candidato (pode corrigir "
+            "pontuação, nunca o sentido).\n"
+            "3. Toda seção do currículo que não se encaixe nos campos fixos (projetos, voluntariado, "
+            "publicações, prêmios, cursos livres, objetivo, informações adicionais etc.) deve entrar "
+            "em 'secoes_adicionais' com o MESMO título usado no currículo e todos os seus itens.\n"
+            "4. NUNCA invente dados. Campo sem informação no currículo: string vazia \"\" ou lista "
+            "vazia [].\n"
+            "5. Mantenha o idioma original do currículo.\n"
+            "6. Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem markdown, "
+            "no formato exato:\n"
+            f"{FORMATO_JSON_CURRICULO_ESTRUTURADO}\n\n"
+            f"Currículo:\n{texto_curriculo}"
         )
 
     def _montar_prompt_chat(

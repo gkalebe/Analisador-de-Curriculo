@@ -14,11 +14,15 @@ from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
 from app.core.service.extracao_curriculo import (
-    aplicar_sugestoes_em_dados_curriculo,
+    dados_planos_de,
+    dados_tem_conteudo,
+    eh_formato_plano,
     extrair_dados_estruturados_curriculo,
-    normalizar_dados_editados,
+    mesclar_dados_planos,
+    normalizar_dados_curriculo,
     obter_dados_curriculo_com_cache,
 )
+from app.core.service.reescrita_curriculo import aplicar_sugestoes_sem_ia
 
 # Mesmos 4 campos estruturados usados na tela de edição (EditarCurriculo.jsx) — a IA já
 # devolve qual desses campos cada sugestão de reescrita tem como alvo (ver
@@ -80,15 +84,21 @@ class AnalisadorService:
         )
         self.curriculo_repository.criar(novo_curriculo)
 
+        # A extração completa (experiências com bullets, idiomas, certificações, seções
+        # adicionais...) vai para `dados_extraidos`, que é o que a exportação em template
+        # usa — assim a primeira exportação não precisa chamar a IA de novo. A tabela
+        # `candidato` (aba "Currículo") recebe só a projeção plana de 7 campos.
         dados_estruturados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
-        if dados_estruturados:
-            self.curriculo_repository.salvar_candidato(novo_curriculo.id_curriculo, dados_estruturados)
+        if dados_tem_conteudo(dados_estruturados):
+            self.curriculo_repository.salvar_dados_extraidos(novo_curriculo, dados_estruturados)
+        dados_planos = dados_planos_de(dados_estruturados)
+        self.curriculo_repository.salvar_candidato(novo_curriculo.id_curriculo, dados_planos)
 
         return {
             "id_curriculo": str(novo_curriculo.id_curriculo),
             "nome_arquivo": nome_arquivo,
             "tamanho_texto_extraido": len(texto_extraido),
-            "dados": dados_estruturados,
+            "dados": dados_planos,
         }
 
     def criar_curriculo_manual(self, id_usuario: uuid.UUID, nome_curriculo: str, dados: dict) -> Curriculo:
@@ -105,6 +115,11 @@ class AnalisadorService:
         )
         self.curriculo_repository.criar(curriculo)
         self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados)
+        # Currículo manual não tem arquivo nem texto para a IA extrair: sem isso aqui, a
+        # exportação em template só enxergava o resumo (único conteúdo de `texto_extraido`).
+        self.curriculo_repository.salvar_dados_extraidos(
+            curriculo, normalizar_dados_curriculo(dados, curriculo.texto_extraido or "")
+        )
         return curriculo
 
     def cadastrar_vaga(
@@ -167,6 +182,7 @@ class AnalisadorService:
 
         resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
         pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
+        self._salvar_curriculo_estruturado_da_analise(novo_curriculo, resultado_ia)
 
         analise = Analise(
             id_curriculo=novo_curriculo.id_curriculo,
@@ -198,13 +214,13 @@ class AnalisadorService:
             if curriculo.conteudo_arquivo:
                 extensao = curriculo.nome_arquivo.rsplit(".", 1)[-1] if "." in curriculo.nome_arquivo else ""
                 texto_curriculo = self.curriculo_parser.extrair_texto(curriculo.conteudo_arquivo, extensao)
-                curriculo.texto_extraido = texto_curriculo
-                self.db.commit()
+                self.curriculo_repository.salvar_texto_extraido(curriculo, texto_curriculo)
             else:
                 raise CurriculoArquivoNaoEncontradoError
 
         resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
         pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
+        self._salvar_curriculo_estruturado_da_analise(curriculo, resultado_ia)
 
         analise = Analise(
             id_curriculo=curriculo.id_curriculo,
@@ -300,6 +316,16 @@ class AnalisadorService:
             curriculo.nome_curriculo = nome_curriculo.strip()
             curriculo.nome_arquivo = curriculo.nome_arquivo if curriculo.conteudo_arquivo else nome_curriculo.strip()
         self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, payload)
+
+        # Mantém a base da exportação em template em sincronia com a aba "Currículo", sem
+        # jogar fora o que a edição plana não representa (bullets, idiomas, seções extras).
+        # Currículo com arquivo e ainda sem extração fica para a extração por IA na primeira
+        # exportação, que é mais completa do que os 7 campos planos.
+        if curriculo.dados_extraidos or not curriculo.conteudo_arquivo:
+            self.curriculo_repository.salvar_dados_extraidos(
+                curriculo,
+                mesclar_dados_planos(curriculo.dados_extraidos or {}, payload, curriculo.texto_extraido or ""),
+            )
         return self.obter_detalhes_curriculo(id_usuario, id_curriculo)
 
     def obter_arquivo_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> tuple[bytes, str]:
@@ -342,7 +368,14 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        dados_completos = normalizar_dados_editados(dados, curriculo.texto_extraido or "")
+        texto_bruto = curriculo.texto_extraido or ""
+        if eh_formato_plano(dados or {}):
+            # Edição campo a campo (7 campos planos): aplica por cima da versão mais recente
+            # sem descartar o que esses campos não representam (bullets, idiomas, seções...).
+            base = curriculo.dados_editados or curriculo.dados_extraidos or {}
+            dados_completos = mesclar_dados_planos(base, dados, texto_bruto)
+        else:
+            dados_completos = normalizar_dados_curriculo(dados, texto_bruto)
         return self.curriculo_repository.salvar_edicao(curriculo, dados_completos)
 
     def salvar_edicao_texto_livre_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, texto: str) -> Curriculo:
@@ -354,14 +387,18 @@ class AnalisadorService:
         dados["texto_bruto"] = texto
         return self.curriculo_repository.salvar_edicao(curriculo, dados)
 
-    def aplicar_sugestoes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> Curriculo:
-        """Pede à IA uma versão dos dados do currículo com as sugestões da última análise
-        (palavras-chave faltantes, itens a remover/reorganizar, reescritas) já aplicadas, e
-        salva o resultado como `dados_editados` — pronto para revisão/exportação, sem
-        precisar o usuário reescrever campo a campo manualmente.
+    def aplicar_sugestoes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> tuple[Curriculo, dict]:
+        """Reescreve o currículo com as sugestões da última análise — SEM IA, só com o que já
+        está salvo (ver `reescrita_curriculo.aplicar_sugestoes_sem_ia`). O resultado vai para
+        `dados_editados`, pronto para a exportação em template; se nenhuma sugestão pôde ser
+        aplicada, nada é salvo e o relatório explica o porquê.
 
         Levanta `NenhumaSugestaoDisponivelError` se este currículo ainda não tem nenhuma
         análise com diagnóstico salvo.
+
+        A única chamada de IA possível aqui é a extração dos dados estruturados, e só quando o
+        currículo ainda não a tem em cache — o que não acontece para currículos analisados
+        depois da análise passar a devolver `curriculo_estruturado` junto.
         """
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
         if curriculo is None or curriculo.id_usuario != id_usuario:
@@ -371,11 +408,50 @@ class AnalisadorService:
         if not sugestoes:
             raise NenhumaSugestaoDisponivelError
 
-        dados_atuais = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
-        dados_aplicados = aplicar_sugestoes_em_dados_curriculo(
-            self.ai_service_adapter, dados_atuais, sugestoes, curriculo.texto_extraido or ""
-        )
-        return self.curriculo_repository.salvar_edicao(curriculo, dados_aplicados)
+        # Parte sempre do currículo original (dados_extraidos), não de uma edição anterior:
+        # clicar duas vezes não aplica a mesma sugestão em cima do resultado da primeira.
+        if curriculo.dados_extraidos:
+            dados_atuais = normalizar_dados_curriculo(curriculo.dados_extraidos, curriculo.texto_extraido or "")
+        else:
+            dados_atuais = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+
+        dados_aplicados, relatorio = aplicar_sugestoes_sem_ia(dados_atuais, sugestoes, curriculo.texto_extraido or "")
+        if relatorio["total_aplicadas"] > 0:
+            curriculo = self.curriculo_repository.salvar_edicao(curriculo, dados_aplicados)
+        return curriculo, relatorio
+
+    def _salvar_curriculo_estruturado_da_analise(self, curriculo: Curriculo, resultado_ia: str) -> None:
+        """A análise já devolve o currículo estruturado completo (`curriculo_estruturado`);
+        guardá-lo aqui poupa a requisição de extração que o botão "Transformar em Template
+        ATS" faria depois. Só preenche quando ainda não há extração em cache."""
+        if curriculo.dados_extraidos:
+            return
+        estruturado = self._extrair_curriculo_estruturado(resultado_ia)
+        if estruturado is None:
+            return
+        try:
+            dados = normalizar_dados_curriculo(estruturado, curriculo.texto_extraido or "")
+        except ValueError:
+            return
+        if not dados_tem_conteudo(dados):
+            return
+        self.curriculo_repository.salvar_dados_extraidos(curriculo, dados)
+        if self.curriculo_repository.buscar_candidato(curriculo.id_curriculo) is None:
+            self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados_planos_de(dados))
+
+    @staticmethod
+    def _extrair_curriculo_estruturado(resultado_ia: str) -> dict | None:
+        texto = (resultado_ia or "").strip()
+        if texto.startswith("```"):
+            texto = texto.strip("`").strip()
+            if texto.lower().startswith("json"):
+                texto = texto[4:].strip()
+        try:
+            dados = json.loads(texto)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        estruturado = dados.get("curriculo_estruturado") if isinstance(dados, dict) else None
+        return estruturado if isinstance(estruturado, dict) else None
 
     def _obter_sugestoes_mais_recentes(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> dict | None:
         # Mesma normalização de chaves usada em NovaAnalise.jsx/HistoricoAnalises.jsx: a IA
@@ -426,6 +502,8 @@ class AnalisadorService:
                 texto = texto[4:].strip()
         try:
             dados = json.loads(texto)
+            if isinstance(dados, dict):
+                dados.pop("curriculo_estruturado", None)
             pontuacao_bruta = dados.get("pontuacao")
             pontuacao = float(pontuacao_bruta) if pontuacao_bruta is not None else None
             if any(k in dados for k in ("palavras_chave", "diagnostico_ats", "sugestoes_reescrita", "resumo")):
