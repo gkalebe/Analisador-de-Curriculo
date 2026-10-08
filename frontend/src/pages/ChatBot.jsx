@@ -11,7 +11,7 @@ import { ApiError } from "../api/client.js";
 
 export default function ChatBot() {
   const [searchParams] = useSearchParams();
-  const emailInicial = searchParams.get("email") || lerSessao()?.email || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
 
   const [curriculosSalvos, setCurriculosSalvos] = useState([]);
   const [idCurriculoSelecionado, setIdCurriculoSelecionado] = useState("");

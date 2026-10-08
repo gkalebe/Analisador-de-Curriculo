@@ -14,9 +14,9 @@ from app.core.service.simulador_service import (
     VagaNaoEncontradaError,
 )
 from app.main import app
+from app.web.dependencies import get_usuario_atual
 from app.web.routers.simulador_router import (
     get_simulador_service,
-    get_usuario_repository,
 )
 
 client = TestClient(app)
@@ -33,16 +33,12 @@ def _usuario(id_usuario=None):
 
 
 def test_iniciar_simulacao_usuario_nao_encontrado():
-    repo_falso = MagicMock()
-    repo_falso.buscar_por_email.return_value = None
-
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_falso
     try:
         response = client.post(
             "/simulador/iniciar",
             json={"email": "desconhecido@example.com", "id_vaga": str(uuid.uuid4())},
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
     finally:
         app.dependency_overrides.clear()
 
@@ -55,7 +51,7 @@ def test_iniciar_simulacao_sem_vaga_valida():
     servico = MagicMock()
     servico.iniciar_simulacao.side_effect = VagaNaoEncontradaError
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_simulador_service] = lambda: servico
     try:
         response = client.post(
@@ -93,7 +89,7 @@ def test_iniciar_simulacao_com_sucesso():
     servico = MagicMock()
     servico.iniciar_simulacao.return_value = simulacao
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_simulador_service] = lambda: servico
     try:
         response = client.post(
@@ -117,7 +113,7 @@ def test_responder_pergunta_resposta_vazia():
     servico = MagicMock()
     servico.responder_pergunta.side_effect = RespostaVaziaError("Digite uma resposta antes de enviar.")
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_simulador_service] = lambda: servico
     try:
         response = client.post(
@@ -138,7 +134,7 @@ def test_responder_pergunta_nao_encontrada():
     servico = MagicMock()
     servico.responder_pergunta.side_effect = PerguntaNaoEncontradaError
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_simulador_service] = lambda: servico
     try:
         response = client.post(
@@ -184,7 +180,7 @@ def test_responder_pergunta_com_sucesso():
     servico = MagicMock()
     servico.responder_pergunta.return_value = simulacao_atualizada
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_simulador_service] = lambda: servico
     try:
         response = client.post(
@@ -209,7 +205,7 @@ def test_obter_simulacao_nao_encontrada():
     servico = MagicMock()
     servico.obter_simulacao.side_effect = SimulacaoNaoEncontradaError
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_simulador_service] = lambda: servico
     try:
         response = client.get(f"/simulador/{uuid.uuid4()}?email=teste@example.com")
@@ -236,7 +232,7 @@ def test_listar_simulacoes():
     servico = MagicMock()
     servico.listar_simulacoes_usuario.return_value = [simulacao]
 
-    app.dependency_overrides[get_usuario_repository] = lambda: repo_usuario
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_simulador_service] = lambda: servico
     try:
         response = client.get("/simulador?email=teste@example.com")

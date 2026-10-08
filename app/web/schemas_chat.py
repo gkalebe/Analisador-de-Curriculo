@@ -5,7 +5,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class ChatMensagemRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr | None = None
     pergunta: str = Field(min_length=1)
     id_curriculo: uuid.UUID | None = None
     id_vaga: uuid.UUID | None = None
@@ -32,7 +32,7 @@ class ChatEnviarResponse(BaseModel):
 
 
 class ChatEncerrarRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr | None = None
     id_curriculo: uuid.UUID | None = None
     id_vaga: uuid.UUID | None = None
 

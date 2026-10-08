@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import { listarTemplates } from "../api/templateApi.js";
 import { ApiError } from "../api/client.js";
+import { lerSessao } from "../models/usuario.js";
 
 // Os 5 templates de currículo compartilham a mesma estrutura visual no backend
 // (ver CurriculoExporter.CORES_TEMPLATES) — só o "accent" muda por área de
@@ -31,7 +32,7 @@ function estiloCartao(idTemplate) {
 export default function GaleriaTemplates() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const emailInicial = searchParams.get("email") || "";
+  const emailInicial = lerSessao()?.email || searchParams.get("email") || "";
 
   const [emailCampo, setEmailCampo] = useState(emailInicial);
   const [templates, setTemplates] = useState([]);

@@ -12,9 +12,9 @@ from app.core.service.template_service import (
     VersaoExportacaoInvalidaError,
 )
 from app.main import app
+from app.web.dependencies import get_usuario_atual
 from app.web.routers.templates_router import (
     get_template_service,
-    get_usuario_repository,
 )
 
 client = TestClient(app)
@@ -67,18 +67,17 @@ def _usuario() -> Usuario:
 
 
 def test_listar_templates_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_template_service] = lambda: TemplateServiceFalso()
 
     response = client.get("/templates", params={"email": "nao-cadastrado@example.com"})
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_listar_templates_com_sucesso():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: TemplateServiceFalso()
 
     response = client.get("/templates", params={"email": usuario.email})
@@ -93,7 +92,7 @@ def test_listar_templates_sem_analise_retorna_403():
     usuario = _usuario()
     service_falso = TemplateServiceFalso()
     service_falso.deve_recusar_sem_analise = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: service_falso
 
     response = client.get("/templates", params={"email": usuario.email})
@@ -103,7 +102,6 @@ def test_listar_templates_sem_analise_retorna_403():
 
 
 def test_exportar_curriculo_com_email_desconhecido_retorna_404():
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({})
     app.dependency_overrides[get_template_service] = lambda: TemplateServiceFalso()
 
     response = client.get(
@@ -117,12 +115,12 @@ def test_exportar_curriculo_com_email_desconhecido_retorna_404():
     )
 
     app.dependency_overrides.clear()
-    assert response.status_code == 404
+    assert response.status_code == 401
 
 
 def test_exportar_curriculo_com_sucesso():
     usuario = _usuario()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: TemplateServiceFalso()
 
     response = client.get(
@@ -145,7 +143,7 @@ def test_exportar_curriculo_com_curriculo_nao_encontrado_retorna_404():
     usuario = _usuario()
     service_falso = TemplateServiceFalso()
     service_falso.deve_recusar_curriculo = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: service_falso
 
     response = client.get(
@@ -166,7 +164,7 @@ def test_exportar_curriculo_com_template_invalido_retorna_404():
     usuario = _usuario()
     service_falso = TemplateServiceFalso()
     service_falso.deve_recusar_template = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: service_falso
 
     response = client.get(
@@ -187,7 +185,7 @@ def test_exportar_curriculo_com_formato_invalido_retorna_400():
     usuario = _usuario()
     service_falso = TemplateServiceFalso()
     service_falso.deve_recusar_formato = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: service_falso
 
     response = client.get(
@@ -208,7 +206,7 @@ def test_exportar_curriculo_com_versao_invalida_retorna_400():
     usuario = _usuario()
     service_falso = TemplateServiceFalso()
     service_falso.deve_recusar_versao = True
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: service_falso
 
     response = client.get(
@@ -229,7 +227,7 @@ def test_exportar_curriculo_com_versao_invalida_retorna_400():
 def test_exportar_curriculo_repassa_versao_default_original():
     usuario = _usuario()
     service_falso = TemplateServiceFalso()
-    app.dependency_overrides[get_usuario_repository] = lambda: UsuarioRepositorioFalso({usuario.email: usuario})
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
     app.dependency_overrides[get_template_service] = lambda: service_falso
 
     response = client.get(

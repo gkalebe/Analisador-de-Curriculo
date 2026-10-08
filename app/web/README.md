@@ -8,6 +8,10 @@ Schemas separados por domínio, em vez de um único arquivo: `schemas_auth.py` (
 
 Regra da Clean Architecture simplificada: esta camada conhece o `core`, mas o `core` nunca importa nada daqui. Um router só orquestra: recebe a requisição, chama o service correspondente via `Depends`, devolve a resposta. Nenhuma regra de negócio deve morar em um router.
 
+## Autenticação dos endpoints protegidos
+
+As rotas que leem ou alteram dados do usuário exigem `Authorization: Bearer <access_token>`. A dependency compartilhada em `dependencies.py` valida assinatura, prazo e finalidade do JWT, resolve o usuário pelo `sub` (`id_usuario`) e responde `401` quando o token estiver ausente, inválido, expirado ou apontar para uma conta inexistente. O e-mail ainda aceito por alguns schemas/parâmetros é apenas compatibilidade de payload e nunca define o proprietário dos dados.
+
 ## Routers e donos por Sprint
 
 | Arquivo | Módulo | US | Sprint | Dev |
@@ -28,7 +32,7 @@ Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicio
 - `POST /analises` (rodar uma análise) já está implementado de ponta a ponta — ver seção "Nova análise" abaixo. Devolve `503` se `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` não estiver configurada no `.env`.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.
-- A maioria dos endpoints de currículo, vagas e análise ainda identifica o usuário por e-mail; perfil da conta e exclusão de conta já exigem JWT.
+- Todos os endpoints de dados que exigem usuário autenticado validam `Authorization: Bearer <token>` e usam o usuário identificado pelo JWT. E-mails eventualmente enviados por clientes antigos são ignorados para determinar a identidade.
 
 ## US-001/US-002 — Cadastro e login (concluídas)
 
@@ -49,9 +53,9 @@ Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.
 
 ## US-019 — Cadastrar informações de vaga no banco (concluída, em `vagas_router.py`)
 
-- `GET /api/vagas?email=...`: lista as vagas já salvas pelo usuário identificado por e-mail, `404` se o e-mail não estiver cadastrado.
-- `POST /api/vagas`: recebe `{"email", "titulo", "descricao", "requisitos", "area"}` (JSON), chama `AnalisadorService.cadastrar_vaga` e responde `201` com a vaga criada, ou `400` se a descrição estiver vazia ou acima do limite configurado em `max_vaga_description_chars`.
-- Identificação do usuário: como o login não gera uma sessão persistida no back (o token JWT fica só no `localStorage` do front), a tela usa o e-mail (query string) resolvido via `UsuarioRepository.buscar_por_email` como identificador — mesmo padrão usado no upload de currículo.
+- `GET /api/vagas`: lista as vagas do usuário autenticado pelo JWT.
+- `POST /api/vagas`: recebe `{"titulo", "descricao", "requisitos", "area"}` (JSON), chama `AnalisadorService.cadastrar_vaga` e responde `201` com a vaga criada, ou `400` se a descrição estiver vazia ou acima do limite configurado em `max_vaga_description_chars`.
+- O frontend inclui automaticamente o token da sessão em chamadas JSON, multipart e downloads binários. A API não usa o e-mail do payload/query como identidade.
 - Tela: `frontend/src/pages/NovaVaga.jsx` — formulário de cadastro (título opcional, descrição obrigatória, requisitos e área opcionais) e lista de vagas salvas para reaproveitar dados.
 - Testes: `tests/unit/test_analisador_service.py` (regras de negócio) e `tests/unit/test_vagas_router.py` (HTTP, com fakes via `app.dependency_overrides`).
 
@@ -59,14 +63,14 @@ Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.
 
 ## US-004 a US-007 — Upload e extração de currículo (rota concluída, em `analise_router.py`)
 
-- `POST /analises/upload` (multipart/form-data): recebe `email` + `file` (PDF ou DOCX, até `max_upload_size_mb`), identifica o usuário por e-mail (`404` se não encontrado), extrai o texto via `CurriculoParser` e responde `201` com `{"id_curriculo", "nome_arquivo", "tamanho_texto_extraido"}`, ou `400` para formato não suportado ou arquivo acima do limite.
-- Antes usava um usuário mock fixo e renderizava `templates/upload.html`; hoje é JSON puro, identificado por e-mail como os demais endpoints, consumido por `frontend/src/pages/UploadCurriculo.jsx` (drag-and-drop).
+- `POST /analises/upload` (multipart/form-data): recebe `file` (PDF ou DOCX, até `max_upload_size_mb`), identifica o usuário pelo JWT, extrai o texto via `CurriculoParser` e responde `201` com `{"id_curriculo", "nome_arquivo", "tamanho_texto_extraido"}`, ou `400` para formato não suportado ou arquivo acima do limite.
+- Antes usava um usuário mock fixo e renderizava `templates/upload.html`; hoje é JSON puro, protegido por JWT, consumido por `frontend/src/pages/UploadCurriculo.jsx` (drag-and-drop).
 - Testes: `tests/unit/test_analise_router.py`.
 
 ### Nova análise (currículo x vaga) — concluída (Gabriel Kalebe, com autorização do time para US-006/US-007)
 
-- `POST /analises` (multipart/form-data): recebe `email`, `id_vaga` e `file`, identifica o usuário e a vaga (`404` se algum não existir), extrai o texto do currículo e chama `AnalisadorService.analisar_curriculo_para_vaga`, que já roda a comparação por IA de verdade (`app/adapters/ai_service/ai_service_adapter.py`) e persiste em `Analise` (`app/core/persistencia/analise_repository.py`). Responde `201` com `{"id_analise", "id_curriculo", "id_vaga", "pontuacao", "observacoes", "data_analise"}`.
-- `GET /analises?email=...`: lista as análises já feitas pelo usuário. Assim como em `POST /analises`, um `NotImplementedError` vindo do service é convertido em `501` em vez de estourar `500` — esse tratamento estava faltando só no `GET` (o `POST` já tinha) e foi corrigido junto com o trabalho de US-012/US-013 abaixo.
+- `POST /analises` (multipart/form-data): recebe `id_vaga` e um `file` ou `id_curriculo`, identifica o usuário pelo JWT e a vaga/currículo (`404` se algum não existir ou não pertencer ao usuário), extrai o texto do currículo e chama `AnalisadorService.analisar_curriculo_para_vaga`, que já roda a comparação por IA de verdade (`app/adapters/ai_service/ai_service_adapter.py`) e persiste em `Analise` (`app/core/persistencia/analise_repository.py`). Responde `201` com `{"id_analise", "id_curriculo", "id_vaga", "pontuacao", "observacoes", "data_analise"}`.
+- `GET /analises`: lista as análises do usuário autenticado. Assim como em `POST /analises`, um `NotImplementedError` vindo do service é convertido em `501` em vez de estourar `500`.
 - Requer `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY` no `.env` (ver `.env.example`) — sem nenhuma das duas configuradas, `POST /analises` responde `503` com mensagem explicando o que falta, em vez de um erro 500 cru. Modelo usado é configurável via `GEMINI_MODEL_NAME`/`ANTHROPIC_MODEL_NAME`.
 - Contrato do retorno do `AIServiceAdapter.comparar_curriculo_vaga`: uma string JSON `{"pontuacao": 0-100, "observacoes": "..."}` — ver `AnalisadorService._interpretar_resultado_ia` (tolera blocos de markdown ao redor do JSON). Combine com quem mexer no prompt antes de mudar esse formato.
 - Tela: `frontend/src/pages/NovaAnalise.jsx` — escolhe uma vaga salva e envia um currículo. `Cadastrar vaga` (`NovaVaga.jsx`) e `Enviar currículo` (`UploadCurriculo.jsx`) foram separadas dessa tela (antes a de vaga usava o título errado "Nova análise"); as três agora compartilham `frontend/src/components/Sidebar.jsx`. Ao concluir uma análise com sucesso, um link "Ver templates ATS para este currículo" leva para `/templates`.
@@ -76,8 +80,8 @@ Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.
 
 Feito por Gabriel Kalebe (fora do que estava originalmente atribuído a ele — `templates_router.py`/`template_service.py` eram de Allan/Carlos; time autorizou antes de mexer, mesmo padrão das US-006/US-007).
 
-- `GET /templates?email=...`: lista os templates disponíveis (`moderno`, `classico`, `minimalista`, cada um com um `preview_ficticio` para exibir na galeria sem depender de um currículo real). `404` se o e-mail não estiver cadastrado, `403` se o usuário ainda não tiver nenhuma análise concluída (regra de negócio: só faz sentido escolher template depois de ao menos uma análise).
-- `GET /templates/exportar?email=...&id_curriculo=...&id_template=...&formato=pdf|docx`: gera e devolve o arquivo (PDF ou DOCX) do currículo indicado, no template escolhido. `404` se e-mail, currículo (ou currículo de outro usuário) ou template não existirem; `400` se o `formato` não for `pdf`/`docx`. O nome do arquivo (com acentuação) vai tanto no `Content-Disposition: filename=` (versão ASCII, fallback) quanto em `filename*=UTF-8''...` (RFC 5987, nome completo em navegadores modernos).
+- `GET /templates`: lista os templates disponíveis (`moderno`, `classico`, `minimalista`, cada um com um `preview_ficticio` para exibir na galeria sem depender de um currículo real). `403` se o usuário autenticado ainda não tiver nenhuma análise concluída.
+- `GET /templates/exportar?id_curriculo=...&id_template=...&formato=pdf|docx`: gera e devolve o arquivo (PDF ou DOCX) do currículo indicado, no template escolhido. `404` se currículo (ou currículo de outro usuário) ou template não existirem; `400` se o `formato` não for `pdf`/`docx`. O nome do arquivo (com acentuação) vai tanto no `Content-Disposition: filename=` (versão ASCII, fallback) quanto em `filename*=UTF-8''...` (RFC 5987, nome completo em navegadores modernos).
 - Extração de dados estruturados: `TemplateService._extrair_dados_curriculo` chama `AIServiceAdapter.extrair_dados_estruturados` sobre `Curriculo.texto_extraido` (texto bruto salvo no upload/análise — novo campo, ver `core/persistencia/README.md`). Se a IA não estiver configurada (`IAConfiguracaoAusenteError`) ou estiver indisponível (`IAIndisponivelError`, timeout de 30s), cai num fallback que usa o texto bruto direto, sem quebrar a exportação — RNF-008 aplicado aqui também.
 - Geração do arquivo: `app/adapters/curriculo_exporter/curriculo_exporter.py` (ver `app/adapters/README.md`).
 - Telas: `frontend/src/pages/GaleriaTemplates.jsx` (grade com os 3 templates e preview fictício) e `frontend/src/pages/PreviewExportarCurriculo.jsx` (escolhe o currículo/análise, mostra preview do PDF em `<iframe>` e baixa PDF/DOCX). Acessíveis pelo item "Templates ATS" na `Sidebar.jsx` e pelo botão em `Painel.jsx`.
@@ -87,7 +91,7 @@ Feito por Gabriel Kalebe (fora do que estava originalmente atribuído a ele — 
 
 Feito por Gabriel Kalebe — issue #20 (`[BACK] US-016`) veio atribuída a ele no kanban.
 
-- `GET /painel/historico?email=...`: devolve `{"historico": [...], "lacunas_recorrentes": [...]}`. `404` se o e-mail não estiver cadastrado. Não valida "mínimo de 2 análises" (US-007) no back — com 0 ou 1 análise só devolve listas vazias/menores, sem erro; a tela (US-016 front, issue #35, ainda não atribuída/feita) decide como exibir isso.
+- `GET /painel/historico`: exige JWT e devolve `{"historico": [...], "lacunas_recorrentes": [...]}`. Não valida "mínimo de 2 análises" (US-007) no back — com 0 ou 1 análise só devolve listas vazias/menores, sem erro; a tela decide como exibir isso.
 - `historico`: um item por análise (`id_analise`, `data_analise`, `vaga_titulo`, `pontuacao`), mais recente primeiro (usa `AnaliseRepository.listar_por_usuario`, já ordenado).
 - `lacunas_recorrentes`: lista `{"competencia", "frequencia"}` ordenada da mais para a menos frequente. Calculada sem IA (determinístico, sem custo/latência extra e sem depender de `GEMINI_API_KEY`/`ANTHROPIC_API_KEY`): para cada análise, separa `Vaga.requisitos` em itens (por vírgula/`;`/quebra de linha) e considera "lacuna" todo item que não aparece como substring (case-insensitive) em `Curriculo.texto_extraido`; depois soma a frequência de cada lacuna entre todas as análises do usuário. Vaga sem `requisitos` preenchido não gera lacuna para aquela análise.
 - `PlanoService.obter_historico_e_lacunas` é o método novo; `PainelHistoricoResponse`/`HistoricoAnaliseItem`/`LacunaRecorrente` ficam em `app/web/schemas_painel.py`.
@@ -107,10 +111,10 @@ Feito por Vitor Bittencourt, seguindo o protótipo Figma (issue #35 `[FRONT] US-
 Feito por Vitor Bittencourt (Levantamento de Requisitos v1.1, US-018: "Acessar biblioteca de currículos", dependências US-004 e US-013). Empilhada sobre a branch/PR de FRONT-US-016.
 
 - Tela: `frontend/src/pages/BibliotecaCurriculos.jsx`, em `/analises/biblioteca`, item "Biblioteca" na `Sidebar.jsx`. Lista os currículos do usuário em duas seções — "Enviados por mim" e "Gerados pela IA" — com nome do arquivo, data e vaga associada, e ações Visualizar / Baixar / Excluir por item.
-- Endpoint novo `GET /analises/curriculos/biblioteca?email=...`: devolve `{"enviados_por_mim": [...], "gerados_por_ia": [...]}`, `404` se o e-mail não estiver cadastrado. **Registrado antes de `/curriculos/{id_curriculo}` de propósito** — o FastAPI resolve rotas na ordem de registro, e `biblioteca` cairia no path param de UUID (422) se viesse depois.
-- Endpoint novo `DELETE /analises/curriculos/{id_curriculo}?email=...`: `204` em caso de sucesso, `404` se o e-mail ou o currículo (ou currículo de outro usuário) não existir. `CurriculoRepository.excluir` já existia sem rota; `AnalisadorService.excluir_curriculo` é novo. A exclusão remove em cascata as análises daquele currículo (`cascade="all, delete-orphan"` no model).
+- Endpoint novo `GET /analises/curriculos/biblioteca`: exige JWT e devolve `{"enviados_por_mim": [...], "gerados_por_ia": [...]}`. **Registrado antes de `/curriculos/{id_curriculo}` de propósito** — o FastAPI resolve rotas na ordem de registro, e `biblioteca` cairia no path param de UUID (422) se viesse depois.
+- Endpoint novo `DELETE /analises/curriculos/{id_curriculo}`: exige JWT; responde `204` em caso de sucesso ou `404` se o currículo não existir ou não pertencer ao usuário autenticado. `CurriculoRepository.excluir` já existia sem rota; `AnalisadorService.excluir_curriculo` é novo. A exclusão remove em cascata as análises daquele currículo (`cascade="all, delete-orphan"` no model).
 - Separação das duas categorias sem migration: `origem` é derivada em `AnalisadorService.listar_biblioteca_curriculos` — `"ia"` quando o currículo tem `dados_editados` (existe versão otimizada salva pela edição/aplicação de sugestões por IA), `"usuario"` caso contrário. Não há coluna `origem` no banco, porque hoje nada materializa um `Curriculo` separado para a versão exportada (US-013 gera o arquivo na hora).
 - RN-010 (retenção de 90 dias): `listar_biblioteca_curriculos` omite currículos cuja última atividade — o maior valor entre `data_upload`, `editado_em` e a `data_analise` das análises — passou de `retencao_curriculo_dias` (nova configuração em `app/core/config.py`, default 90). Só a listagem respeita o prazo; a exclusão automática do arquivo em disco/banco (job agendado + aviso por e-mail 7 dias antes) segue pendente e fica fora do escopo desta US.
 - `vaga_titulo` vem da análise mais recente do currículo, e é `null` quando ele ainda não foi comparado com nenhuma vaga (critério 1 pede "quando disponível").
-- Extra fora da US (mesma branch): exclusão de análise no histórico — `DELETE /analises/{id_analise}?email=...` (`204`/`404`), `AnaliseRepository.excluir` e `AnalisadorService.excluir_analise` (levanta `AnaliseNaoEncontradaError`), com o ícone de lixeira + `ModalConfirmarExclusao.jsx` em `HistoricoAnalises.jsx`. Não corresponde a nenhuma US do levantamento; veio de uma leitura inicial equivocada da US-018 e foi mantido por já estar testado e em uso na tela de Histórico.
+- Extra fora da US (mesma branch): exclusão de análise no histórico — `DELETE /analises/{id_analise}` (JWT obrigatório; `204`/`404`), `AnaliseRepository.excluir` e `AnalisadorService.excluir_analise` (levanta `AnaliseNaoEncontradaError`), com o ícone de lixeira + `ModalConfirmarExclusao.jsx` em `HistoricoAnalises.jsx`.
 - Testes: `tests/unit/test_analise_router.py` (`test_listar_biblioteca_*`, `test_excluir_curriculo_*`, `test_excluir_analise_*`), `tests/unit/test_analisador_service.py` (`test_listar_biblioteca_*`, `test_excluir_curriculo_*`, `test_excluir_analise_*`).

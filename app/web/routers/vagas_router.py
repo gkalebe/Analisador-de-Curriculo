@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.persistencia.usuario_repository import UsuarioRepository
 from app.core.service.analisador_service import (
     AnalisadorService,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
     VagaDuplicadaError,
 )
+from app.web.dependencies import get_usuario_atual
 from app.core.service.importador_vaga_service import ImportacaoVagaError, importar_vaga
 from app.web.schemas_vaga import (
     VagaCreateRequest,
@@ -24,23 +24,11 @@ def get_analisador_service(db: Session = Depends(get_db)) -> AnalisadorService:
     return AnalisadorService(db)
 
 
-def get_usuario_repository(db: Session = Depends(get_db)) -> UsuarioRepository:
-    return UsuarioRepository(db)
-
-
 @router.get("", response_model=VagaListResponse)
 def listar_vagas(
-    email: str,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> VagaListResponse:
-    usuario = usuario_repository.buscar_por_email(email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     vagas = analisador_service.listar_vagas_usuario(usuario.id_usuario)
     return VagaListResponse(vagas=[VagaResponse.model_validate(vaga) for vaga in vagas])
 
@@ -48,16 +36,9 @@ def listar_vagas(
 @router.post("", response_model=VagaResponse, status_code=status.HTTP_201_CREATED)
 def criar_vaga(
     payload: VagaCreateRequest,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> VagaResponse:
-    usuario = usuario_repository.buscar_por_email(payload.email)
-    if usuario is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Não encontramos um usuário cadastrado com esse e-mail.",
-        )
-
     try:
         vaga = analisador_service.cadastrar_vaga(
             id_usuario=usuario.id_usuario,
@@ -89,13 +70,9 @@ def criar_vaga(
 @router.post("/importar", response_model=VagaResponse, status_code=status.HTTP_201_CREATED)
 def importar_vaga_por_url(
     payload: VagaImportRequest,
-    usuario_repository: UsuarioRepository = Depends(get_usuario_repository),
+    usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> VagaResponse:
-    usuario = usuario_repository.buscar_por_email(payload.email)
-    if usuario is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Não encontramos um usuário cadastrado com esse e-mail.")
-
     try:
         dados = importar_vaga(payload.url, analisador_service.settings.max_vaga_description_chars)
         vaga = analisador_service.cadastrar_vaga(id_usuario=usuario.id_usuario, **{chave: dados[chave] for chave in ("descricao", "titulo", "requisitos", "area")})
