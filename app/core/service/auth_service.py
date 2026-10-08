@@ -83,6 +83,18 @@ class AuthService:
         token = jwt.encode(payload, self.settings.secret_key, algorithm="HS256")
         return usuario, token
 
+    def obter_perfil(self, id_usuario: uuid.UUID) -> Usuario:
+        usuario = self.usuario_repository.buscar_por_id(id_usuario)
+        if usuario is None:
+            raise UsuarioNaoEncontradoError
+        return usuario
+
+    def atualizar_perfil(self, id_usuario: uuid.UUID, nome: str, notificacoes_por_email: bool) -> Usuario:
+        usuario = self.obter_perfil(id_usuario)
+        usuario.nome = nome
+        usuario.notificacoes_por_email = notificacoes_por_email
+        return self.usuario_repository.atualizar(usuario)
+
     def solicitar_exclusao_conta(self, id_usuario: uuid.UUID) -> Usuario:
         usuario = self.usuario_repository.buscar_por_id(id_usuario)
         if usuario is None:

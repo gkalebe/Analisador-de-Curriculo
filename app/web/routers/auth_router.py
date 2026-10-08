@@ -20,10 +20,12 @@ from app.core.service.auth_service import (
     UsuarioNaoEncontradoError,
 )
 from app.web.schemas_auth import (
+    AtualizarPerfilUsuarioRequest,
     CadastrarUsuarioRequest,
     LoginRequest,
     LoginResponse,
     MensagemResponse,
+    PerfilUsuarioResponse,
     RedefinirSenhaRequest,
     SolicitarRecuperacaoSenhaRequest,
     StatusExclusaoResponse,
@@ -101,6 +103,35 @@ def login(
             detail="E-mail ou senha inválidos.",
         ) from erro
     return LoginResponse(access_token=token, usuario=UsuarioResponse.model_validate(usuario))
+
+
+@router.get("/me", response_model=PerfilUsuarioResponse)
+def obter_perfil_usuario(
+    id_usuario: uuid.UUID = Depends(get_usuario_autenticado),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> PerfilUsuarioResponse:
+    try:
+        usuario = auth_service.obter_perfil(id_usuario)
+    except UsuarioNaoEncontradoError as erro:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.") from erro
+    return PerfilUsuarioResponse.model_validate(usuario)
+
+
+@router.patch("/me", response_model=PerfilUsuarioResponse)
+def atualizar_perfil_usuario(
+    payload: AtualizarPerfilUsuarioRequest,
+    id_usuario: uuid.UUID = Depends(get_usuario_autenticado),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> PerfilUsuarioResponse:
+    try:
+        usuario = auth_service.atualizar_perfil(
+            id_usuario,
+            nome=payload.nome,
+            notificacoes_por_email=payload.notificacoes_por_email,
+        )
+    except UsuarioNaoEncontradoError as erro:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.") from erro
+    return PerfilUsuarioResponse.model_validate(usuario)
 
 
 @router.get("/exclusao", response_model=StatusExclusaoResponse)

@@ -14,6 +14,7 @@ import ChatBot from "./pages/ChatBot.jsx";
 import SimulacaoEntrevista from "./pages/SimulacaoEntrevista.jsx";
 import VisualizarAnalise from "./pages/VisualizarAnalise.jsx";
 import BibliotecaCurriculos from "./pages/BibliotecaCurriculos.jsx";
+import ConfiguracoesUsuario from "./pages/ConfiguracoesUsuario.jsx";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/cadastro" element={<Cadastro />} />
       <Route path="/usuarios/recuperar-senha" element={<RecuperarSenha />} />
       <Route path="/usuarios/redefinir-senha" element={<RedefinirSenha />} />
+      <Route path="/usuarios/configuracoes" element={<ConfiguracoesUsuario />} />
       <Route path="/analises/nova" element={<NovaAnalise />} />
       <Route path="/analises/historico" element={<HistoricoAnalises />} />
       <Route path="/analises/historico/visualizar" element={<VisualizarAnalise />} />

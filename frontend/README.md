@@ -48,7 +48,7 @@ Regra ao adicionar uma tela nova: chamadas de rede vão em `api/`, nunca direto 
 
 ## Identificação de usuário
 
-Não existe sessão persistida no backend — o login grava `access_token`, `usuario_nome` e `usuario_email` no `localStorage` (`src/models/usuario.js`) e as páginas que precisam identificar o usuário logado (Painel, Nova Vaga, Upload de Currículo) usam o e-mail, propagado via query string entre rotas. Trocar por autenticação via JWT nos endpoints é trabalho pendente (ver `app/web/README.md`).
+O login grava `access_token`, `usuario_nome` e `usuario_email` no `localStorage` (`src/models/usuario.js`). A tela de configurações usa o JWT para ler e atualizar o perfil autenticado (`GET/PATCH /usuarios/me`); nome e preferência de notificações são persistidos na tabela `usuario`. A maior parte das páginas de análise, vagas e currículos ainda identifica o usuário por e-mail via query string (ver `app/web/README.md`).
 
 ## Build
 
