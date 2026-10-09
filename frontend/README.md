@@ -57,3 +57,13 @@ npm run build
 ```
 
 Gera `dist/` — ainda não há um pipeline de deploy configurado para o frontend.
+
+## Testes
+
+Execute os testes automatizados do frontend com:
+
+```
+npm test
+```
+
+Os testes usam Vitest e React Testing Library. O CI instala as dependências com `npm ci` e executa esse mesmo comando.
