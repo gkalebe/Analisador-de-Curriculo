@@ -579,6 +579,35 @@ def test_obter_dados_edicao_curriculo_com_edicao_usa_dados_salvos_e_sugestoes():
     assert resultado["sugestoes"]["sugestoes_reescrita"][0]["justificativa"] == "Verbo de ação"
 
 
+@pytest.mark.parametrize(
+    ("sugestao", "campo_esperado"),
+    [
+        ({"campo": "resumo"}, "resumo"),
+        ({"campo": "formacao"}, "formacao"),
+        ({"campo": "experiencia_profissional"}, "experiencia_profissional"),
+        ({"campo": "habilidades"}, "habilidades"),
+        ({}, ""),
+        ({"campo": "campo_inventado"}, ""),
+    ],
+)
+def test_obter_sugestoes_mais_recentes_normaliza_campo(sugestao: dict, campo_esperado: str):
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    id_curriculo = uuid.uuid4()
+    analise = Analise(
+        id_curriculo=id_curriculo,
+        id_vaga=uuid.uuid4(),
+        id_usuario=id_usuario,
+        pontuacao=80.0,
+        observacoes=json.dumps({"sugestoes_reescrita": [sugestao]}),
+    )
+    service.analise_repository.criar(analise)
+
+    resultado = service._obter_sugestoes_mais_recentes(id_usuario, id_curriculo)
+
+    assert resultado["sugestoes_reescrita"][0]["campo"] == campo_esperado
+
+
 def test_obter_dados_edicao_curriculo_inexistente_lanca_erro():
     service = _criar_service_completo_com_fakes()
 
