@@ -57,7 +57,10 @@ class ValidadorCurriculoEstruturado:
         try:
             dados = DadosCurriculoEstruturado.model_validate(dados_brutos)
         except ValidationError as erro:
-            logger.warning("JSON retornado pela IA não corresponde ao schema: %s", erro)
+            logger.warning(
+                "JSON retornado pela IA não corresponde ao schema, validation_errors=%d",
+                len(erro.errors()),
+            )
             return None, list(CAMPOS_TEXTO_OBRIGATORIOS)
 
         campos_vazios = [campo for campo in CAMPOS_TEXTO_OBRIGATORIOS if not getattr(dados, campo).strip()]

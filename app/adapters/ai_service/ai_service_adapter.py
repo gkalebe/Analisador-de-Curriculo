@@ -1,18 +1,19 @@
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.core.config import get_settings
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 30
-# Chamadas cujas respostas são grandes (análise + currículo estruturado, extração completa)
-# precisam de mais tempo de leitura: com o modelo sob carga, 30s virava ReadTimeout.
 TIMEOUT_RESPOSTA_LONGA_SEGUNDOS = 90
-# Um currículo completo em JSON estruturado (experiências com bullets, formação, idiomas,
-# seções adicionais) passa fácil de 1.5k tokens; cortar a resposta no meio invalida o JSON
-# inteiro e a extração cai silenciosamente em campos vazios.
 MAX_TOKENS_RESPOSTA = 4096
 TEMPERATURA_PADRAO = 0.4
 MAX_TENTATIVAS_GEMINI = 3
@@ -48,21 +49,86 @@ class IAIndisponivelError(Exception):
     pass
 
 
+class IARespostaInvalidaError(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class AICompletion:
+    text: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    attempts: int = 1
+
+
 class AIServiceClient(ABC):
+    provider_name = "unknown"
+
     @abstractmethod
     def gerar_resposta(
         self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
     ) -> str: ...
 
+    @property
+    def model_name(self) -> str:
+        return "unknown"
+
+    def gerar_resposta_com_metadados(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> AICompletion:
+        return AICompletion(self.gerar_resposta(prompt, temperatura, timeout_segundos))
+
+    def gerar_resposta_estruturada(
+        self,
+        prompt: str,
+        schema: type["BaseModel"],
+        temperatura: float = TEMPERATURA_PADRAO,
+        timeout_segundos: int = TIMEOUT_RESPOSTA_LONGA_SEGUNDOS,
+    ) -> AICompletion:
+        schema_json = json.dumps(schema.model_json_schema(), ensure_ascii=False)
+        prompt_com_schema = (
+            f"{prompt}\n\nResponda somente com JSON válido que corresponda a este JSON Schema:\n{schema_json}"
+        )
+        return self.gerar_resposta_com_metadados(prompt_com_schema, temperatura, timeout_segundos)
+
 
 class GeminiClient(AIServiceClient):
+    provider_name = "gemini"
+
     def __init__(self, api_key: str, model_name: str = "gemini-3.8-flash"):
         self.api_key = api_key
-        self.model_name = model_name
+        self._model_name = model_name
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
 
     def gerar_resposta(
         self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
     ) -> str:
+        return self.gerar_resposta_com_metadados(prompt, temperatura, timeout_segundos).text
+
+    def gerar_resposta_com_metadados(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> AICompletion:
+        return self._gerar_resposta(prompt, temperatura, timeout_segundos)
+
+    def gerar_resposta_estruturada(
+        self,
+        prompt: str,
+        schema: type["BaseModel"],
+        temperatura: float = TEMPERATURA_PADRAO,
+        timeout_segundos: int = TIMEOUT_RESPOSTA_LONGA_SEGUNDOS,
+    ) -> AICompletion:
+        return self._gerar_resposta(prompt, temperatura, timeout_segundos, schema)
+
+    def _gerar_resposta(
+        self,
+        prompt: str,
+        temperatura: float,
+        timeout_segundos: int,
+        response_schema: type["BaseModel"] | None = None,
+    ) -> AICompletion:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
                 "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
@@ -73,16 +139,26 @@ class GeminiClient(AIServiceClient):
 
         genai.configure(api_key=self.api_key, transport="rest")
         modelo = genai.GenerativeModel(self.model_name)
+        configuracao = {"temperature": temperatura}
+        if response_schema is not None:
+            configuracao["response_mime_type"] = "application/json"
+            configuracao["response_schema"] = _schema_compativel_com_gemini(response_schema)
 
         ultimo_erro: Exception | None = None
         for tentativa in range(1, MAX_TENTATIVAS_GEMINI + 1):
             try:
                 resposta = modelo.generate_content(
                     prompt,
-                    generation_config=genai.types.GenerationConfig(temperature=temperatura),
+                    generation_config=genai.types.GenerationConfig(**configuracao),
                     request_options={"timeout": timeout_segundos, "retry": None},
                 )
-                return resposta.text
+                usage = getattr(resposta, "usage_metadata", None)
+                return AICompletion(
+                    text=resposta.text,
+                    input_tokens=getattr(usage, "prompt_token_count", None),
+                    output_tokens=getattr(usage, "candidates_token_count", None),
+                    attempts=tentativa,
+                )
             except (
                 google.api_core.exceptions.ServiceUnavailable,
                 google.api_core.exceptions.TooManyRequests,
@@ -92,23 +168,25 @@ class GeminiClient(AIServiceClient):
                 # Erros transitórios (sobrecarga momentânea ou timeout de leitura): vale nova tentativa.
                 ultimo_erro = erro
                 logger.warning(
-                    "Gemini indisponível (tentativa %d/%d): %r", tentativa, MAX_TENTATIVAS_GEMINI, erro
+                    "Gemini indisponível (tentativa %d/%d), error_type=%s",
+                    tentativa,
+                    MAX_TENTATIVAS_GEMINI,
+                    type(erro).__name__,
                 )
                 if tentativa < MAX_TENTATIVAS_GEMINI:
                     time.sleep(ESPERA_ENTRE_TENTATIVAS_SEGUNDOS * tentativa)
             except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
                 # Demais erros (chave inválida, rede fora do ar etc.) não se beneficiam de retry: falha já.
-                logger.error("Falha ao chamar a API do Gemini: %r", erro, exc_info=True)
+                logger.error("Falha ao chamar a API do Gemini, error_type=%s", type(erro).__name__)
                 raise IAIndisponivelError(
                     f"O serviço de IA (Gemini) não respondeu em {timeout_segundos}s ou recusou a requisição. "
                     "Tente novamente em instantes."
                 ) from erro
 
         logger.error(
-            "Falha ao chamar a API do Gemini após %d tentativas: %r",
+            "Falha ao chamar a API do Gemini após %d tentativas, error_type=%s",
             MAX_TENTATIVAS_GEMINI,
-            ultimo_erro,
-            exc_info=True,
+            type(ultimo_erro).__name__ if ultimo_erro else "unknown",
         )
         raise IAIndisponivelError(
             f"O serviço de IA (Gemini) não respondeu em {timeout_segundos}s ou recusou a requisição. "
@@ -117,13 +195,24 @@ class GeminiClient(AIServiceClient):
 
 
 class ClaudeClient(AIServiceClient):
+    provider_name = "anthropic"
+
     def __init__(self, api_key: str, model_name: str = "claude-3-5-haiku-20241022"):
         self.api_key = api_key
-        self.model_name = model_name
+        self._model_name = model_name
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
 
     def gerar_resposta(
         self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
     ) -> str:
+        return self.gerar_resposta_com_metadados(prompt, temperatura, timeout_segundos).text
+
+    def gerar_resposta_com_metadados(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> AICompletion:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
                 "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
@@ -139,12 +228,35 @@ class ClaudeClient(AIServiceClient):
                 messages=[{"role": "user", "content": prompt}],
             )
         except anthropic.APIError as erro:
-            logger.error("Falha ao chamar a API do Claude: %r", erro, exc_info=True)
+            logger.error("Falha ao chamar a API do Claude, error_type=%s", type(erro).__name__)
             raise IAIndisponivelError(
                 f"O serviço de IA (Claude) não respondeu em {timeout_segundos}s ou recusou a requisição. "
                 "Tente novamente em instantes."
             ) from erro
-        return "".join(bloco.text for bloco in resposta.content if bloco.type == "text")
+        usage = getattr(resposta, "usage", None)
+        return AICompletion(
+            text="".join(bloco.text for bloco in resposta.content if bloco.type == "text"),
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+        )
+
+
+def _schema_compativel_com_gemini(modelo: type["BaseModel"]) -> dict:
+    schema_bruto = modelo.model_json_schema()
+    definicoes = schema_bruto.get("$defs", {})
+    chaves_nao_suportadas = {"default", "title", "$defs", "additionalProperties"}
+
+    def resolver(no):
+        if isinstance(no, dict):
+            if "$ref" in no:
+                nome_ref = no["$ref"].rsplit("/", 1)[-1]
+                return resolver(definicoes[nome_ref])
+            return {chave: resolver(valor) for chave, valor in no.items() if chave not in chaves_nao_suportadas}
+        if isinstance(no, list):
+            return [resolver(item) for item in no]
+        return no
+
+    return resolver(schema_bruto)
 
 
 FORMATO_JSON_CURRICULO_ESTRUTURADO = """{
@@ -179,20 +291,103 @@ class AIServiceAdapter:
             else:
                 self.cliente = GeminiClient(settings.gemini_api_key, settings.gemini_model_name)
 
+    def _gerar_resposta(
+        self, prompt: str, operacao: str, temperatura: float, timeout_segundos: int
+    ) -> str:
+        gerar_com_metadados = getattr(self.cliente, "gerar_resposta_com_metadados", None)
+        provider = getattr(self.cliente, "provider_name", type(self.cliente).__name__)
+        model = getattr(self.cliente, "model_name", "unknown")
+        inicio = time.perf_counter()
+        try:
+            resultado = (
+                gerar_com_metadados(prompt, temperatura, timeout_segundos)
+                if gerar_com_metadados is not None
+                else AICompletion(
+                    self.cliente.gerar_resposta(
+                        prompt, temperatura=temperatura, timeout_segundos=timeout_segundos
+                    )
+                )
+            )
+        except Exception as erro:
+            logger.warning(
+                "ai_call_failed operation=%s provider=%s model=%s latency_ms=%d error_type=%s",
+                operacao,
+                provider,
+                model,
+                round((time.perf_counter() - inicio) * 1000),
+                type(erro).__name__,
+            )
+            raise
+
+        logger.info(
+            "ai_call_succeeded operation=%s provider=%s model=%s latency_ms=%d attempts=%d "
+            "input_tokens=%s output_tokens=%s",
+            operacao,
+            provider,
+            model,
+            round((time.perf_counter() - inicio) * 1000),
+            resultado.attempts,
+            resultado.input_tokens,
+            resultado.output_tokens,
+        )
+        return resultado.text
+
+    def gerar_resposta_estruturada(
+        self,
+        prompt: str,
+        schema: type["BaseModel"],
+        operacao: str,
+        temperatura: float = 0.2,
+        timeout_segundos: int = TIMEOUT_RESPOSTA_LONGA_SEGUNDOS,
+    ) -> str:
+        gerar_estruturada = getattr(self.cliente, "gerar_resposta_estruturada", None)
+        if gerar_estruturada is None:
+            schema_json = json.dumps(schema.model_json_schema(), ensure_ascii=False)
+            prompt = f"{prompt}\n\nResponda somente com JSON válido que corresponda a este JSON Schema:\n{schema_json}"
+            return self._gerar_resposta(prompt, operacao, temperatura, timeout_segundos)
+
+        provider = getattr(self.cliente, "provider_name", type(self.cliente).__name__)
+        model = getattr(self.cliente, "model_name", "unknown")
+        inicio = time.perf_counter()
+        try:
+            completion = gerar_estruturada(prompt, schema, temperatura, timeout_segundos)
+        except Exception as erro:
+            logger.warning(
+                "ai_call_failed operation=%s provider=%s model=%s latency_ms=%d error_type=%s",
+                operacao,
+                provider,
+                model,
+                round((time.perf_counter() - inicio) * 1000),
+                type(erro).__name__,
+            )
+            raise
+        logger.info(
+            "ai_call_succeeded operation=%s provider=%s model=%s latency_ms=%d attempts=%d "
+            "input_tokens=%s output_tokens=%s",
+            operacao,
+            provider,
+            model,
+            round((time.perf_counter() - inicio) * 1000),
+            completion.attempts,
+            completion.input_tokens,
+            completion.output_tokens,
+        )
+        return completion.text
+
     def analisar_curriculo(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_analise(texto_curriculo)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
+        return self._gerar_resposta(prompt, "analisar_curriculo", 0.3, TIMEOUT_SEGUNDOS)
 
     def comparar_curriculo_vaga(self, texto_curriculo: str, texto_vaga: str) -> str:
         """Análise currículo × vaga. A resposta traz também o currículo estruturado completo
         (`curriculo_estruturado`), para o fluxo "Transformar em Template ATS" não precisar de
         uma segunda requisição de extração — ver AnalisadorService."""
         prompt = self._montar_prompt_comparacao(texto_curriculo, texto_vaga)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.3, timeout_segundos=TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
+        return self._gerar_resposta(prompt, "comparar_curriculo_vaga", 0.3, TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
 
     def extrair_dados_estruturados(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_extracao(texto_curriculo)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.2, timeout_segundos=TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
+        return self._gerar_resposta(prompt, "extrair_dados_estruturados", 0.2, TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
 
     def responder_chat(
         self,
@@ -202,15 +397,15 @@ class AIServiceAdapter:
         texto_vaga: str | None = None,
     ) -> str:
         prompt = self._montar_prompt_chat(historico, pergunta, texto_curriculo, texto_vaga)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.5)
+        return self._gerar_resposta(prompt, "responder_chat", 0.5, TIMEOUT_SEGUNDOS)
 
     def gerar_perguntas_entrevista(self, texto_vaga: str) -> str:
         prompt = self._montar_prompt_perguntas_entrevista(texto_vaga)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.6)
+        return self._gerar_resposta(prompt, "gerar_perguntas_entrevista", 0.6, TIMEOUT_SEGUNDOS)
 
     def avaliar_resposta_entrevista(self, texto_vaga: str, pergunta: str, tipo: str, resposta: str) -> str:
         prompt = self._montar_prompt_feedback_entrevista(texto_vaga, pergunta, tipo, resposta)
-        return self.cliente.gerar_resposta(prompt, temperatura=0.3)
+        return self._gerar_resposta(prompt, "avaliar_resposta_entrevista", 0.3, TIMEOUT_SEGUNDOS)
 
     def _montar_prompt_analise(self, texto_curriculo: str) -> str:
         return (

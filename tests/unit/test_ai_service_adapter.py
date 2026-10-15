@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 import pytest
 
@@ -20,7 +22,8 @@ class AIServiceClientFalso:
         return self.resposta
 
 
-def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga():
+def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga_sem_registrar_conteudo(caplog):
+    caplog.set_level(logging.INFO, logger="app.adapters.ai_service.ai_service_adapter")
     cliente_falso = AIServiceClientFalso()
     adapter = AIServiceAdapter(cliente=cliente_falso)
 
@@ -29,6 +32,10 @@ def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga():
     assert resultado == cliente_falso.resposta
     assert "Experiência com Python." in cliente_falso.prompts_recebidos[0]
     assert "Vaga para dev Python." in cliente_falso.prompts_recebidos[0]
+    assert "ai_call_succeeded" in caplog.text
+    assert "comparar_curriculo_vaga" in caplog.text
+    assert "Experiência com Python." not in caplog.text
+    assert "Vaga para dev Python." not in caplog.text
 
 
 def test_comparar_curriculo_vaga_pede_curriculo_estruturado_e_trechos_literais_para_reescrita_sem_ia():

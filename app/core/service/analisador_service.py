@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import AIServiceAdapter
+from app.adapters.ai_service.response_contracts import interpretar_resultado_comparacao
 from app.adapters.curriculo_parser.curriculo_parser import CurriculoParser
 from app.core.config import get_settings
 from app.core.persistencia.analise_repository import AnaliseRepository
@@ -171,6 +172,9 @@ class AnalisadorService:
 
         texto_curriculo = self.curriculo_parser.extrair_texto(conteudo, extensao)
 
+        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
+        pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
+
         novo_curriculo = Curriculo(
             nome_arquivo=nome_arquivo,
             id_usuario=id_usuario,
@@ -180,8 +184,6 @@ class AnalisadorService:
         )
         self.curriculo_repository.criar(novo_curriculo)
 
-        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
-        pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
         self._salvar_curriculo_estruturado_da_analise(novo_curriculo, resultado_ia)
 
         analise = Analise(
@@ -495,21 +497,10 @@ class AnalisadorService:
         }
 
     def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:
-        texto = (resultado_ia or "").strip()
-        if texto.startswith("```"):
-            texto = texto.strip("`").strip()
-            if texto.lower().startswith("json"):
-                texto = texto[4:].strip()
-        try:
-            dados = json.loads(texto)
-            if isinstance(dados, dict):
-                dados.pop("curriculo_estruturado", None)
-            pontuacao_bruta = dados.get("pontuacao")
-            pontuacao = float(pontuacao_bruta) if pontuacao_bruta is not None else None
-            if any(k in dados for k in ("palavras_chave", "diagnostico_ats", "sugestoes_reescrita", "resumo")):
-                observacoes = json.dumps(dados, ensure_ascii=False)
-            else:
-                observacoes = str(dados.get("observacoes") or resultado_ia)
-            return pontuacao, observacoes
-        except (json.JSONDecodeError, TypeError, ValueError, AttributeError):
-            return None, resultado_ia
+        dados = interpretar_resultado_comparacao(resultado_ia)
+        resposta = dados.model_dump(exclude={"curriculo_estruturado"}, exclude_none=True)
+        if any(k in resposta for k in ("palavras_chave", "diagnostico_ats", "sugestoes_reescrita", "resumo")):
+            observacoes = json.dumps(resposta, ensure_ascii=False)
+        else:
+            observacoes = str(resposta.get("observacoes") or resultado_ia)
+        return dados.pontuacao, observacoes

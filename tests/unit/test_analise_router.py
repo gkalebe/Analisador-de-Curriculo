@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
+from app.adapters.ai_service.ai_service_adapter import IARespostaInvalidaError
 from app.adapters.curriculo_parser.curriculo_parser import FormatoNaoSuportadoError
 from app.core.persistencia.models import Usuario
 from app.core.service.analisador_service import (
@@ -34,6 +35,7 @@ class AnalisadorServiceFalso:
         self.deve_recusar_formato = False
         self.deve_recusar_vaga = False
         self.deve_recusar_nao_implementado = False
+        self.deve_recusar_resposta_ia_invalida = False
         self.uploads_processados: list[dict] = []
         self.analises_criadas: list[dict] = []
         self.analises_para_listar: list = []
@@ -56,6 +58,8 @@ class AnalisadorServiceFalso:
         return resultado
 
     def analisar_curriculo_para_vaga(self, id_usuario, id_vaga, conteudo, nome_arquivo, extensao):
+        if self.deve_recusar_resposta_ia_invalida:
+            raise IARespostaInvalidaError("A resposta da IA não corresponde ao contrato da análise.")
         if self.deve_recusar_formato:
             raise FormatoNaoSuportadoError(extensao)
         if self.deve_recusar_vaga:
@@ -200,6 +204,24 @@ def test_criar_analise_com_sucesso():
     corpo = response.json()
     assert corpo["pontuacao"] == 87.5
     assert corpo["observacoes"] == "Bom encaixe com a vaga."
+
+
+def test_criar_analise_com_resposta_ia_invalida_retorna_502():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.deve_recusar_resposta_ia_invalida = True
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/analises",
+        data={"email": usuario.email, "id_vaga": str(uuid.uuid4())},
+        files={"file": ("curriculo.pdf", b"conteudo", "application/pdf")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 502
+    assert "contrato da análise" in response.json()["detail"]
 
 
 def test_criar_analise_com_vaga_nao_encontrada_retorna_404():
