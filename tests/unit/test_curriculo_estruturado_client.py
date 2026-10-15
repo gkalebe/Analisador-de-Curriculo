@@ -46,6 +46,10 @@ def test_gerar_sem_api_key_lanca_erro_de_configuracao(monkeypatch):
             "anthropic_model_name": "claude-test",
             "gemini_api_key": "",
             "gemini_model_name": "gemini-test",
+            "groq_api_key": "",
+            "groq_model_name": "groq-test",
+            "mistral_api_key": "",
+            "mistral_model_name": "mistral-test",
         }
     )())
     gerador = GeradorCurriculoEstruturadoIA()
@@ -156,8 +160,12 @@ def test_gerador_estruturado_usa_claude_selecionado_pelo_adapter_em_uma_chamada(
             {
                 "anthropic_api_key": "anthropic-key",
                 "anthropic_model_name": "claude-test",
-                "gemini_api_key": "gemini-key",
+                "gemini_api_key": "",
                 "gemini_model_name": "gemini-test",
+                "groq_api_key": "",
+                "groq_model_name": "groq-test",
+                "mistral_api_key": "",
+                "mistral_model_name": "mistral-test",
             },
         )(),
     )
@@ -188,22 +196,32 @@ def test_regenerar_campo_repassa_schema_e_resposta():
     assert adapter.chamadas[0]["operacao"] == "curriculo_campo_retry"
 
 
-def test_adapter_mantem_selecao_automatica_claude_antes_do_gemini(monkeypatch):
+@pytest.mark.parametrize(
+    ("chaves", "provider_esperado"),
+    [
+        ({"gemini_api_key": "gemini", "groq_api_key": "groq", "mistral_api_key": "mistral", "anthropic_api_key": "claude"}, "gemini"),
+        ({"groq_api_key": "groq", "mistral_api_key": "mistral", "anthropic_api_key": "claude"}, "groq"),
+        ({"mistral_api_key": "mistral", "anthropic_api_key": "claude"}, "mistral"),
+        ({"anthropic_api_key": "claude"}, "anthropic"),
+    ],
+)
+def test_adapter_escolhe_um_provider_pela_prioridade_configurada(monkeypatch, chaves, provider_esperado):
     from app.adapters.ai_service import ai_service_adapter
 
-    settings = type(
-        "Settings",
-        (),
-        {
-            "anthropic_api_key": "anthropic",
-            "anthropic_model_name": "claude-test",
-            "gemini_api_key": "gemini",
-            "gemini_model_name": "gemini-test",
-        },
-    )()
+    valores = {
+        "anthropic_api_key": "",
+        "anthropic_model_name": "claude-test",
+        "gemini_api_key": "",
+        "gemini_model_name": "gemini-test",
+        "groq_api_key": "",
+        "groq_model_name": "groq-test",
+        "mistral_api_key": "",
+        "mistral_model_name": "mistral-test",
+        **chaves,
+    }
+    settings = type("Settings", (), valores)()
     monkeypatch.setattr(ai_service_adapter, "get_settings", lambda: settings)
 
     adapter = AIServiceAdapter()
 
-    assert adapter.cliente.provider_name == "anthropic"
-    assert adapter.cliente.model_name == "claude-test"
+    assert adapter.cliente.provider_name == provider_esperado

@@ -46,7 +46,7 @@ Provedor de e-mail transacional definido: SendGrid (`app/adapters/email/`), com 
 
 `_interpretar_resultado_ia` decodifica o JSON `{"pontuacao", "observacoes"}` que o `AIServiceAdapter` devolve, removendo blocos de markdown (```json ... ```) que o modelo às vezes adiciona mesmo sendo instruído a não fazer isso; se o texto não vier num JSON válido, cai num fallback (`pontuacao=None`, `observacoes=<texto cru>`) em vez de quebrar a análise.
 
-Erros tratados no router (`analise_router.py`): `VagaNaoEncontradaError` → `404`, `FormatoNaoSuportadoError` → `400`, `IAConfiguracaoAusenteError` (sem `GEMINI_API_KEY`/`ANTHROPIC_API_KEY` no `.env`) → `503` com mensagem amigável.
+Erros tratados no router (`analise_router.py`): `VagaNaoEncontradaError` → `404`, `FormatoNaoSuportadoError` → `400`, `IAConfiguracaoAusenteError` (sem chave de provider de IA no `.env`) → `503` com mensagem amigável.
 
 Feito por Gabriel Kalebe (fora do que estava originalmente atribuído a ele nessas US — `analisador_service.py`/`analise_router.py` já eram compartilhados com Gustavo/Vitor/Kevin/Carlos, mas a parte de `analise_repository.py` e `ai_service_adapter.py` era deles; time autorizou antes de mexer). Testes: `tests/unit/test_analisador_service.py` e `tests/unit/test_ai_service_adapter.py`.
 

@@ -131,7 +131,7 @@ class GeminiClient(AIServiceClient):
     ) -> AICompletion:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
-                "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
+                "Defina uma chave de API de IA no .env para usar a análise."
             )
         import google.api_core.exceptions
         import google.generativeai as genai
@@ -215,7 +215,7 @@ class ClaudeClient(AIServiceClient):
     ) -> AICompletion:
         if not self.api_key:
             raise IAConfiguracaoAusenteError(
-                "Defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no .env para usar a análise por IA."
+                "Defina uma chave de API de IA no .env para usar a análise."
             )
         import anthropic
 
@@ -239,6 +239,106 @@ class ClaudeClient(AIServiceClient):
             input_tokens=getattr(usage, "input_tokens", None),
             output_tokens=getattr(usage, "output_tokens", None),
         )
+
+
+class OpenAICompatibleClient(AIServiceClient):
+    endpoint = ""
+
+    def __init__(self, api_key: str, model_name: str):
+        self.api_key = api_key
+        self._model_name = model_name
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def gerar_resposta(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> str:
+        return self.gerar_resposta_com_metadados(prompt, temperatura, timeout_segundos).text
+
+    def gerar_resposta_com_metadados(
+        self, prompt: str, temperatura: float = TEMPERATURA_PADRAO, timeout_segundos: int = TIMEOUT_SEGUNDOS
+    ) -> AICompletion:
+        return self._gerar_resposta(prompt, temperatura, timeout_segundos, json_mode=False)
+
+    def gerar_resposta_estruturada(
+        self,
+        prompt: str,
+        schema: type["BaseModel"],
+        temperatura: float = TEMPERATURA_PADRAO,
+        timeout_segundos: int = TIMEOUT_RESPOSTA_LONGA_SEGUNDOS,
+    ) -> AICompletion:
+        schema_json = json.dumps(schema.model_json_schema(), ensure_ascii=False)
+        prompt_com_schema = (
+            f"{prompt}\n\nResponda somente com JSON válido que corresponda a este JSON Schema:\n{schema_json}"
+        )
+        return self._gerar_resposta(prompt_com_schema, temperatura, timeout_segundos, json_mode=True)
+
+    def _gerar_resposta(
+        self, prompt: str, temperatura: float, timeout_segundos: int, json_mode: bool
+    ) -> AICompletion:
+        if not self.api_key:
+            raise IAConfiguracaoAusenteError(
+                f"Defina {self.provider_name.upper()}_API_KEY no .env para usar a análise por IA."
+            )
+
+        import httpx
+
+        payload = {
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperatura,
+            "max_tokens": MAX_TOKENS_RESPOSTA,
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+
+        try:
+            resposta = httpx.post(
+                self.endpoint,
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                json=payload,
+                timeout=timeout_segundos,
+            )
+            resposta.raise_for_status()
+            dados = resposta.json()
+            texto = dados["choices"][0]["message"]["content"]
+            usage = dados.get("usage") or {}
+            if not isinstance(texto, str):
+                raise ValueError("Resposta do provider sem conteúdo textual.")
+        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as erro:
+            logger.error(
+                "Falha ao chamar a API de IA, provider=%s, error_type=%s",
+                self.provider_name,
+                type(erro).__name__,
+            )
+            raise IAIndisponivelError(
+                f"O serviço de IA ({self.provider_name}) não respondeu em {timeout_segundos}s "
+                "ou recusou a requisição. Tente novamente em instantes."
+            ) from erro
+
+        return AICompletion(
+            text=texto,
+            input_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"),
+        )
+
+
+class GroqClient(OpenAICompatibleClient):
+    provider_name = "groq"
+    endpoint = "https://api.groq.com/openai/v1/chat/completions"
+
+    def __init__(self, api_key: str, model_name: str = "openai/gpt-oss-120b"):
+        super().__init__(api_key, model_name)
+
+
+class MistralClient(OpenAICompatibleClient):
+    provider_name = "mistral"
+    endpoint = "https://api.mistral.ai/v1/chat/completions"
+
+    def __init__(self, api_key: str, model_name: str = "mistral-large-latest"):
+        super().__init__(api_key, model_name)
 
 
 def _schema_compativel_com_gemini(modelo: type["BaseModel"]) -> dict:
@@ -286,7 +386,13 @@ class AIServiceAdapter:
             self.cliente = cliente
         else:
             settings = get_settings()
-            if settings.anthropic_api_key:
+            if settings.gemini_api_key:
+                self.cliente = GeminiClient(settings.gemini_api_key, settings.gemini_model_name)
+            elif settings.groq_api_key:
+                self.cliente = GroqClient(settings.groq_api_key, settings.groq_model_name)
+            elif settings.mistral_api_key:
+                self.cliente = MistralClient(settings.mistral_api_key, settings.mistral_model_name)
+            elif settings.anthropic_api_key:
                 self.cliente = ClaudeClient(settings.anthropic_api_key, settings.anthropic_model_name)
             else:
                 self.cliente = GeminiClient(settings.gemini_api_key, settings.gemini_model_name)
