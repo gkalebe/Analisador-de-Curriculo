@@ -13,6 +13,7 @@ from app.core.service.importador_vaga_service import ImportacaoVagaError, import
 from app.web.schemas_vaga import (
     VagaCreateRequest,
     VagaImportRequest,
+    VagaImportPreviewResponse,
     VagaListResponse,
     VagaResponse,
 )
@@ -46,6 +47,19 @@ def criar_vaga(
             titulo=payload.titulo,
             requisitos=payload.requisitos,
             area=payload.area,
+            empresa=payload.empresa,
+            localizacao=payload.localizacao,
+            modalidade=payload.modalidade,
+            senioridade=payload.senioridade,
+            tipo_contratacao=payload.tipo_contratacao,
+            faixa_salarial=payload.faixa_salarial,
+            responsabilidades=payload.responsabilidades,
+            requisitos_obrigatorios=payload.requisitos_obrigatorios,
+            requisitos_desejaveis=payload.requisitos_desejaveis,
+            competencias=payload.competencias,
+            idiomas=payload.idiomas,
+            beneficios=payload.beneficios,
+            url_origem=payload.url_origem,
         )
     except DescricaoVagaObrigatoriaError as erro:
         raise HTTPException(
@@ -67,6 +81,22 @@ def criar_vaga(
     return VagaResponse.model_validate(vaga)
 
 
+@router.post(
+    "/importar/preview",
+    response_model=VagaImportPreviewResponse,
+    dependencies=[Depends(get_usuario_atual)],
+)
+def visualizar_importacao_vaga(
+    payload: VagaImportRequest,
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> VagaImportPreviewResponse:
+    try:
+        dados = importar_vaga(payload.url, analisador_service.settings.max_vaga_description_chars)
+    except ImportacaoVagaError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
+    return VagaImportPreviewResponse.model_validate(dados)
+
+
 @router.post("/importar", response_model=VagaResponse, status_code=status.HTTP_201_CREATED)
 def importar_vaga_por_url(
     payload: VagaImportRequest,
@@ -75,7 +105,7 @@ def importar_vaga_por_url(
 ) -> VagaResponse:
     try:
         dados = importar_vaga(payload.url, analisador_service.settings.max_vaga_description_chars)
-        vaga = analisador_service.cadastrar_vaga(id_usuario=usuario.id_usuario, **{chave: dados[chave] for chave in ("descricao", "titulo", "requisitos", "area")})
+        vaga = analisador_service.cadastrar_vaga(id_usuario=usuario.id_usuario, **dados)
     except ImportacaoVagaError as erro:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
     except VagaDuplicadaError as erro:

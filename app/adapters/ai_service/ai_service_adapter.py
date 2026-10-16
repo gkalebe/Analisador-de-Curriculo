@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 30
 TIMEOUT_RESPOSTA_LONGA_SEGUNDOS = 90
-MAX_TOKENS_RESPOSTA = 4096
+MAX_TOKENS_RESPOSTA = 8192
 TEMPERATURA_PADRAO = 0.4
 MAX_TENTATIVAS_GEMINI = 3
 ESPERA_ENTRE_TENTATIVAS_SEGUNDOS = 3
@@ -489,7 +489,15 @@ class AIServiceAdapter:
         (`curriculo_estruturado`), para o fluxo "Transformar em Template ATS" não precisar de
         uma segunda requisição de extração — ver AnalisadorService."""
         prompt = self._montar_prompt_comparacao(texto_curriculo, texto_vaga)
-        return self._gerar_resposta(prompt, "comparar_curriculo_vaga", 0.3, TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
+        from app.adapters.ai_service.response_contracts import ResultadoComparacaoCurriculoVaga
+
+        return self.gerar_resposta_estruturada(
+            prompt,
+            ResultadoComparacaoCurriculoVaga,
+            "comparar_curriculo_vaga",
+            0.3,
+            TIMEOUT_RESPOSTA_LONGA_SEGUNDOS,
+        )
 
     def extrair_dados_estruturados(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_extracao(texto_curriculo)
@@ -532,21 +540,27 @@ class AIServiceAdapter:
             "DIRETRIZES ADICIONAIS:\n"
             "1. Seu objetivo é ajudar o candidato a expressar o que ele JÁ SABE ou JÁ FEZ da melhor forma "
             "(usando verbos de ação fortes, palavras-chave precisas da vaga e quantificação de impactos).\n"
-            "2. Aponte termos técnicos da vaga que estão presentes e os que estão ausentes.\n"
-            "3. Forneça sugestões concretas de reescrita lado a lado (trecho original vs trecho "
+            "2. Considere os dados complementares da vaga quando forem fornecidos. Diferencie requisitos "
+            "obrigatórios dos desejáveis; se essas categorias não estiverem informadas, classifique com "
+            "cuidado o que estiver explícito na descrição e não invente exigências.\n"
+            "3. Para cada requisito relevante, avalie se há evidência explícita no currículo como "
+            "'evidenciado', 'parcial' ou 'nao_evidenciado'. Não trate informação ausente na vaga ou no "
+            "currículo como fato; explique a evidência de forma concisa.\n"
+            "4. Aponte termos técnicos da vaga que estão presentes e os que estão ausentes.\n"
+            "5. Forneça sugestões concretas de reescrita lado a lado (trecho original vs trecho "
             "otimizado para ATS).\n"
-            "4. Para CADA sugestão de reescrita, identifique com certeza em qual campo do currículo "
+            "6. Para CADA sugestão de reescrita, identifique com certeza em qual campo do currículo "
             "estruturado o trecho original está: 'resumo' (resumo profissional), 'formacao' (formação "
             "acadêmica), 'experiencia_profissional' (experiências de trabalho) ou 'habilidades' "
             "(habilidades técnicas/comportamentais). Use EXATAMENTE um desses 4 valores no campo "
             "\"campo\" — nunca deixe em branco e nunca invente um valor fora dessa lista.\n"
-            "5. Primeiro preencha \"curriculo_estruturado\": estruture o currículo INTEIRO como foi enviado "
+            "7. Primeiro preencha \"curriculo_estruturado\": estruture o currículo INTEIRO como foi enviado "
             "(sem aplicar nenhuma sugestão ainda), preservando TODO o conteúdo: todas as experiências com "
             "todas as suas responsabilidades em 'descricao_bullets' (uma por item), todas as formações, "
             "habilidades (uma por item), idiomas, certificações, e qualquer outra seção em "
             "'secoes_adicionais' com o título original. NUNCA resuma, corte ou invente. Campo sem "
             "informação: string vazia ou lista vazia.\n"
-            "6. As sugestões serão aplicadas AUTOMATICAMENTE, por busca de texto, em cima desse "
+            "8. As sugestões serão aplicadas AUTOMATICAMENTE, por busca de texto, em cima desse "
             "\"curriculo_estruturado\" — não há revisão humana entre a sua resposta e a substituição. Por "
             "isso, cada \"trecho_original\" deve ser a cópia IDÊNTICA (mesmas palavras, pontuação, "
             "maiúsculas e acentos) de UM item que você mesmo escreveu em \"curriculo_estruturado\": um "
@@ -554,24 +568,24 @@ class AIServiceAdapter:
             "de 'habilidades_tecnicas' ou o 'curso' de uma formação. Nunca parafraseie, nunca junte dois "
             "itens num trecho só, nunca cite um pedaço de palavra. Se o trecho não bater exatamente, a "
             "sugestão é descartada.\n"
-            "7. \"sugestao_otimizada\" substitui o trecho inteiro no mesmo lugar: deve ser um texto "
+            "9. \"sugestao_otimizada\" substitui o trecho inteiro no mesmo lugar: deve ser um texto "
             "completo e autossuficiente, no mesmo formato do item (um bullet continua um bullet; se fizer "
             "sentido dividir em dois bullets, separe-os com quebra de linha \\n).\n"
-            "8. Palavras-chave da vaga ausentes: quando o currículo JÁ SUSTENTA a competência (ex.: o "
+            "10. Palavras-chave da vaga ausentes: quando o currículo JÁ SUSTENTA a competência (ex.: o "
             "candidato descreve uso de containers e a vaga pede Docker; descreve testes automatizados e "
             "a vaga pede TDD), crie uma sugestão de reescrita que incorpore o termo exato da vaga no "
             "trecho correspondente — essa é a forma de a palavra-chave entrar no currículo. Palavras-chave "
             "SEM nenhuma sustentação no currículo ficam apenas em 'ausentes' e NUNCA entram em uma "
             "reescrita.\n"
-            "9. \"o_que_retirar\" só aceita ITENS INTEIROS a remover, copiados idênticos de "
+            "11. \"o_que_retirar\" só aceita ITENS INTEIROS a remover, copiados idênticos de "
             "\"curriculo_estruturado\" (uma formação irrelevante, uma habilidade genérica, um bullet "
             "redundante, uma certificação obsoleta). Se o problema é um termo vago ou clichê DENTRO de uma "
             "frase ('proativo', 'dinâmico', 'responsável por'), NÃO o coloque em 'o_que_retirar': crie uma "
             "sugestão de reescrita com a frase inteira como trecho original e a versão sem o termo.\n"
-            "10. Cobertura: gere entre 4 e 10 sugestões de reescrita, priorizando o resumo profissional e "
+            "12. Cobertura: gere entre 4 e 10 sugestões de reescrita, priorizando o resumo profissional e "
             "os bullets de experiência mais fracos ou menos alinhados à vaga, uma sugestão por item. Se o "
             "currículo for curto e não houver 4 trechos a melhorar, gere menos — nunca invente problemas.\n"
-            "11. \"o_que_reorganizar\" é orientação para o candidato ler (a ordem das seções no documento "
+            "13. \"o_que_reorganizar\" é orientação para o candidato ler (a ordem das seções no documento "
             "final é fixa, no padrão ATS); seja breve. Mantenha \"motivo\" em 1 frase curta.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
@@ -583,6 +597,14 @@ class AIServiceAdapter:
             '    "correspondentes": ["<termo 1>", "<termo 2>"],\n'
             '    "ausentes": ["<termo 1>", "<termo 2>"]\n'
             "  },\n"
+            '  "requisitos_avaliados": [\n'
+            "    {\n"
+            '      "requisito": "<requisito explícito na vaga>",\n'
+            '      "tipo": "<obrigatorio | desejavel>",\n'
+            '      "status": "<evidenciado | parcial | nao_evidenciado>",\n'
+            '      "evidencia": "<evidência concreta no currículo ou explicação breve da lacuna>"\n'
+            "    }\n"
+            "  ],\n"
             '  "diagnostico_ats": {\n'
             '    "pontos_fortes": ["<ponto 1>", "<ponto 2>"],\n'
             '    "o_que_reorganizar": ["<orientação prática de destaque ou ordem>"],\n'

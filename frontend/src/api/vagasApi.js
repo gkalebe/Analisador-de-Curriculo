@@ -12,3 +12,7 @@ export function criarVaga(formulario) {
 export function importarVaga(email, url) {
   return requisitar("/api/vagas/importar", { method: "POST", body: { url } });
 }
+
+export function visualizarImportacaoVaga(url) {
+  return requisitar("/api/vagas/importar/preview", { method: "POST", body: { url } });
+}
