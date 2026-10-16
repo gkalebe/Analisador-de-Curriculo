@@ -26,6 +26,37 @@ body {
   min-height: 100vh;
 }
 
+.curriculo-scan-line {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  background: #1e5e3f;
+  box-shadow: 0 0 8px rgba(30, 94, 63, 0.6);
+  animation: curriculo-scan 1.6s ease-in-out infinite alternate;
+}
+
+.curriculo-loading-bar {
+  animation: curriculo-loading 1.6s ease-in-out infinite;
+}
+
+@keyframes curriculo-scan {
+  from { top: 5px; }
+  to { top: calc(100% - 7px); }
+}
+
+@keyframes curriculo-loading {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(260%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .curriculo-scan-line,
+  .curriculo-loading-bar {
+    animation: none;
+  }
+}
+
 /* ─── AUTH SHELL ─── */
 .auth-page {
   min-height: 100vh;

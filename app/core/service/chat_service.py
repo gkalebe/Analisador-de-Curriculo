@@ -10,6 +10,7 @@ from app.core.persistencia.pergunta_anonimizada_repository import (
     PerguntaAnonimizadaRepository,
 )
 from app.core.persistencia.vaga_repository import VagaRepository
+from app.core.service.extracao_curriculo import dados_para_texto_analise
 
 
 class CurriculoNaoEncontradoError(Exception):
@@ -83,9 +84,11 @@ class ChatService:
             curriculo = self.curriculo_repository.buscar_por_id(id_curriculo_resolvido)
             if curriculo is None or curriculo.id_usuario != id_usuario:
                 raise CurriculoNaoEncontradoError
-            if not curriculo.texto_extraido:
-                raise CurriculoSemTextoError
             texto_curriculo = curriculo.texto_extraido
+            if curriculo.dados_editados:
+                texto_curriculo = dados_para_texto_analise(curriculo.dados_editados)
+            if not texto_curriculo:
+                raise CurriculoSemTextoError
 
         texto_vaga: str | None = None
         if id_vaga_resolvido is not None:

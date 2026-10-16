@@ -67,6 +67,36 @@ def test_enviar_mensagem_apenas_curriculo(chat_service):
     )
 
 
+def test_enviar_mensagem_usa_dados_revisados_do_curriculo(chat_service):
+    id_usuario = uuid.uuid4()
+    id_curriculo = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=id_curriculo,
+        id_usuario=id_usuario,
+        nome_arquivo="curriculo.pdf",
+        texto_extraido="Texto original do currículo",
+        dados_editados={
+            "nome_completo": "Ana Revisada",
+            "resumo_profissional": "Resumo atualizado",
+            "habilidades_tecnicas": ["Python"],
+        },
+    )
+    chat_service.curriculo_repository.buscar_por_id = MagicMock(return_value=curriculo)
+    chat_service.chat_repository.listar = MagicMock(return_value=[])
+    chat_service.chat_repository.criar = MagicMock(side_effect=lambda m: m)
+
+    chat_service.enviar_mensagem(
+        id_usuario=id_usuario,
+        pergunta="Resuma meu perfil",
+        id_curriculo=id_curriculo,
+    )
+
+    texto_enviado = chat_service.ai_service_adapter.responder_chat.call_args.kwargs["texto_curriculo"]
+    assert "Nome: Ana Revisada" in texto_enviado
+    assert "Resumo profissional: Resumo atualizado" in texto_enviado
+    assert "Texto original do currículo" not in texto_enviado
+
+
 def test_enviar_mensagem_apenas_vaga(chat_service):
     id_usuario = uuid.uuid4()
     id_vaga = uuid.uuid4()
