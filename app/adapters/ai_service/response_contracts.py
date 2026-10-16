@@ -33,6 +33,15 @@ class SugestaoReescrita(BaseModel):
     motivo: str = Field(validation_alias=AliasChoices("motivo", "justificativa"))
 
 
+class RequisitoAvaliado(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    requisito: str
+    tipo: Literal["obrigatorio", "desejavel"]
+    status: Literal["evidenciado", "parcial", "nao_evidenciado"]
+    evidencia: str
+
+
 class ResultadoComparacaoCurriculoVaga(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -42,6 +51,7 @@ class ResultadoComparacaoCurriculoVaga(BaseModel):
     palavras_chave: PalavrasChaveAnalise
     diagnostico_ats: DiagnosticoATS
     sugestoes_reescrita: list[SugestaoReescrita]
+    requisitos_avaliados: list[RequisitoAvaliado] = Field(default_factory=list)
     curriculo_estruturado: DadosCurriculoEstruturado
 
     @field_validator("pontuacao", mode="before")

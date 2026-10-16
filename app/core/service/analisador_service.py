@@ -130,6 +130,19 @@ class AnalisadorService:
         titulo: str | None = None,
         requisitos: str | None = None,
         area: str | None = None,
+        empresa: str | None = None,
+        localizacao: str | None = None,
+        modalidade: str | None = None,
+        senioridade: str | None = None,
+        tipo_contratacao: str | None = None,
+        faixa_salarial: str | None = None,
+        responsabilidades: str | None = None,
+        requisitos_obrigatorios: str | None = None,
+        requisitos_desejaveis: str | None = None,
+        competencias: str | None = None,
+        idiomas: str | None = None,
+        beneficios: str | None = None,
+        url_origem: str | None = None,
     ) -> Vaga:
         descricao_normalizada = (descricao or "").strip()
         if not descricao_normalizada:
@@ -151,12 +164,48 @@ class AnalisadorService:
             descricao=descricao_normalizada,
             requisitos=(requisitos or "").strip() or None,
             area=(area or "").strip() or None,
+            empresa=(empresa or "").strip() or None,
+            localizacao=(localizacao or "").strip() or None,
+            modalidade=(modalidade or "").strip() or None,
+            senioridade=(senioridade or "").strip() or None,
+            tipo_contratacao=(tipo_contratacao or "").strip() or None,
+            faixa_salarial=(faixa_salarial or "").strip() or None,
+            responsabilidades=(responsabilidades or "").strip() or None,
+            requisitos_obrigatorios=(requisitos_obrigatorios or "").strip() or None,
+            requisitos_desejaveis=(requisitos_desejaveis or "").strip() or None,
+            competencias=(competencias or "").strip() or None,
+            idiomas=(idiomas or "").strip() or None,
+            beneficios=(beneficios or "").strip() or None,
+            url_origem=(url_origem or "").strip() or None,
             id_usuario=id_usuario,
         )
         return self.vaga_repository.criar(vaga)
 
     def listar_vagas_usuario(self, id_usuario: uuid.UUID) -> list[Vaga]:
         return self.vaga_repository.listar_por_usuario(id_usuario)
+
+    @staticmethod
+    def _texto_vaga_para_analise(vaga: Vaga) -> str:
+        partes = [f"Descrição da vaga:\n{vaga.descricao}"]
+        campos = (
+            ("Título", vaga.titulo),
+            ("Empresa", vaga.empresa),
+            ("Área", vaga.area),
+            ("Localização", vaga.localizacao),
+            ("Modalidade", vaga.modalidade),
+            ("Senioridade", vaga.senioridade),
+            ("Tipo de contratação", vaga.tipo_contratacao),
+            ("Faixa salarial", vaga.faixa_salarial),
+            ("Responsabilidades", vaga.responsabilidades),
+            ("Requisitos", vaga.requisitos),
+            ("Requisitos obrigatórios", vaga.requisitos_obrigatorios),
+            ("Requisitos desejáveis", vaga.requisitos_desejaveis),
+            ("Competências", vaga.competencias),
+            ("Idiomas", vaga.idiomas),
+            ("Benefícios", vaga.beneficios),
+        )
+        partes.extend(f"{rotulo}:\n{valor}" for rotulo, valor in campos if valor and valor.strip())
+        return "\n\n".join(partes)
 
     def analisar_curriculo_para_vaga(
         self,
@@ -172,7 +221,9 @@ class AnalisadorService:
 
         texto_curriculo = self.curriculo_parser.extrair_texto(conteudo, extensao)
 
-        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
+        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(
+            texto_curriculo, self._texto_vaga_para_analise(vaga)
+        )
         pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
 
         novo_curriculo = Curriculo(
@@ -220,7 +271,9 @@ class AnalisadorService:
             else:
                 raise CurriculoArquivoNaoEncontradoError
 
-        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(texto_curriculo, vaga.descricao)
+        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(
+            texto_curriculo, self._texto_vaga_para_analise(vaga)
+        )
         pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
         self._salvar_curriculo_estruturado_da_analise(curriculo, resultado_ia)
 

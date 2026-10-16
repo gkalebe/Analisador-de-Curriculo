@@ -54,9 +54,12 @@ Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.
 ## US-019 — Cadastrar informações de vaga no banco (concluída, em `vagas_router.py`)
 
 - `GET /api/vagas`: lista as vagas do usuário autenticado pelo JWT.
-- `POST /api/vagas`: recebe `{"titulo", "descricao", "requisitos", "area"}` (JSON), chama `AnalisadorService.cadastrar_vaga` e responde `201` com a vaga criada, ou `400` se a descrição estiver vazia ou acima do limite configurado em `max_vaga_description_chars`.
+- `POST /api/vagas`: recebe `descricao` (obrigatória) e campos complementares opcionais como título, empresa, localização, modalidade, responsabilidades e requisitos obrigatórios/desejáveis; responde `201` com a vaga criada. O limite de descrição padrão é 20.000 caracteres.
+- `POST /api/vagas/importar/preview`: recebe `{"url": "..."}`, tenta extrair título, descrição e metadados públicos da vaga e devolve uma prévia sem salvar. A leitura depende do conteúdo público da página; se não houver descrição acessível, o frontend permite colá-la manualmente.
+- `POST /api/vagas/importar`: mantém o fluxo legado de importação direta a partir de URL. A tela nova usa a prévia e só salva depois da revisão do usuário.
 - O frontend inclui automaticamente o token da sessão em chamadas JSON, multipart e downloads binários. A API não usa o e-mail do payload/query como identidade.
-- Tela: `frontend/src/pages/NovaVaga.jsx` — formulário de cadastro (título opcional, descrição obrigatória, requisitos e área opcionais) e lista de vagas salvas para reaproveitar dados.
+- Tela: `frontend/src/pages/NovaVaga.jsx` — cadastro manual ou importação revisável do LinkedIn/URL, descrição obrigatória, demais dados opcionais e lista de vagas salvas para reaproveitar.
+- As informações complementares salvas são incluídas no contexto enviado à IA. A análise retorna os requisitos avaliados como obrigatórios ou desejáveis, com status e evidência textual do currículo.
 - Testes: `tests/unit/test_analisador_service.py` (regras de negócio) e `tests/unit/test_vagas_router.py` (HTTP, com fakes via `app.dependency_overrides`).
 
 Referência de critérios de aceite: Levantamento de Requisitos v1.1, Seção 6.2.

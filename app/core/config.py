@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model_name: str = "claude-3-5-haiku-20241022"
     max_upload_size_mb: int = 5
-    max_vaga_description_chars: int = 5000
+    max_vaga_description_chars: int = 20000
     # RN-010: o currículo original não fica armazenado por mais de 90 dias após a última
     # atividade (upload, edição ou análise). A biblioteca (US-018) deixa de listar o que
     # passou desse prazo.

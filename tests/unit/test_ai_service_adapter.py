@@ -53,6 +53,9 @@ def test_comparar_curriculo_vaga_pede_curriculo_estruturado_e_trechos_literais_p
     assert "secoes_adicionais" in prompt
     assert "cópia IDÊNTICA" in prompt
     assert "ITENS INTEIROS" in prompt
+    assert '"requisitos_avaliados"' in prompt
+    assert "Diferencie requisitos obrigatórios dos desejáveis" in prompt
+    assert "nao_evidenciado" in prompt
     # Palavras-chave entram só via reescrita e só com sustentação no currículo.
     assert "JÁ SUSTENTA" in prompt and "NUNCA entram em uma" in prompt
     # Termo vago dentro de frase vira reescrita, não remoção.

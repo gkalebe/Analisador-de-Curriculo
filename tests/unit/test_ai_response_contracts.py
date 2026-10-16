@@ -47,3 +47,28 @@ def test_comparison_contract_accepts_markdown_wrapped_json_and_valid_score():
 
     assert resultado.pontuacao == 75
     assert resultado.observacoes == "Teste."
+
+
+def test_comparison_contract_accepts_requirement_evidence_breakdown():
+    resposta = {
+        "pontuacao": 75,
+        "resumo": "Aderência.",
+        "observacoes": "Teste.",
+        "palavras_chave": {"correspondentes": [], "ausentes": []},
+        "diagnostico_ats": {"pontos_fortes": [], "o_que_reorganizar": [], "o_que_retirar": []},
+        "sugestoes_reescrita": [],
+        "requisitos_avaliados": [
+            {
+                "requisito": "Python",
+                "tipo": "obrigatorio",
+                "status": "evidenciado",
+                "evidencia": "Experiência profissional descrita no currículo.",
+            }
+        ],
+        "curriculo_estruturado": {"nome_completo": "Ana"},
+    }
+
+    resultado = interpretar_resultado_comparacao(json.dumps(resposta))
+
+    assert resultado.requisitos_avaliados[0].tipo == "obrigatorio"
+    assert resultado.requisitos_avaliados[0].status == "evidenciado"

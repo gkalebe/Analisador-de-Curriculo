@@ -33,7 +33,7 @@ class AnalisadorServiceFalso:
         self.deve_recusar_longa = False
         self.deve_recusar_duplicada = False
 
-    def cadastrar_vaga(self, id_usuario, descricao, titulo="", requisitos="", area=""):
+    def cadastrar_vaga(self, id_usuario, descricao, titulo="", requisitos="", area="", **campos):
         if self.deve_recusar_vazia:
             raise DescricaoVagaObrigatoriaError
         if self.deve_recusar_longa:
@@ -48,6 +48,7 @@ class AnalisadorServiceFalso:
             area=area or None,
             id_usuario=id_usuario,
             data_criacao=datetime.now(),
+            **{chave: valor or None for chave, valor in campos.items()},
         )
         self.vagas_criadas.append(vaga)
         return vaga
@@ -112,6 +113,65 @@ def test_criar_vaga_com_sucesso():
     corpo = response.json()
     assert corpo["titulo"] == "Dev Python"
     assert corpo["descricao"] == "Vaga para desenvolvedor Python pleno."
+
+
+def test_criar_vaga_aceita_apenas_descricao_e_campos_complementares_opcionais():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/api/vagas",
+        json={"descricao": "Descrição obrigatória.", "empresa": "Empresa Exemplo"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 201
+    corpo = response.json()
+    assert corpo["descricao"] == "Descrição obrigatória."
+    assert corpo["empresa"] == "Empresa Exemplo"
+    assert corpo["responsabilidades"] is None
+
+
+def test_importar_vaga_preview_retorna_dados_sem_salvar(monkeypatch):
+    from app.web.routers import vagas_router
+
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    monkeypatch.setattr(
+        vagas_router,
+        "importar_vaga",
+        lambda url, limite: {
+            "titulo": "Desenvolvedor Python",
+            "descricao": "Atuar no desenvolvimento de sistemas.",
+            "requisitos": "Python",
+            "area": "Tecnologia",
+            "empresa": "Empresa Exemplo",
+            "localizacao": "",
+            "modalidade": "",
+            "senioridade": "",
+            "tipo_contratacao": "",
+            "faixa_salarial": "",
+            "responsabilidades": "",
+            "requisitos_obrigatorios": "",
+            "requisitos_desejaveis": "",
+            "competencias": "",
+            "idiomas": "",
+            "beneficios": "",
+            "url_origem": url,
+        },
+    )
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post("/api/vagas/importar/preview", json={"url": "https://example.com/job"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["empresa"] == "Empresa Exemplo"
+    assert response.json()["url_origem"] == "https://example.com/job"
+    assert service_falso.vagas_criadas == []
 
 
 def test_criar_vaga_com_email_desconhecido_retorna_404():

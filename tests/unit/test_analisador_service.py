@@ -126,8 +126,10 @@ class AIServiceAdapterFalso:
         ),
     ):
         self.resposta = resposta
+        self.textos_vaga: list[str] = []
 
     def comparar_curriculo_vaga(self, texto_curriculo: str, texto_vaga: str) -> str:
+        self.textos_vaga.append(texto_vaga)
         return self.resposta
 
 
@@ -178,6 +180,27 @@ def test_cadastrar_vaga_aceita_apenas_descricao_obrigatoria():
     assert vaga.titulo is None
     assert vaga.requisitos is None
     assert vaga.area is None
+
+
+def test_cadastrar_vaga_persiste_contexto_opcional():
+    service, fake = _criar_service_com_fake()
+
+    vaga = service.cadastrar_vaga(
+        id_usuario=uuid.uuid4(),
+        descricao="Descrição da oportunidade.",
+        empresa="Empresa Exemplo",
+        localizacao="Remoto",
+        requisitos_obrigatorios="Python",
+        requisitos_desejaveis="Experiência com cloud",
+        url_origem="https://example.com/jobs/1",
+    )
+
+    assert vaga in fake.vagas
+    assert vaga.empresa == "Empresa Exemplo"
+    assert vaga.localizacao == "Remoto"
+    assert vaga.requisitos_obrigatorios == "Python"
+    assert vaga.requisitos_desejaveis == "Experiência com cloud"
+    assert vaga.url_origem == "https://example.com/jobs/1"
 
 
 def test_cadastrar_vaga_rejeita_descricao_vazia():
@@ -252,6 +275,32 @@ def test_analisar_curriculo_para_vaga_com_sucesso():
     assert json.loads(analise.observacoes)["observacoes"] == "Ótimo encaixe."
     assert analise.id_vaga == vaga.id_vaga
     assert analise.id_usuario == id_usuario
+
+
+def test_analisar_curriculo_inclui_campos_opcionais_da_vaga_no_contexto_da_ia():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(
+        id_usuario=id_usuario,
+        descricao="Desenvolver serviços.",
+        empresa="Empresa Exemplo",
+        requisitos_obrigatorios="Python e SQL",
+        requisitos_desejaveis="Experiência com cloud",
+    )
+
+    service.analisar_curriculo_para_vaga(
+        id_usuario=id_usuario,
+        id_vaga=vaga.id_vaga,
+        conteudo="Experiência com Python".encode(),
+        nome_arquivo="curriculo.pdf",
+        extensao="pdf",
+    )
+
+    texto_vaga = service.ai_service_adapter.textos_vaga[0]
+    assert "Descrição da vaga:\nDesenvolver serviços." in texto_vaga
+    assert "Empresa:\nEmpresa Exemplo" in texto_vaga
+    assert "Requisitos obrigatórios:\nPython e SQL" in texto_vaga
+    assert "Requisitos desejáveis:\nExperiência com cloud" in texto_vaga
 
 
 def test_analisar_curriculo_para_vaga_com_vaga_de_outro_usuario_lanca_erro():

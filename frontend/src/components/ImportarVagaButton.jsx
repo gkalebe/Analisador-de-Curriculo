@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { importarVaga } from "../api/vagasApi.js";
+import { createPortal } from "react-dom";
+import { criarVaga, visualizarImportacaoVaga } from "../api/vagasApi.js";
 import { ApiError } from "../api/client.js";
 
-export default function ImportarVagaButton({ email, onImported, disabled = false }) {
+export default function ImportarVagaButton({
+  email,
+  onImported,
+  disabled = false,
+  saveOnImport = false,
+}) {
   const [aberto, setAberto] = useState(false);
   const [url, setUrl] = useState("");
   const [erro, setErro] = useState("");
@@ -13,55 +19,108 @@ export default function ImportarVagaButton({ email, onImported, disabled = false
     setErro("");
     setEnviando(true);
     try {
-      const vaga = await importarVaga(email, url.trim());
-      onImported(vaga);
+      const previa = await visualizarImportacaoVaga(url.trim());
+      const vaga = saveOnImport ? await criarVaga({ ...previa, email }) : previa;
+      await onImported(vaga);
       setUrl("");
       setAberto(false);
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível importar essa vaga.");
+      if (e instanceof ApiError && e.status === 401) {
+        setErro("Sua sessão expirou ou é inválida. Entre novamente na sua conta e tente importar.");
+      } else if (e instanceof ApiError && e.status === 409) {
+        setErro(e.message);
+      } else if (e instanceof ApiError) {
+        setErro(`${e.message} Você pode fechar esta janela e preencher a vaga manualmente.`);
+      } else {
+        setErro("Não foi possível importar essa vaga. Confira sua conexão e tente novamente.");
+      }
     } finally {
       setEnviando(false);
     }
   }
 
   return (
-    <div className="space-y-3">
+    <div>
       <button
         type="button"
-        onClick={() => { setAberto((atual) => !atual); setErro(""); }}
+        onClick={() => {
+          setAberto(true);
+          setErro("");
+        }}
         disabled={disabled || enviando}
         className="inline-flex items-center gap-2 rounded-md border border-[#1e5e3f] px-4 py-2 text-sm font-bold text-[#1e5e3f] hover:bg-[#f0fdf4] disabled:opacity-60"
       >
-        <i className="ti ti-cloud-download"></i>
+        <i className="ti ti-brand-linkedin"></i>
         Importar vaga
       </button>
 
-      {aberto && (
-        <form onSubmit={importar} className="rounded-lg border border-[#d6e4dc] bg-[#f7fcf9] p-4 space-y-3">
-          <label className="block text-sm font-medium text-[#595859]" htmlFor="url-vaga-importada">
-            URL pública da vaga
-          </label>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              id="url-vaga-importada"
-              type="url"
-              required
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://exemplo.com/vaga"
-              className="min-w-0 flex-1 rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
-            />
-            <button
-              type="submit"
-              disabled={enviando || !email}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-2 text-sm font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
-            >
-              <i className={enviando ? "ti ti-loader-2 animate-spin" : "ti ti-download"}></i>
-              {enviando ? "Importando..." : "Buscar e salvar"}
-            </button>
-          </div>
-          {erro && <p className="text-sm text-red-700">{erro}</p>}
-        </form>
+      {aberto && createPortal(
+        <div
+          className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/30 p-4 pt-[10vh]"
+          onMouseDown={(evento) => {
+            if (evento.target === evento.currentTarget && !enviando) setAberto(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-importar-vaga"
+            className="w-full max-w-xl rounded-xl border border-[#d6e4dc] bg-white p-5 shadow-2xl"
+          >
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <h2 id="titulo-importar-vaga" className="font-brand text-xl font-bold text-black">
+                Importar vaga do LinkedIn
+              </h2>
+              <button
+                type="button"
+                onClick={() => setAberto(false)}
+                disabled={enviando}
+                aria-label="Fechar importador"
+                className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-black disabled:opacity-60"
+              >
+                <i className="ti ti-x"></i>
+              </button>
+            </div>
+
+            <form onSubmit={importar} className="space-y-3">
+              <label className="block text-sm font-medium text-[#595859]" htmlFor="url-vaga-importada">
+                Link da vaga
+              </label>
+              <input
+                id="url-vaga-importada"
+                type="url"
+                required
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://www.linkedin.com/jobs/view/..."
+                className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
+              />
+              <p className="text-xs text-gray-500">
+                Se o LinkedIn não permitir a leitura automática, feche esta janela e cole a descrição no formulário abaixo.
+              </p>
+              {erro && <p role="alert" className="text-sm text-red-700">{erro}</p>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAberto(false)}
+                  disabled={enviando}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={enviando || !email}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-2 text-sm font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
+                >
+                  <i className={enviando ? "ti ti-loader-2 animate-spin" : "ti ti-download"}></i>
+                  {enviando ? "Importando..." : "Importar"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>,
+        document.body,
       )}
     </div>
   );

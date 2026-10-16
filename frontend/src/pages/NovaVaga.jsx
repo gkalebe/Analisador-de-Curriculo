@@ -5,8 +5,24 @@ import { criarVaga, listarVagas } from "../api/vagasApi.js";
 import { novoFormularioVaga, preencherFormularioComVaga } from "../models/vaga.js";
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
+import ImportarVagaButton from "../components/ImportarVagaButton.jsx";
 
-const LIMITE_DESCRICAO_PADRAO = 5000;
+const LIMITE_DESCRICAO_PADRAO = 20000;
+const CAMPOS_OPCIONAIS = [
+  ["empresa", "Empresa", "text", 200],
+  ["localizacao", "Localização", "text", 200],
+  ["modalidade", "Modalidade", "text", 100],
+  ["senioridade", "Senioridade", "text", 100],
+  ["tipo_contratacao", "Tipo de contratação", "text", 100],
+  ["faixa_salarial", "Faixa salarial", "text", 200],
+  ["responsabilidades", "Responsabilidades", "textarea", 10000],
+  ["requisitos_obrigatorios", "Requisitos obrigatórios", "textarea", 10000],
+  ["requisitos_desejaveis", "Requisitos desejáveis", "textarea", 10000],
+  ["competencias", "Competências", "textarea", 5000],
+  ["idiomas", "Idiomas", "textarea", 2000],
+  ["beneficios", "Benefícios", "textarea", 5000],
+  ["url_origem", "URL de origem", "url", 2048],
+];
 
 export default function NovaVaga() {
   const [searchParams] = useSearchParams();
@@ -53,6 +69,13 @@ export default function NovaVaga() {
     }
   }
 
+  async function aoImportarVaga(vaga) {
+    setForm((atual) => preencherFormularioComVaga(atual, vaga));
+    setSucesso("Dados importados para o formulário. Revise as informações e salve a vaga.");
+    setErro("");
+    document.getElementById("form-vaga")?.scrollIntoView({ behavior: "smooth" });
+  }
+
   return (
     <div className="min-h-screen md:h-screen flex flex-col md:flex-row bg-[#f3f3f3] text-gray-900 md:overflow-hidden">
       <Sidebar email={emailInicial} ativo="vaga" />
@@ -71,9 +94,12 @@ export default function NovaVaga() {
         )}
 
         <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <i className="ti ti-briefcase text-[28px]"></i>
-            <h2 className="font-brand text-[28px] text-black">Vaga de interesse</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <i className="ti ti-briefcase text-[28px]"></i>
+              <h2 className="font-brand text-[28px] text-black">Vaga de interesse</h2>
+            </div>
+            <ImportarVagaButton email={emailInicial} onImported={aoImportarVaga} disabled={!emailInicial} />
           </div>
 
           <form id="form-vaga" onSubmit={aoSalvarVaga} className="space-y-4">
@@ -121,6 +147,7 @@ export default function NovaVaga() {
                 rows={3}
                 value={form.requisitos}
                 onChange={(e) => setForm({ ...form, requisitos: e.target.value })}
+                maxLength={5000}
                 className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm placeholder-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
               />
               <p className="mt-1 text-xs text-gray-400">Opcional.</p>
@@ -140,6 +167,36 @@ export default function NovaVaga() {
               />
               <p className="mt-1 text-xs text-gray-400">Opcional.</p>
             </div>
+
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold text-[#1e5e3f]">
+                Informações opcionais para enriquecer a análise
+              </summary>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                {CAMPOS_OPCIONAIS.map(([campo, rotulo, tipo, limite]) => (
+                  <label key={campo} className={["responsabilidades", "requisitos_obrigatorios", "requisitos_desejaveis", "competencias", "idiomas", "beneficios"].includes(campo) ? "sm:col-span-2" : ""}>
+                    <span className="mb-1 block text-sm font-medium text-[#595859]">{rotulo}</span>
+                    {tipo === "textarea" ? (
+                      <textarea
+                        rows={3}
+                        maxLength={limite}
+                        value={form[campo]}
+                        onChange={(e) => setForm({ ...form, [campo]: e.target.value })}
+                        className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm"
+                      />
+                    ) : (
+                      <input
+                        type={tipo}
+                        maxLength={limite}
+                        value={form[campo]}
+                        onChange={(e) => setForm({ ...form, [campo]: e.target.value })}
+                        className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm"
+                      />
+                    )}
+                  </label>
+                ))}
+              </div>
+            </details>
 
             <button
               type="submit"
@@ -165,6 +222,11 @@ export default function NovaVaga() {
                   >
                     <p className="font-medium">{vaga.titulo || "(Sem título)"}</p>
                     <p className="text-sm text-gray-500">{vaga.area || "Área não informada"}</p>
+                    {(vaga.empresa || vaga.localizacao || vaga.modalidade) && (
+                      <p className="text-xs text-gray-500">
+                        {[vaga.empresa, vaga.localizacao, vaga.modalidade].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                     <p className="mt-1 text-sm text-gray-600 line-clamp-2">
                       {vaga.descricao.slice(0, 160)}
                       {vaga.descricao.length > 160 ? "…" : ""}

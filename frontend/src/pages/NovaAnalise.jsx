@@ -66,6 +66,9 @@ export default function NovaAnalise() {
             encontradas: palavrasChave.encontradas || palavrasChave.correspondentes || [],
             faltantes: palavrasChave.faltantes || palavrasChave.ausentes || [],
           },
+          requisitos_avaliados: Array.isArray(parsed.requisitos_avaliados)
+            ? parsed.requisitos_avaliados
+            : [],
           diagnostico_ats: {
             pontos_fortes: diagnostico.pontos_fortes || [],
             a_reorganizar: diagnostico.a_reorganizar || diagnostico.o_que_reorganizar || [],
@@ -363,6 +366,43 @@ export default function NovaAnalise() {
                 </div>
               )}
 
+              {dadosAts?.requisitos_avaliados?.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <i className="ti ti-list-check text-[22px] text-[#1e5e3f]"></i>
+                    <h3 className="font-brand text-xl font-bold text-black">Requisitos e evidências</h3>
+                  </div>
+                  <ul className="space-y-2">
+                    {dadosAts.requisitos_avaliados.map((item, idx) => {
+                      const estiloStatus = {
+                        evidenciado: "border-emerald-200 bg-emerald-50 text-emerald-900",
+                        parcial: "border-amber-200 bg-amber-50 text-amber-900",
+                        nao_evidenciado: "border-rose-200 bg-rose-50 text-rose-900",
+                      }[item.status] || "border-gray-200 bg-gray-50 text-gray-800";
+                      const rotuloStatus = {
+                        evidenciado: "Evidenciado",
+                        parcial: "Parcial",
+                        nao_evidenciado: "Não evidenciado",
+                      }[item.status] || "Não identificado";
+                      return (
+                        <li key={`${item.requisito}-${idx}`} className="rounded-lg border border-gray-200 bg-white p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-black">{item.requisito}</span>
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                              {item.tipo === "obrigatorio" ? "Obrigatório" : "Desejável"}
+                            </span>
+                            <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${estiloStatus}`}>
+                              {rotuloStatus}
+                            </span>
+                          </div>
+                          {item.evidencia && <p className="mt-2 text-sm text-gray-600">{item.evidencia}</p>}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
               {/* Diagnóstico Estrutural ATS */}
               {dadosAts?.diagnostico_ats && (
                 <div className="space-y-4">
@@ -543,7 +583,12 @@ export default function NovaAnalise() {
               <i className="ti ti-briefcase text-[28px] text-[#1e5e3f]"></i>
               <h2 className="font-brand text-[28px] text-black">1. Escolha a vaga</h2>
               </div>
-              <ImportarVagaButton email={emailInicial} onImported={aoImportarVaga} disabled={!emailInicial} />
+              <ImportarVagaButton
+                email={emailInicial}
+                onImported={aoImportarVaga}
+                disabled={!emailInicial}
+                saveOnImport
+              />
             </div>
 
             {vagas.length === 0 && (
@@ -571,6 +616,11 @@ export default function NovaAnalise() {
                       <div>
                         <p className="font-medium text-black">{vaga.titulo || "(Sem título)"}</p>
                         <p className="text-sm text-gray-500">{vaga.area || "Área não informada"}</p>
+                        {(vaga.empresa || vaga.localizacao || vaga.modalidade) && (
+                          <p className="text-xs text-gray-500">
+                            {[vaga.empresa, vaga.localizacao, vaga.modalidade].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
                       </div>
                     </label>
                   </li>
