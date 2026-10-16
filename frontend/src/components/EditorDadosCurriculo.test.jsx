@@ -1,6 +1,8 @@
-import { expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import EditorDadosCurriculo from "./EditorDadosCurriculo.jsx";
+
+afterEach(cleanup);
 
 it("edita os campos estruturados sem descartar os dados extraídos", () => {
   const onSalvar = vi.fn();
