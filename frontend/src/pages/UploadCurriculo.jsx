@@ -3,13 +3,17 @@ import { useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import VisualizadorPdf from "../components/VisualizadorPdf.jsx";
 import LimiteDeErro from "../components/LimiteDeErro.jsx";
-import FeedbackCarregamento from "../components/FeedbackCarregamento.jsx";
 import {
   baixarArquivoCurriculo,
+  criarCurriculoManual,
   excluirCurriculo,
   enviarCurriculo,
+  obterEdicaoCurriculo,
   listarCurriculos,
+  previsualizarCurriculo,
+  salvarEdicaoEstruturada,
 } from "../api/curriculoApi.js";
+import { exportarCurriculo } from "../api/templateApi.js";
 import {
   formatarDataUpload,
   formatarTamanhoArquivo,
@@ -17,6 +21,20 @@ import {
 } from "../models/curriculo.js";
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
+import EditorDadosCurriculo from "../components/EditorDadosCurriculo.jsx";
+
+const DADOS_CURRICULO_VAZIOS = {
+  nome_completo: "",
+  titulo_profissional: "",
+  contato: { email: "", telefone: "", linkedin: "", cidade: "" },
+  resumo_profissional: "",
+  experiencias: [],
+  formacao: [],
+  habilidades_tecnicas: [],
+  idiomas: [],
+  certificacoes: [],
+  secoes_adicionais: [],
+};
 
 export default function UploadCurriculo() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -28,9 +46,18 @@ export default function UploadCurriculo() {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
-  const [resultado, setResultado] = useState(null);
   const [curriculosSalvos, setCurriculosSalvos] = useState([]);
   const [curriculoSelecionado, setCurriculoSelecionado] = useState(null);
+  const [modoCadastro, setModoCadastro] = useState("arquivo");
+  const [dadosRevisao, setDadosRevisao] = useState(null);
+  const [nomeCurriculoRevisao, setNomeCurriculoRevisao] = useState("");
+  const [salvandoRevisao, setSalvandoRevisao] = useState(false);
+  const [abaModal, setAbaModal] = useState("original");
+  const [dadosModal, setDadosModal] = useState(null);
+  const [carregandoEdicaoModal, setCarregandoEdicaoModal] = useState(false);
+  const [salvandoEdicaoModal, setSalvandoEdicaoModal] = useState(false);
+  const [blobPreviewEditada, setBlobPreviewEditada] = useState(null);
+  const [carregandoPreviewEditada, setCarregandoPreviewEditada] = useState(false);
 
   useEffect(() => {
     if (!emailInicial) return;
@@ -49,7 +76,7 @@ export default function UploadCurriculo() {
   }
 
   function selecionarArquivo(file) {
-    setResultado(null);
+    setDadosRevisao(null);
     const mensagemErro = validarArquivoCurriculo(file);
     if (mensagemErro) {
       setErro(mensagemErro);
@@ -73,15 +100,58 @@ export default function UploadCurriculo() {
     setErro("");
     setEnviando(true);
     try {
-      const resposta = await enviarCurriculo(emailInicial, arquivo);
-      setResultado(resposta);
-      setArquivo(null);
-      const listaAtualizada = await listarCurriculos(emailInicial);
-      const curriculosAtualizados = listaAtualizada.curriculos || [];
-      setCurriculosSalvos(curriculosAtualizados);
+      const resposta = await previsualizarCurriculo(emailInicial, arquivo);
+      setDadosRevisao(resposta.dados || DADOS_CURRICULO_VAZIOS);
+      setNomeCurriculoRevisao(resposta.nome_arquivo.replace(/\.[^.]+$/, ""));
+      setModoCadastro("arquivo");
+      setSucesso("Leitura concluída. Confira os dados reconhecidos e corrija o que for necessário.");
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível ler e preparar a revisão do currículo.");
     } finally {
       setEnviando(false);
     }
+  }
+
+  async function salvarRevisao(dados) {
+    setErro("");
+    setSucesso("");
+    setSalvandoRevisao(true);
+    try {
+      if (modoCadastro === "manual") {
+        const resposta = await criarCurriculoManual(emailInicial, {
+          ...dados,
+          nome_curriculo: dados.nome_curriculo,
+        });
+        const curriculos = (await listarCurriculos(emailInicial)).curriculos || [];
+        setCurriculosSalvos(curriculos);
+        setSucesso("Currículo cadastrado. Os dados estão salvos e prontos para análise ou exportação.");
+        setDadosRevisao(null);
+        setModoCadastro("arquivo");
+      } else if (arquivo && dadosRevisao) {
+        await enviarCurriculo(emailInicial, arquivo, dados);
+        const curriculos = (await listarCurriculos(emailInicial)).curriculos || [];
+        setCurriculosSalvos(curriculos);
+        setSucesso("Currículo revisado e salvo. Os dados confirmados estão prontos para análise ou exportação.");
+        setArquivo(null);
+        setDadosRevisao(null);
+      } else {
+        setErro("Leia um arquivo antes de salvar o currículo.");
+        return;
+      }
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível salvar os dados do currículo.");
+    } finally {
+      setSalvandoRevisao(false);
+    }
+  }
+
+  function iniciarCadastroManual() {
+    setErro("");
+    setSucesso("");
+    setArquivo(null);
+    setNomeCurriculoRevisao("Meu currículo");
+    setDadosRevisao(DADOS_CURRICULO_VAZIOS);
+    setModoCadastro("manual");
   }
 
   async function excluirDaLista(curriculo) {
@@ -101,12 +171,96 @@ export default function UploadCurriculo() {
     setErro("");
     setSucesso("");
     setCurriculoSelecionado(curriculo);
+    setAbaModal(curriculo.possui_edicao ? "editada" : "original");
+    setDadosModal(null);
+    setBlobPreviewEditada(null);
+    setCarregandoEdicaoModal(false);
+    if (curriculo.possui_edicao) {
+      gerarPreviewEditada(curriculo.id_curriculo);
+    }
   }
 
   function fecharCurriculoOriginal() {
     setCurriculoSelecionado(null);
+    setDadosModal(null);
+    setBlobPreviewEditada(null);
     setErro("");
     setSucesso("");
+  }
+
+  async function abrirEditorModal() {
+    if (!curriculoSelecionado) return;
+    setErro("");
+    setCarregandoEdicaoModal(true);
+    try {
+      const resposta = await obterEdicaoCurriculo(curriculoSelecionado.id_curriculo, emailInicial);
+      setDadosModal(resposta.dados || DADOS_CURRICULO_VAZIOS);
+      setNomeCurriculoRevisao(curriculoSelecionado.nome_curriculo || curriculoSelecionado.nome_arquivo.replace(/\.[^.]+$/, ""));
+      setAbaModal("editar");
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível carregar os dados para edição.");
+    } finally {
+      setCarregandoEdicaoModal(false);
+    }
+  }
+
+  async function gerarPreviewEditada(idCurriculo = curriculoSelecionado?.id_curriculo) {
+    if (!idCurriculo) return false;
+    setErro("");
+    setCarregandoPreviewEditada(true);
+    try {
+      const { blob } = await exportarCurriculo(emailInicial, idCurriculo, "generico", "pdf", "editada");
+      setBlobPreviewEditada(blob);
+      setAbaModal("editada");
+      return true;
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível gerar a pré-visualização editada.");
+      return false;
+    } finally {
+      setCarregandoPreviewEditada(false);
+    }
+  }
+
+  async function salvarEdicaoModal(dados) {
+    if (!curriculoSelecionado) return;
+    setErro("");
+    setSalvandoEdicaoModal(true);
+    try {
+      const resposta = await salvarEdicaoEstruturada(
+        curriculoSelecionado.id_curriculo,
+        emailInicial,
+        dados,
+      );
+      setDadosModal(resposta.dados || dados);
+      const lista = (await listarCurriculos(emailInicial)).curriculos || [];
+      setCurriculosSalvos(lista);
+      const curriculoAtualizado = lista.find((item) => item.id_curriculo === curriculoSelecionado.id_curriculo);
+      if (curriculoAtualizado) {
+        setCurriculoSelecionado((atual) => ({ ...atual, ...curriculoAtualizado }));
+      }
+      const previewGerada = await gerarPreviewEditada(curriculoSelecionado.id_curriculo);
+      setSucesso(
+        previewGerada
+          ? "Alterações salvas. A análise e as próximas exportações usarão os dados revisados."
+          : "Alterações salvas; não foi possível gerar a prévia agora. Tente novamente.",
+      );
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível salvar as alterações do currículo.");
+    } finally {
+      setSalvandoEdicaoModal(false);
+    }
+  }
+
+  function baixarPreviewEditada() {
+    if (!blobPreviewEditada || !curriculoSelecionado) return;
+    const url = URL.createObjectURL(blobPreviewEditada);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${curriculoSelecionado.nome_curriculo || "curriculo"} - revisado.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async function baixarCurriculoSelecionado() {
@@ -159,12 +313,6 @@ export default function UploadCurriculo() {
         {sucesso && (
           <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">{sucesso}</div>
         )}
-        {resultado && !sucesso && (
-          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-green-700">
-            Currículo <strong>{resultado.nome_arquivo}</strong> enviado e salvo com sucesso.
-          </div>
-        )}
-
         {emailInicial && (
           <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-6">
             <div className="flex items-center gap-3">
@@ -172,6 +320,29 @@ export default function UploadCurriculo() {
               <h2 className="font-brand text-[28px] text-black">Novo currículo</h2>
             </div>
 
+            <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setModoCadastro("arquivo");
+                  setDadosRevisao(null);
+                  setErro("");
+                  setSucesso("");
+                }}
+                className={`rounded-md px-4 py-2 text-sm font-semibold ${modoCadastro === "arquivo" ? "bg-[#1e5e3f] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              >
+                <i className="ti ti-upload mr-1.5"></i>Enviar arquivo
+              </button>
+              <button
+                type="button"
+                onClick={iniciarCadastroManual}
+                className={`rounded-md px-4 py-2 text-sm font-semibold ${modoCadastro === "manual" ? "bg-[#1e5e3f] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+              >
+                <i className="ti ti-edit mr-1.5"></i>Preencher manualmente
+              </button>
+            </div>
+
+            {modoCadastro === "arquivo" && (
             <form onSubmit={aoEnviar} className="space-y-4">
               <label
                 htmlFor="input-arquivo"
@@ -215,17 +386,67 @@ export default function UploadCurriculo() {
                   disabled={!arquivo || enviando}
                   className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-5 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60 transition-colors"
                 >
-                  <i className="ti ti-send"></i>
-                  {enviando ? "Enviando e salvando..." : "Salvar currículo"}
+                  <i className={`ti ${enviando ? "ti-loader animate-spin" : "ti-search"}`}></i>
+                  {enviando ? "Lendo currículo..." : "Ler e revisar"}
                 </button>
               </div>
               {enviando && (
-                <FeedbackCarregamento
-                  mensagem="Lendo seu currículo..."
-                  detalhe="Estamos enviando o arquivo e preparando os dados."
-                />
+                <div
+                  className="flex items-center gap-4 rounded-xl border border-[#1e5e3f]/20 bg-[#f0fdf4] px-5 py-4"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#1e5e3f]/20 bg-white">
+                    <i className="ti ti-file-text text-2xl text-[#1e5e3f]"></i>
+                    <span className="curriculo-scan-line" aria-hidden="true"></span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-[#174a32]">Estamos lendo seu currículo</p>
+                    <p className="mt-0.5 text-sm text-gray-600">Extraindo e organizando as informações para você revisar.</p>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#1e5e3f]/10">
+                      <div className="curriculo-loading-bar h-full w-2/5 rounded-full bg-[#1e5e3f]"></div>
+                    </div>
+                  </div>
+                </div>
               )}
             </form>
+            )}
+
+            {dadosRevisao && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-brand text-xl font-bold text-black">
+                    {modoCadastro === "manual" ? "Preencha os dados do currículo" : "Confira os dados reconhecidos"}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {modoCadastro === "manual"
+                      ? "Preencha as informações que deseja incluir. Você poderá revisar tudo antes de salvar."
+                      : "Revise os campos preenchidos automaticamente. Corrija ou complete as informações antes de usar o currículo."}
+                  </p>
+                </div>
+                {modoCadastro === "arquivo" && (() => {
+                  const ausentes = [
+                    !dadosRevisao.nome_completo && "nome completo",
+                    !dadosRevisao.resumo_profissional && "resumo profissional",
+                    !dadosRevisao.experiencias?.length && "experiências profissionais",
+                    !dadosRevisao.formacao?.length && "formação",
+                  ].filter(Boolean);
+                  return ausentes.length > 0 ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <strong>Confira com atenção:</strong> não identificamos {ausentes.join(", ")}. Preencha esses campos se eles constarem no seu currículo.
+                    </div>
+                  ) : null;
+                })()}
+                <EditorDadosCurriculo
+                  key={`${modoCadastro}-${arquivo?.name || "manual"}`}
+                  dados={dadosRevisao}
+                  nomeCurriculo={nomeCurriculoRevisao}
+                  onSalvar={salvarRevisao}
+                  salvando={salvandoRevisao}
+                  textoBotao="Salvar currículo"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -310,7 +531,7 @@ export default function UploadCurriculo() {
         {/* Modal / Visualizador de Currículo */}
         {curriculoSelecionado && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-            <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-black bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
               {/* Cabeçalho */}
               <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gray-50">
                 <div className="flex items-center gap-3 min-w-0">
@@ -336,41 +557,143 @@ export default function UploadCurriculo() {
                 </button>
               </div>
 
-              {/* Conteúdo: o arquivo original, como o usuário enviou. Único contêiner com
-                  scroll do modal — evita aninhar dois overflow-auto, que é o que estava
-                  impedindo a barra de rolagem de aparecer. */}
+              {(curriculoSelecionado.possui_edicao || curriculoSelecionado.possui_arquivo) && (
+                <div className="flex gap-2 border-b border-gray-200 bg-white px-6 py-3">
+                  {curriculoSelecionado.possui_edicao && (
+                    <button
+                      type="button"
+                      onClick={() => gerarPreviewEditada()}
+                      disabled={carregandoPreviewEditada}
+                      className={`rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-60 ${abaModal === "editada" ? "bg-[#1e5e3f] text-white" : "bg-[#f0fdf4] text-[#1e5e3f] hover:bg-[#e0f7ea]"}`}
+                    >
+                      {carregandoPreviewEditada ? "Gerando prévia..." : "Versão revisada"}
+                    </button>
+                  )}
+                  {curriculoSelecionado.possui_arquivo && (
+                    <button
+                      type="button"
+                      onClick={() => setAbaModal("original")}
+                      className={`rounded-md px-3 py-2 text-sm font-semibold ${abaModal === "original" ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                    >
+                      Arquivo original
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {erro && (
+                <div role="alert" className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {erro}
+                </div>
+              )}
+
+              {sucesso && (
+                <div className="mx-5 mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                  {sucesso}
+                </div>
+              )}
+
+              {/* Conteúdo: a prévia revisada é gerada separadamente; o PDF original permanece intacto. */}
               <div className="flex-1 min-h-0 overflow-y-auto bg-gray-100">
-                {curriculoSelecionado.nome_arquivo?.toLowerCase().endsWith(".pdf") ? (
+                {abaModal === "editar" ? (
+                  carregandoEdicaoModal || !dadosModal ? (
+                    <div className="py-12 text-center text-gray-500">
+                      <i className="ti ti-loader animate-spin text-2xl text-[#1e5e3f]"></i>
+                      <p className="mt-2 text-sm">Carregando dados do currículo...</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white p-5 sm:p-7">
+                      <EditorDadosCurriculo
+                        key={curriculoSelecionado.id_curriculo}
+                        dados={dadosModal}
+                        nomeCurriculo={curriculoSelecionado.nome_curriculo || curriculoSelecionado.nome_arquivo.replace(/\.[^.]+$/, "")}
+                        onSalvar={salvarEdicaoModal}
+                        salvando={salvandoEdicaoModal}
+                        textoBotao="Salvar"
+                      />
+                    </div>
+                  )
+                ) : abaModal === "editada" ? (
+                  blobPreviewEditada ? (
+                    <LimiteDeErro chave={`${curriculoSelecionado.id_curriculo}-editada`}>
+                      <VisualizadorPdf blob={blobPreviewEditada} />
+                    </LimiteDeErro>
+                  ) : (
+                    <div className="flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center text-gray-600">
+                      <i className="ti ti-file-description text-[40px] text-[#1e5e3f]"></i>
+                      <p className="font-semibold">A prévia revisada é um documento separado do arquivo original.</p>
+                      <button
+                        type="button"
+                        onClick={() => gerarPreviewEditada()}
+                        disabled={carregandoPreviewEditada}
+                        className="rounded-md bg-[#1e5e3f] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
+                      >
+                        {carregandoPreviewEditada ? "Gerando..." : "Gerar prévia revisada"}
+                      </button>
+                    </div>
+                  )
+                ) : curriculoSelecionado.possui_arquivo && curriculoSelecionado.nome_arquivo?.toLowerCase().endsWith(".pdf") ? (
                   <LimiteDeErro chave={curriculoSelecionado.id_curriculo}>
                     <VisualizadorPdf idCurriculo={curriculoSelecionado.id_curriculo} email={emailInicial} />
                   </LimiteDeErro>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center gap-2 text-center text-gray-500 p-6">
                     <i className="ti ti-file-text text-[32px] text-gray-400"></i>
-                    <p className="text-sm">
-                      Este formato (.docx) não tem pré-visualização própria ainda.
-                    </p>
-                    <p className="text-xs text-gray-400">Baixe o arquivo original abaixo para abri-lo no Word.</p>
+                    {curriculoSelecionado.possui_arquivo ? (
+                      <>
+                        <p className="text-sm">Este formato (.docx) não tem pré-visualização própria ainda.</p>
+                        <p className="text-xs text-gray-400">Baixe o arquivo original abaixo para abri-lo no Word.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm">Este currículo foi preenchido manualmente e ainda não tem arquivo original.</p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* Rodapé com Ações */}
+              {/* O download original nunca é substituído pela versão revisada. */}
               <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4 bg-gray-50">
-                <button
-                  type="button"
-                  onClick={baixarCurriculoSelecionado}
-                  className="flex items-center gap-2 rounded-md border border-[#1e5e3f] bg-white px-4 py-2 text-sm font-semibold text-[#1e5e3f] hover:bg-[#f0fdf4] transition-colors"
-                >
-                  <i className="ti ti-download"></i> Baixar arquivo original
-                </button>
-                <button
-                  type="button"
-                  onClick={fecharCurriculoOriginal}
-                  className="rounded-md bg-gray-800 px-5 py-2 text-sm font-semibold text-white hover:bg-black transition-colors"
-                >
-                  Fechar
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  {curriculoSelecionado.possui_arquivo && (
+                    <button
+                      type="button"
+                      onClick={baixarCurriculoSelecionado}
+                      className="flex items-center gap-2 rounded-md border border-[#1e5e3f] bg-white px-4 py-2 text-sm font-semibold text-[#1e5e3f] hover:bg-[#f0fdf4] transition-colors"
+                    >
+                      <i className="ti ti-download"></i> Baixar arquivo original
+                    </button>
+                  )}
+                  {blobPreviewEditada && abaModal === "editada" && (
+                    <button
+                      type="button"
+                      onClick={baixarPreviewEditada}
+                      className="flex items-center gap-2 rounded-md border border-[#1e5e3f] bg-white px-4 py-2 text-sm font-semibold text-[#1e5e3f] hover:bg-[#f0fdf4]"
+                    >
+                      <i className="ti ti-download"></i> Baixar versão revisada
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {abaModal !== "editar" && (
+                    <button
+                      type="button"
+                      onClick={abrirEditorModal}
+                      disabled={carregandoEdicaoModal}
+                      className="rounded-md bg-[#1e5e3f] px-4 py-2 text-sm font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
+                    >
+                      <i className="ti ti-edit mr-1.5"></i>Editar currículo
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={fecharCurriculoOriginal}
+                    className="rounded-md bg-gray-800 px-5 py-2 text-sm font-semibold text-white hover:bg-black transition-colors"
+                  >
+                    Fechar
+                  </button>
+                </div>
               </div>
             </div>
           </div>

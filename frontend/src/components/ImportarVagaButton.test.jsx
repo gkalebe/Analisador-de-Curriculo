@@ -1,5 +1,5 @@
-import { beforeEach, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ImportarVagaButton from "./ImportarVagaButton.jsx";
 
 const { criarVaga, visualizarImportacaoVaga } = vi.hoisted(() => ({
@@ -18,6 +18,10 @@ beforeEach(() => {
     empresa: "Empresa Exemplo",
     url_origem: "https://www.linkedin.com/jobs/view/1",
   });
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 it("mostra o painel flutuante abaixo do botão e preenche o formulário sem salvar", async () => {
