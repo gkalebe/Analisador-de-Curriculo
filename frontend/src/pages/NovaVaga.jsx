@@ -139,21 +139,6 @@ export default function NovaVaga() {
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-[#595859]" htmlFor="requisitos">
-                Requisitos:
-              </label>
-              <textarea
-                id="requisitos"
-                rows={3}
-                value={form.requisitos}
-                onChange={(e) => setForm({ ...form, requisitos: e.target.value })}
-                maxLength={5000}
-                className="w-full rounded border border-[#dfdfe0] px-3 py-2 text-sm placeholder-[#8c8c8c] focus:outline-none focus:ring-2 focus:ring-[#1e5e3f]"
-              />
-              <p className="mt-1 text-xs text-gray-400">Opcional.</p>
-            </div>
-
-            <div>
               <label className="mb-1 block text-sm font-medium text-[#595859]" htmlFor="area">
                 Área:
               </label>

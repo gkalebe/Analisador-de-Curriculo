@@ -20,14 +20,15 @@ beforeEach(() => {
   });
 });
 
-it("mostra o importador sobreposto e envia os dados para o formulário sem salvá-los", async () => {
+it("mostra o painel flutuante abaixo do botão e preenche o formulário sem salvar", async () => {
   const onImported = vi.fn();
   render(<ImportarVagaButton email="ana@example.com" onImported={onImported} />);
 
   fireEvent.click(screen.getByRole("button", { name: "Importar vaga" }));
-  const dialog = screen.getByRole("dialog", { name: "Importar vaga do LinkedIn" });
-  expect(dialog.parentElement.className).toContain("fixed");
-  expect(dialog.parentElement.className).toContain("z-[1000]");
+  const painel = screen.getByRole("region", { name: "Importar vaga do LinkedIn" });
+  expect(painel.className).toContain("absolute");
+  expect(painel.className).toContain("top-full");
+  expect(painel.className).toContain("z-50");
   expect(screen.queryByLabelText(/Descrição da vaga/)).toBeNull();
   expect(screen.queryByLabelText(/Título/)).toBeNull();
 
@@ -43,7 +44,7 @@ it("mostra o importador sobreposto e envia os dados para o formulário sem salv�
     }));
   });
   expect(criarVaga).not.toHaveBeenCalled();
-  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("region", { name: "Importar vaga do LinkedIn" })).toBeNull();
 });
 
 it("mostra a alternativa de preenchimento manual quando a leitura da URL falha", async () => {
@@ -61,7 +62,7 @@ it("mostra a alternativa de preenchimento manual quando a leitura da URL falha",
   expect(screen.getByText(/cole a descrição no formulário abaixo/i)).toBeTruthy();
   expect(screen.queryByLabelText(/Descrição da vaga/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
-  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("region", { name: "Importar vaga do LinkedIn" })).toBeNull();
   expect(criarVaga).not.toHaveBeenCalled();
   expect(onImported).not.toHaveBeenCalled();
 });
