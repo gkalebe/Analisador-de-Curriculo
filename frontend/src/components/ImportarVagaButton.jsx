@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { criarVaga, visualizarImportacaoVaga } from "../api/vagasApi.js";
 import { ApiError } from "../api/client.js";
+import FeedbackCarregamento from "./FeedbackCarregamento.jsx";
 
 export default function ImportarVagaButton({
   email,
@@ -12,13 +13,20 @@ export default function ImportarVagaButton({
   const [url, setUrl] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [etapaImportacao, setEtapaImportacao] = useState("");
 
   async function importar(evento) {
     evento.preventDefault();
     setErro("");
     setEnviando(true);
+    setEtapaImportacao("Buscando informações públicas da vaga...");
     try {
       const previa = await visualizarImportacaoVaga(url.trim());
+      if (saveOnImport) {
+        setEtapaImportacao("Salvando vaga para análise...");
+      } else {
+        setEtapaImportacao("Preparando os dados importados...");
+      }
       const vaga = saveOnImport ? await criarVaga({ ...previa, email }) : previa;
       await onImported(vaga);
       setUrl("");
@@ -35,6 +43,7 @@ export default function ImportarVagaButton({
       }
     } finally {
       setEnviando(false);
+      setEtapaImportacao("");
     }
   }
 
@@ -92,6 +101,9 @@ export default function ImportarVagaButton({
             <p className="text-xs text-gray-500">
               Se o LinkedIn não permitir a leitura automática, feche esta janela e cole a descrição no formulário abaixo.
             </p>
+            {enviando && (
+              <FeedbackCarregamento mensagem={etapaImportacao} />
+            )}
             {erro && <p role="alert" className="text-sm text-red-700">{erro}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -107,7 +119,7 @@ export default function ImportarVagaButton({
                 disabled={enviando || !email}
                 className="inline-flex items-center justify-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-2 text-sm font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
               >
-                <i className={enviando ? "ti ti-loader-2 animate-spin" : "ti ti-download"}></i>
+                <i className="ti ti-download"></i>
                 {enviando ? "Importando..." : "Importar"}
               </button>
             </div>

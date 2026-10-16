@@ -6,6 +6,7 @@ import { novoFormularioVaga, preencherFormularioComVaga } from "../models/vaga.j
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
 import ImportarVagaButton from "../components/ImportarVagaButton.jsx";
+import FeedbackCarregamento from "../components/FeedbackCarregamento.jsx";
 
 const LIMITE_DESCRICAO_PADRAO = 20000;
 const CAMPOS_OPCIONAIS = [
@@ -188,8 +189,15 @@ export default function NovaVaga() {
               disabled={enviando || !emailInicial}
               className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
             >
-              <i className="ti ti-device-floppy"></i> Salvar vaga
+              <i className="ti ti-device-floppy"></i>
+              {enviando ? "Salvando vaga..." : "Salvar vaga"}
             </button>
+            {enviando && (
+              <FeedbackCarregamento
+                mensagem="Salvando as informações da vaga..."
+                detalhe="Quase pronto."
+              />
+            )}
           </form>
         </div>
 

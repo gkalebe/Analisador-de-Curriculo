@@ -8,6 +8,7 @@ import { formatarDataUpload, formatarTamanhoArquivo, validarArquivoCurriculo } f
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
 import ImportarVagaButton from "../components/ImportarVagaButton.jsx";
+import FeedbackCarregamento from "../components/FeedbackCarregamento.jsx";
 import { montarRotaGaleriaTemplates, prepararCurriculoParaTemplate } from "../models/templateAts.js";
 
 export default function NovaAnalise() {
@@ -774,8 +775,15 @@ export default function NovaAnalise() {
               }
               className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-6 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60 transition-colors"
             >
-              <i className="ti ti-send"></i> {enviando ? "Analisando..." : "Iniciar análise"}
+              <i className="ti ti-send"></i>
+              {enviando ? "Analisando..." : "Iniciar análise"}
             </button>
+            {enviando && (
+              <FeedbackCarregamento
+                mensagem="Analisando seu currículo..."
+                detalhe="Estamos comparando seu perfil com os requisitos da vaga."
+              />
+            )}
           </form>
         )}
       </main>

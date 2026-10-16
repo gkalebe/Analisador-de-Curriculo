@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import VisualizadorPdf from "../components/VisualizadorPdf.jsx";
 import LimiteDeErro from "../components/LimiteDeErro.jsx";
+import FeedbackCarregamento from "../components/FeedbackCarregamento.jsx";
 import {
   baixarArquivoCurriculo,
   excluirCurriculo,
@@ -214,9 +215,16 @@ export default function UploadCurriculo() {
                   disabled={!arquivo || enviando}
                   className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-5 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60 transition-colors"
                 >
-                  <i className="ti ti-send"></i> {enviando ? "Enviando e salvando..." : "Salvar currículo"}
+                  <i className="ti ti-send"></i>
+                  {enviando ? "Enviando e salvando..." : "Salvar currículo"}
                 </button>
               </div>
+              {enviando && (
+                <FeedbackCarregamento
+                  mensagem="Lendo seu currículo..."
+                  detalhe="Estamos enviando o arquivo e preparando os dados."
+                />
+              )}
             </form>
           </div>
         )}
