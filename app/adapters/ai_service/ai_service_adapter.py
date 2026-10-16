@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 TIMEOUT_SEGUNDOS = 30
 TIMEOUT_RESPOSTA_LONGA_SEGUNDOS = 90
-MAX_TOKENS_RESPOSTA = 4096
+MAX_TOKENS_RESPOSTA = 8192
 TEMPERATURA_PADRAO = 0.4
 MAX_TENTATIVAS_GEMINI = 3
 ESPERA_ENTRE_TENTATIVAS_SEGUNDOS = 3
@@ -489,7 +489,15 @@ class AIServiceAdapter:
         (`curriculo_estruturado`), para o fluxo "Transformar em Template ATS" não precisar de
         uma segunda requisição de extração — ver AnalisadorService."""
         prompt = self._montar_prompt_comparacao(texto_curriculo, texto_vaga)
-        return self._gerar_resposta(prompt, "comparar_curriculo_vaga", 0.3, TIMEOUT_RESPOSTA_LONGA_SEGUNDOS)
+        from app.adapters.ai_service.response_contracts import ResultadoComparacaoCurriculoVaga
+
+        return self.gerar_resposta_estruturada(
+            prompt,
+            ResultadoComparacaoCurriculoVaga,
+            "comparar_curriculo_vaga",
+            0.3,
+            TIMEOUT_RESPOSTA_LONGA_SEGUNDOS,
+        )
 
     def extrair_dados_estruturados(self, texto_curriculo: str) -> str:
         prompt = self._montar_prompt_extracao(texto_curriculo)
