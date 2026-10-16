@@ -20,6 +20,9 @@ class CurriculoAtualizacaoRequest(CurriculoDadosEstruturados):
 
 
 class CurriculoCriacaoManualRequest(CurriculoDadosEstruturados):
+    model_config = {"extra": "allow"}
+
+    formacao: str | list[dict] | None = None
     nome_curriculo: str
 
 
@@ -28,6 +31,8 @@ class CurriculoEdicaoEstruturadaRequest(CurriculoDadosEstruturados):
     # completo (mesmo shape devolvido em CurriculoEdicaoResponse.dados) — o service decide
     # pelo formato recebido.
     model_config = {"extra": "allow"}
+    formacao: str | list[dict] | None = None
+    nome_curriculo: str | None = None
 
 
 class CurriculoEdicaoTextoLivreRequest(BaseModel):
@@ -41,6 +46,12 @@ class CurriculoResponse(BaseModel):
     dados: CurriculoDadosEstruturados | None = None
 
 
+class CurriculoPreviewResponse(BaseModel):
+    nome_arquivo: str
+    tamanho_texto_extraido: int
+    dados: dict
+
+
 class CurriculoItemResponse(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -50,6 +61,7 @@ class CurriculoItemResponse(BaseModel):
     data_upload: datetime
     status_processamento: str
     possui_arquivo: bool = False
+    possui_edicao: bool = False
 
 
 class CurriculoListResponse(BaseModel):
@@ -63,6 +75,7 @@ class BibliotecaCurriculoItemResponse(BaseModel):
     origem: Literal["usuario", "ia"]
     vaga_titulo: str | None = None
     possui_arquivo: bool
+    possui_edicao: bool = False
     ultima_atividade: datetime
 
 

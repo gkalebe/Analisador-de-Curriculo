@@ -17,6 +17,7 @@ from app.core.persistencia.vaga_repository import VagaRepository
 from app.core.service.extracao_curriculo import (
     dados_planos_de,
     dados_tem_conteudo,
+    dados_para_texto_analise,
     eh_formato_plano,
     extrair_dados_estruturados_curriculo,
     mesclar_dados_planos,
@@ -73,8 +74,29 @@ class AnalisadorService:
         self.ai_service_adapter = AIServiceAdapter()
         self.settings = get_settings()
 
-    def processar_upload_curriculo(self, conteudo: bytes, nome_arquivo: str, extensao: str, id_usuario) -> dict:
+    def previsualizar_upload_curriculo(self, conteudo: bytes, nome_arquivo: str, extensao: str) -> dict:
         texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
+        dados_estruturados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
+        return {
+            "nome_arquivo": nome_arquivo,
+            "tamanho_texto_extraido": len(texto_extraido),
+            "dados": dados_estruturados,
+        }
+
+    def processar_upload_curriculo(
+        self,
+        conteudo: bytes,
+        nome_arquivo: str,
+        extensao: str,
+        id_usuario,
+        dados_revisados: dict | None = None,
+    ) -> dict:
+        texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
+        dados_estruturados = (
+            normalizar_dados_curriculo(dados_revisados, texto_extraido)
+            if dados_revisados is not None
+            else extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
+        )
 
         novo_curriculo = Curriculo(
             nome_arquivo=nome_arquivo,
@@ -89,7 +111,6 @@ class AnalisadorService:
         # adicionais...) vai para `dados_extraidos`, que é o que a exportação em template
         # usa — assim a primeira exportação não precisa chamar a IA de novo. A tabela
         # `candidato` (aba "Currículo") recebe só a projeção plana de 7 campos.
-        dados_estruturados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
         if dados_tem_conteudo(dados_estruturados):
             self.curriculo_repository.salvar_dados_extraidos(novo_curriculo, dados_estruturados)
         dados_planos = dados_planos_de(dados_estruturados)
@@ -112,15 +133,17 @@ class AnalisadorService:
             nome_curriculo=nome_normalizado,
             id_usuario=id_usuario,
             status_processamento="concluido",
-            texto_extraido=dados.get("resumo") or "",
+            texto_extraido="",
         )
         self.curriculo_repository.criar(curriculo)
-        self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados)
-        # Currículo manual não tem arquivo nem texto para a IA extrair: sem isso aqui, a
-        # exportação em template só enxergava o resumo (único conteúdo de `texto_extraido`).
+        dados_estruturados = normalizar_dados_curriculo(dados)
+        curriculo.texto_extraido = dados_para_texto_analise(dados_estruturados)
+        # Currículo manual não tem arquivo nem texto extraído: guardar os campos
+        # estruturados dá à análise e à exportação os mesmos dados editáveis.
         self.curriculo_repository.salvar_dados_extraidos(
-            curriculo, normalizar_dados_curriculo(dados, curriculo.texto_extraido or "")
+            curriculo, dados_estruturados
         )
+        self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados_planos_de(dados_estruturados))
         return curriculo
 
     def cadastrar_vaga(
@@ -211,7 +234,14 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        texto_curriculo = curriculo.texto_extraido
+        dados_para_analise = curriculo.dados_editados or (
+            curriculo.dados_extraidos if not curriculo.conteudo_arquivo else None
+        )
+        texto_curriculo = (
+            dados_para_texto_analise(dados_para_analise)
+            if dados_para_analise
+            else curriculo.texto_extraido
+        )
         if not texto_curriculo:
             if curriculo.conteudo_arquivo:
                 extensao = curriculo.nome_arquivo.rsplit(".", 1)[-1] if "." in curriculo.nome_arquivo else ""
@@ -257,6 +287,7 @@ class AnalisadorService:
                     "origem": "ia" if curriculo.dados_editados else "usuario",
                     "vaga_titulo": vaga_titulo,
                     "possui_arquivo": bool(curriculo.conteudo_arquivo),
+                    "possui_edicao": curriculo.dados_editados is not None,
                     "ultima_atividade": ultima_atividade,
                 }
             )
@@ -370,6 +401,14 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
+        dados = dict(dados or {})
+        nome_curriculo = dados.pop("nome_curriculo", None)
+        if nome_curriculo is not None:
+            nome_normalizado = nome_curriculo.strip()
+            if not nome_normalizado:
+                raise ValueError("O nome do currículo não pode ficar vazio.")
+            curriculo.nome_curriculo = nome_normalizado
+
         texto_bruto = curriculo.texto_extraido or ""
         if eh_formato_plano(dados or {}):
             # Edição campo a campo (7 campos planos): aplica por cima da versão mais recente
@@ -378,7 +417,16 @@ class AnalisadorService:
             dados_completos = mesclar_dados_planos(base, dados, texto_bruto)
         else:
             dados_completos = normalizar_dados_curriculo(dados, texto_bruto)
-        return self.curriculo_repository.salvar_edicao(curriculo, dados_completos)
+        if curriculo.dados_editados is not None:
+            dados_base = normalizar_dados_curriculo(curriculo.dados_editados, texto_bruto)
+        else:
+            dados_base = normalizar_dados_curriculo(
+                curriculo.dados_extraidos, texto_bruto
+            )
+        if dados_completos != dados_base:
+            curriculo = self.curriculo_repository.salvar_edicao(curriculo, dados_completos)
+        self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados_planos_de(dados_completos))
+        return curriculo
 
     def salvar_edicao_texto_livre_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, texto: str) -> Curriculo:
         curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)

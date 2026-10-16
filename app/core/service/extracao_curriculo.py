@@ -334,6 +334,68 @@ def dados_tem_conteudo(dados: dict) -> bool:
     return any(dados.get(campo) for campo in _CAMPOS_LISTA_DE_TEXTO + _CAMPOS_LISTA_DE_OBJETOS)
 
 
+def dados_para_texto_analise(dados: dict) -> str:
+    """Converte o currículo estruturado editado em texto legível para uma nova análise."""
+    dados = normalizar_dados_curriculo(dados)
+    contato = dados["contato"]
+    secoes = [
+        ("Nome", dados["nome_completo"]),
+        ("Título profissional", dados["titulo_profissional"]),
+        ("E-mail", contato["email"]),
+        ("Telefone", contato["telefone"]),
+        ("LinkedIn", contato["linkedin"]),
+        ("Cidade", contato["cidade"]),
+        ("Resumo profissional", dados["resumo_profissional"]),
+    ]
+    linhas = [f"{titulo}: {valor}" for titulo, valor in secoes if valor]
+
+    if dados["experiencias"]:
+        linhas.append("Experiência profissional:")
+        for experiencia in dados["experiencias"]:
+            cabecalho = " — ".join(
+                parte
+                for parte in (
+                    experiencia["cargo"],
+                    experiencia["empresa"],
+                    " - ".join(
+                        periodo
+                        for periodo in (experiencia["periodo_inicio"], experiencia["periodo_fim"])
+                        if periodo
+                    ),
+                )
+                if parte
+            )
+            if cabecalho:
+                linhas.append(cabecalho)
+            linhas.extend(f"- {item}" for item in experiencia["descricao_bullets"] if item)
+
+    if dados["formacao"]:
+        linhas.append("Formação:")
+        linhas.extend(
+            " — ".join(parte for parte in (item["curso"], item["instituicao"], item["periodo"]) if parte)
+            for item in dados["formacao"]
+        )
+
+    if dados["habilidades_tecnicas"]:
+        linhas.append("Habilidades: " + ", ".join(dados["habilidades_tecnicas"]))
+    if dados["idiomas"]:
+        linhas.append("Idiomas:")
+        linhas.extend(
+            " — ".join(parte for parte in (item["idioma"], item["nivel"]) if parte)
+            for item in dados["idiomas"]
+        )
+    if dados["certificacoes"]:
+        linhas.append("Certificações:")
+        linhas.extend(f"- {item}" for item in dados["certificacoes"])
+
+    for secao in dados["secoes_adicionais"]:
+        if secao["titulo"]:
+            linhas.append(f"{secao['titulo']}:")
+        linhas.extend(f"- {item}" for item in secao["itens"] if item)
+
+    return "\n".join(linhas)
+
+
 def obter_dados_curriculo_com_cache(
     curriculo: "Curriculo",
     ai_service_adapter: AIServiceAdapter,

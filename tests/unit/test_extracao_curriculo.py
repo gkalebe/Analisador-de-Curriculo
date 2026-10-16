@@ -11,6 +11,7 @@ from app.core.service.extracao_curriculo import (
     dados_curriculo_vazios,
     dados_planos_de,
     dados_tem_conteudo,
+    dados_para_texto_analise,
     eh_formato_plano,
     estruturar_dados_planos,
     extrair_dados_estruturados_curriculo,
@@ -67,6 +68,35 @@ def test_extrair_dados_com_sucesso_preserva_todas_as_secoes():
     assert resultado["certificacoes"] == ["AWS Cloud Practitioner"]
     assert resultado["secoes_adicionais"] == [{"titulo": "Projetos", "itens": ["Projeto A", "Projeto B"]}]
     assert resultado["texto_bruto"] == "texto bruto"
+
+
+def test_dados_para_texto_analise_usa_conteudo_estruturado_revisado():
+    texto = dados_para_texto_analise({
+        "nome_completo": "Ana Revisada",
+        "titulo_profissional": "Desenvolvedora",
+        "contato": {"email": "ana@example.com", "cidade": "Brasília"},
+        "resumo_profissional": "Resumo corrigido",
+        "experiencias": [{
+            "cargo": "Engenheira",
+            "empresa": "Empresa Nova",
+            "periodo_inicio": "2024",
+            "periodo_fim": "atual",
+            "descricao_bullets": ["Construiu APIs"],
+        }],
+        "formacao": [{"curso": "Computação", "instituicao": "UnB", "periodo": "2020-2024"}],
+        "habilidades_tecnicas": ["Python", "SQL"],
+        "idiomas": [{"idioma": "Inglês", "nivel": "Avançado"}],
+        "certificacoes": ["AWS"],
+        "secoes_adicionais": [{"titulo": "Projetos", "itens": ["Projeto A"]}],
+    })
+
+    assert "Nome: Ana Revisada" in texto
+    assert "Resumo profissional: Resumo corrigido" in texto
+    assert "Engenheira — Empresa Nova — 2024 - atual" in texto
+    assert "- Construiu APIs" in texto
+    assert "Habilidades: Python, SQL" in texto
+    assert "Inglês — Avançado" in texto
+    assert "Projetos:\n- Projeto A" in texto
 
 
 def test_extrair_dados_remove_cercas_markdown_da_resposta():
