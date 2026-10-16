@@ -83,6 +83,20 @@ def test_gerar_curriculo_documento_reporta_campos_com_retry(tmp_path):
     assert campos_com_retry == ["titulo_profissional"]
 
 
+def test_service_default_does_not_enable_extra_ai_retry_for_empty_fields(tmp_path):
+    dados_incompletos = DadosCurriculoEstruturado(nome_completo="Ana", titulo_profissional="")
+    gerador = GeradorFalso(dados_incompletos)
+    service = CurriculoEstruturadoService(gerador=gerador, montador=MontadorFalso())
+
+    _, campos_vazios = service.gerar_curriculo_documento(
+        "texto de teste", "moderno", "docx", str(tmp_path)
+    )
+
+    assert gerador.chamadas == ["texto de teste"]
+    assert service._validador._gerador is None
+    assert campos_vazios == ["titulo_profissional", "resumo_profissional"]
+
+
 def test_gerar_curriculo_documento_com_formato_invalido_lanca_erro(tmp_path):
     service, _, _, _ = _service_com_fakes()
 

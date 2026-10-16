@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.adapters.ai_service.ai_service_adapter import IARespostaInvalidaError
 from app.core.persistencia.models.analise import Analise
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
@@ -110,7 +111,20 @@ class AnaliseRepositorioFalso:
 
 
 class AIServiceAdapterFalso:
-    def __init__(self, resposta: str = '{"pontuacao": 90, "observacoes": "Ótimo encaixe."}'):
+    def __init__(
+        self,
+        resposta: str = json.dumps(
+            {
+                "pontuacao": 90,
+                "resumo": "Alta aderência.",
+                "observacoes": "Ótimo encaixe.",
+                "palavras_chave": {"correspondentes": [], "ausentes": []},
+                "diagnostico_ats": {"pontos_fortes": [], "o_que_reorganizar": [], "o_que_retirar": []},
+                "sugestoes_reescrita": [],
+                "curriculo_estruturado": {"nome_completo": "Ana Silva"},
+            }
+        ),
+    ):
         self.resposta = resposta
 
     def comparar_curriculo_vaga(self, texto_curriculo: str, texto_vaga: str) -> str:
@@ -235,7 +249,7 @@ def test_analisar_curriculo_para_vaga_com_sucesso():
     )
 
     assert analise.pontuacao == 90.0
-    assert analise.observacoes == "Ótimo encaixe."
+    assert json.loads(analise.observacoes)["observacoes"] == "Ótimo encaixe."
     assert analise.id_vaga == vaga.id_vaga
     assert analise.id_usuario == id_usuario
 
@@ -325,20 +339,40 @@ def test_interpretar_resultado_ia_remove_bloco_markdown():
     service = _criar_service_completo_com_fakes()
 
     pontuacao, observacoes = service._interpretar_resultado_ia(
-        '```json\n{"pontuacao": 55, "observacoes": "Parcial."}\n```'
+        '```json\n'
+        '{"pontuacao": 55, "resumo": "Aderência parcial.", "observacoes": "Parcial.", '
+        '"palavras_chave": {"correspondentes": [], "ausentes": []}, '
+        '"diagnostico_ats": {"pontos_fortes": [], "o_que_reorganizar": [], "o_que_retirar": []}, '
+        '"sugestoes_reescrita": [], "curriculo_estruturado": {"nome_completo": "Ana"}}\n```'
     )
 
     assert pontuacao == 55.0
-    assert observacoes == "Parcial."
+    assert json.loads(observacoes)["observacoes"] == "Parcial."
 
 
-def test_interpretar_resultado_ia_com_texto_invalido_cai_no_fallback():
+def test_interpretar_resultado_ia_com_texto_invalido_gera_erro_explicito():
     service = _criar_service_completo_com_fakes()
 
-    pontuacao, observacoes = service._interpretar_resultado_ia("resposta que não é JSON")
+    with pytest.raises(IARespostaInvalidaError, match="JSON válido"):
+        service._interpretar_resultado_ia("resposta que não é JSON")
 
-    assert pontuacao is None
-    assert observacoes == "resposta que não é JSON"
+
+def test_analise_com_resposta_invalida_nao_persiste_curriculo():
+    service = _criar_service_completo_com_fakes()
+    service.ai_service_adapter = AIServiceAdapterFalso(resposta="resposta inválida")
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+
+    with pytest.raises(IARespostaInvalidaError):
+        service.analisar_curriculo_para_vaga(
+            id_usuario=id_usuario,
+            id_vaga=vaga.id_vaga,
+            conteudo=b"curriculo",
+            nome_arquivo="curriculo.pdf",
+            extensao="pdf",
+        )
+
+    assert service.curriculo_repository.curriculos == []
 
 
 def test_analisar_curriculo_salvo_para_vaga_com_sucesso():
@@ -370,6 +404,7 @@ RESPOSTA_ANALISE_COM_CURRICULO_ESTRUTURADO = json.dumps(
     {
         "pontuacao": 80,
         "resumo": "Boa aderência.",
+        "observacoes": "Boa aderência ao perfil.",
         "palavras_chave": {"correspondentes": ["Python"], "ausentes": ["Docker"]},
         "diagnostico_ats": {"pontos_fortes": [], "o_que_reorganizar": [], "o_que_retirar": []},
         "sugestoes_reescrita": [],
@@ -493,11 +528,13 @@ def test_interpretar_resultado_ia_preserva_estrutura_completa_ats():
         },
         "sugestoes_reescrita": [
             {
+                "campo": "experiencia_profissional",
                 "trecho_original": "Fiz deploy de backend",
                 "sugestao_otimizada": "Orquestrei implantações de microsserviços",
                 "motivo": "Uso de verbo de ação",
             }
         ],
+        "curriculo_estruturado": {"nome_completo": "Ana Silva"},
     })
 
     pontuacao, observacoes = service._interpretar_resultado_ia(payload_ia)
