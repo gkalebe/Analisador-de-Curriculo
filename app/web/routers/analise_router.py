@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.adapters.ai_service.ai_service_adapter import (
     IAConfiguracaoAusenteError,
     IAIndisponivelError,
+    IARespostaInvalidaError,
 )
 from app.adapters.curriculo_parser.curriculo_parser import (
     CurriculoParser,
@@ -130,6 +131,11 @@ async def criar_analise(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=str(erro),
             ) from erro
+        except IARespostaInvalidaError as erro:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=str(erro),
+            ) from erro
         except NotImplementedError as erro:
             raise HTTPException(
                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
@@ -186,6 +192,11 @@ async def criar_analise(
     except IAIndisponivelError as erro:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(erro),
+        ) from erro
+    except IARespostaInvalidaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(erro),
         ) from erro
     except NotImplementedError as erro:

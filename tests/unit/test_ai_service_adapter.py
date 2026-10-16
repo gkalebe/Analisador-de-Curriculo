@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 import pytest
 
@@ -5,8 +7,10 @@ from app.adapters.ai_service.ai_service_adapter import (
     AIServiceAdapter,
     ClaudeClient,
     GeminiClient,
+    GroqClient,
     IAConfiguracaoAusenteError,
     IAIndisponivelError,
+    MistralClient,
 )
 
 
@@ -20,7 +24,8 @@ class AIServiceClientFalso:
         return self.resposta
 
 
-def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga():
+def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga_sem_registrar_conteudo(caplog):
+    caplog.set_level(logging.INFO, logger="app.adapters.ai_service.ai_service_adapter")
     cliente_falso = AIServiceClientFalso()
     adapter = AIServiceAdapter(cliente=cliente_falso)
 
@@ -29,6 +34,10 @@ def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga():
     assert resultado == cliente_falso.resposta
     assert "Experiência com Python." in cliente_falso.prompts_recebidos[0]
     assert "Vaga para dev Python." in cliente_falso.prompts_recebidos[0]
+    assert "ai_call_succeeded" in caplog.text
+    assert "comparar_curriculo_vaga" in caplog.text
+    assert "Experiência com Python." not in caplog.text
+    assert "Vaga para dev Python." not in caplog.text
 
 
 def test_comparar_curriculo_vaga_pede_curriculo_estruturado_e_trechos_literais_para_reescrita_sem_ia():
@@ -164,6 +173,86 @@ def test_claude_client_lanca_ia_indisponivel_quando_api_falha_ou_estoura_tempo(m
     monkeypatch.setattr(anthropic, "Anthropic", ClienteAnthropicFalso)
 
     cliente = ClaudeClient(api_key="chave-qualquer")
+
+    with pytest.raises(IAIndisponivelError):
+        cliente.gerar_resposta("prompt qualquer")
+
+
+@pytest.mark.parametrize(
+    ("cliente_type", "endpoint", "provider", "model"),
+    [
+        (GroqClient, "https://api.groq.com/openai/v1/chat/completions", "groq", "openai/gpt-oss-120b"),
+        (MistralClient, "https://api.mistral.ai/v1/chat/completions", "mistral", "mistral-large-latest"),
+    ],
+)
+def test_client_openai_compatibles_envia_prompt_e_le_usage(monkeypatch, cliente_type, endpoint, provider, model):
+    chamadas = []
+
+    class RespostaFalsa:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "choices": [{"message": {"content": '{"ok": true}'}}],
+                "usage": {"prompt_tokens": 12, "completion_tokens": 7},
+            }
+
+    def post(url, **kwargs):
+        chamadas.append((url, kwargs))
+        return RespostaFalsa()
+
+    monkeypatch.setattr(httpx, "post", post)
+    cliente = cliente_type(api_key="chave-teste", model_name=model)
+
+    completion = cliente.gerar_resposta_com_metadados("prompt teste", temperatura=0.2, timeout_segundos=17)
+
+    assert chamadas[0][0] == endpoint
+    assert chamadas[0][1]["headers"]["Authorization"] == "Bearer chave-teste"
+    assert chamadas[0][1]["json"]["model"] == model
+    assert chamadas[0][1]["json"]["messages"] == [{"role": "user", "content": "prompt teste"}]
+    assert completion.text == '{"ok": true}'
+    assert completion.input_tokens == 12
+    assert completion.output_tokens == 7
+    assert cliente.provider_name == provider
+
+
+@pytest.mark.parametrize("cliente_type", [GroqClient, MistralClient])
+def test_client_openai_compatibles_usa_modo_json_em_resposta_estruturada(monkeypatch, cliente_type):
+    from pydantic import BaseModel
+
+    class Contrato(BaseModel):
+        ok: bool
+
+    payloads = []
+
+    class RespostaFalsa:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"ok": true}'}}], "usage": {}}
+
+    def post(url, **kwargs):
+        payloads.append(kwargs["json"])
+        return RespostaFalsa()
+
+    monkeypatch.setattr(httpx, "post", post)
+    cliente = cliente_type(api_key="chave-teste")
+
+    cliente.gerar_resposta_estruturada("retorne JSON", Contrato)
+
+    assert payloads[0]["response_format"] == {"type": "json_object"}
+    assert "JSON Schema" in payloads[0]["messages"][0]["content"]
+
+
+@pytest.mark.parametrize("cliente_type", [GroqClient, MistralClient])
+def test_client_openai_compatibles_mapeia_falha_http_para_erro_de_provider(monkeypatch, cliente_type):
+    def post(url, **kwargs):
+        raise httpx.TimeoutException("erro com conteudo sensivel")
+
+    monkeypatch.setattr(httpx, "post", post)
+    cliente = cliente_type(api_key="chave-teste")
 
     with pytest.raises(IAIndisponivelError):
         cliente.gerar_resposta("prompt qualquer")

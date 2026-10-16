@@ -1,18 +1,17 @@
-"""Etapa 1 do pipeline: geração de conteúdo estruturado via IA (Gemini).
+"""Etapa 1 do pipeline: geração de conteúdo estruturado via o provider ativo.
 
 Por que esta etapa é isolada das outras 2: é a ÚNICA parte do pipeline que
-fala com um provedor de IA. Se o Gemini sair do ar, mudar de preço, ou o time
-decidir trocar de provedor, só este arquivo muda — a validação (Etapa 2) e a
+fala com um provedor de IA. A chamada passa pelo `AIServiceAdapter`, que escolhe
+Claude ou Gemini pela configuração do servidor; a validação (Etapa 2) e a
 montagem do documento (Etapa 3) continuam funcionando exatamente iguais,
 porque as duas só conhecem o contrato Pydantic (`curriculo_schema.py`), nunca
-a API do Gemini.
+a API de um provedor específico.
 
 A IA aqui NUNCA gera o documento final nem texto já formatado: ela só devolve
 um JSON validado contra `DadosCurriculoEstruturado` (JSON mode + response
-schema da própria API do Gemini, que restringe a resposta no nível da API —
-não é um "por favor responda em JSON" no prompt, que a IA pode ignorar). Isso
-é o que elimina o corte/perda de informação: o texto que sai da IA é só dado
-estruturado, nunca prosa que outra etapa precise "encaixar" num template.
+schema nativo quando o provider oferece suporte; nos demais, o schema é
+incluído na instrução e validado localmente). Isso elimina dependência de
+SDKs de provider neste pipeline.
 """
 
 import json
@@ -20,13 +19,10 @@ import json
 from pydantic import BaseModel, ValidationError
 
 from app.adapters.ai_service.ai_service_adapter import (
-    IAConfiguracaoAusenteError,
-    IAIndisponivelError,
+    AIServiceAdapter,
+    IARespostaInvalidaError,
 )
 from app.adapters.ai_service.curriculo_schema import DadosCurriculoEstruturado
-from app.core.config import get_settings
-
-TIMEOUT_SEGUNDOS = 45
 
 PROMPT_SISTEMA = """\
 Você é um assistente de RH especializado em estruturar dados de currículo.
@@ -74,40 +70,6 @@ DESCRICOES_CAMPOS = {
 }
 
 
-def _schema_compativel_com_gemini(modelo: type[BaseModel]) -> dict:
-    """Converte um schema Pydantic para o dict de schema que a API do Gemini
-    (`google-generativeai`) aceita como `response_schema`.
-
-    `model_json_schema()` do Pydantic v2 gera chaves ("default", "title") e
-    referências ("$ref"/"$defs" para os submodelos aninhados, como
-    `ContatoCurriculo` e `ExperienciaCurriculo`) que o conversor de schema
-    desta versão do SDK do Gemini não entende — falha com
-    `ValueError: Unknown field for Schema: default`. Por isso resolvemos as
-    referências (inline) e removemos as chaves não suportadas antes de
-    enviar, ficando só com o que o `protos.Schema` do Gemini aceita (type,
-    properties, items, required, enum, description).
-    """
-    schema_bruto = modelo.model_json_schema()
-    definicoes = schema_bruto.get("$defs", {})
-    chaves_nao_suportadas = {"default", "title", "$defs", "additionalProperties"}
-
-    def resolver(no):
-        if isinstance(no, dict):
-            if "$ref" in no:
-                nome_ref = no["$ref"].rsplit("/", 1)[-1]
-                return resolver(definicoes[nome_ref])
-            return {chave: resolver(valor) for chave, valor in no.items() if chave not in chaves_nao_suportadas}
-        if isinstance(no, list):
-            return [resolver(item) for item in no]
-        return no
-
-    return resolver(schema_bruto)
-
-
-class IARespostaInvalidaError(Exception):
-    """JSON malformado ou que não corresponde ao schema, mesmo vindo da API."""
-
-
 class _CampoUnico(BaseModel):
     """Schema mínimo usado só no retry cirúrgico de um campo — não herda de
     `DadosCurriculoEstruturado` de propósito, para a resposta da IA vir com
@@ -117,19 +79,18 @@ class _CampoUnico(BaseModel):
 
 
 class GeradorCurriculoEstruturadoIA:
-    def __init__(self, api_key: str | None = None, model_name: str | None = None):
-        settings = get_settings()
-        self.api_key = api_key if api_key is not None else settings.gemini_api_key
-        self.model_name = model_name if model_name is not None else settings.gemini_model_name
+    def __init__(self, ai_service_adapter: AIServiceAdapter | None = None):
+        self.ai_service_adapter = ai_service_adapter or AIServiceAdapter()
 
     def gerar(self, informacoes_brutas: str) -> DadosCurriculoEstruturado:
         """Gera o JSON estruturado completo a partir das informações brutas.
 
-        Levanta `IAConfiguracaoAusenteError` (sem API key), `IAIndisponivelError`
-        (Gemini fora do ar/timeout) ou `IARespostaInvalidaError` (resposta que
-        não é um JSON válido ou não bate com o schema).
+        Levanta `IAConfiguracaoAusenteError`, `IAIndisponivelError` ou
+        `IARespostaInvalidaError` conforme a falha.
         """
-        texto_resposta = self._chamar_gemini(PROMPT_SISTEMA + informacoes_brutas, DadosCurriculoEstruturado)
+        texto_resposta = self._chamar(
+            PROMPT_SISTEMA + informacoes_brutas, DadosCurriculoEstruturado, "curriculo_estruturado"
+        )
         return self._parsear_resposta(texto_resposta, DadosCurriculoEstruturado)
 
     def regenerar_campo(self, informacoes_brutas: str, nome_campo: str) -> str:
@@ -145,35 +106,17 @@ class GeradorCurriculoEstruturadoIA:
             descricao_campo=descricao_campo,
             informacoes_brutas=informacoes_brutas,
         )
-        texto_resposta = self._chamar_gemini(prompt, _CampoUnico)
+        texto_resposta = self._chamar(prompt, _CampoUnico, "curriculo_campo_retry")
         dados_campo = self._parsear_resposta(texto_resposta, _CampoUnico)
         return dados_campo.valor
 
-    def _chamar_gemini(self, prompt: str, response_schema: type[BaseModel]) -> str:
-        if not self.api_key:
-            raise IAConfiguracaoAusenteError("Defina GEMINI_API_KEY no .env para gerar currículos estruturados.")
-
-        import google.api_core.exceptions
-        import google.generativeai as genai
-
-        genai.configure(api_key=self.api_key, transport="rest")
-        modelo = genai.GenerativeModel(self.model_name)
-        configuracao_geracao = genai.types.GenerationConfig(
-            response_mime_type="application/json",
-            response_schema=_schema_compativel_com_gemini(response_schema),
+    def _chamar(self, prompt: str, response_schema: type[BaseModel], operacao: str) -> str:
+        return self.ai_service_adapter.gerar_resposta_estruturada(
+            prompt,
+            response_schema,
+            operacao=operacao,
+            temperatura=0.2,
         )
-        try:
-            resposta = modelo.generate_content(
-                prompt,
-                generation_config=configuracao_geracao,
-                request_options={"timeout": TIMEOUT_SEGUNDOS},
-            )
-        except google.api_core.exceptions.GoogleAPICallError as erro:
-            raise IAIndisponivelError(
-                f"O serviço de IA (Gemini) não respondeu em {TIMEOUT_SEGUNDOS}s ou recusou a requisição. "
-                "Tente novamente em instantes."
-            ) from erro
-        return resposta.text
 
     def _parsear_resposta(self, texto_resposta: str, schema: type[BaseModel]) -> BaseModel:
         try:
@@ -183,4 +126,4 @@ class GeradorCurriculoEstruturadoIA:
         try:
             return schema.model_validate(dados_brutos)
         except ValidationError as erro:
-            raise IARespostaInvalidaError(f"O JSON retornado não corresponde ao schema esperado: {erro}") from erro
+            raise IARespostaInvalidaError("O JSON retornado não corresponde ao schema esperado.") from erro

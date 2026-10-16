@@ -37,7 +37,9 @@ class CurriculoEstruturadoService:
         montador: MontadorDocumentoCurriculo | None = None,
     ):
         self._gerador = gerador or GeradorCurriculoEstruturadoIA()
-        self._validador = validador or ValidadorCurriculoEstruturado(self._gerador)
+        # Não faz chamadas de reparo implícitas: mantém uma única chamada de geração
+        # e deixa campos ausentes visíveis no resultado validado.
+        self._validador = validador or ValidadorCurriculoEstruturado()
         self._montador = montador or MontadorDocumentoCurriculo()
 
     def gerar_curriculo_documento(
