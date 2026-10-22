@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.adapters.ai_service.ai_service_adapter import (
+    AICompletion,
     AIServiceAdapter,
     ClaudeClient,
     GeminiClient,
@@ -40,6 +41,27 @@ def test_comparar_curriculo_vaga_envia_prompt_com_curriculo_e_vaga_sem_registrar
     assert "Vaga para dev Python." not in caplog.text
 
 
+def test_comparar_curriculo_vaga_usa_resposta_estruturada():
+    class ClienteEstruturadoFalso(AIServiceClientFalso):
+        def __init__(self):
+            super().__init__()
+            self.schema_recebido = None
+
+        def gerar_resposta_estruturada(self, prompt, schema, temperatura, timeout_segundos):
+            self.prompts_recebidos.append(prompt)
+            self.schema_recebido = schema
+            return AICompletion(self.resposta)
+
+    cliente = ClienteEstruturadoFalso()
+    adapter = AIServiceAdapter(cliente=cliente)
+
+    adapter.comparar_curriculo_vaga("texto do currículo", "texto da vaga")
+
+    from app.adapters.ai_service.response_contracts import ResultadoComparacaoCurriculoVaga
+
+    assert cliente.schema_recebido is ResultadoComparacaoCurriculoVaga
+
+
 def test_comparar_curriculo_vaga_pede_curriculo_estruturado_e_trechos_literais_para_reescrita_sem_ia():
     cliente = AIServiceClientFalso()
     adapter = AIServiceAdapter(cliente=cliente)
@@ -53,6 +75,9 @@ def test_comparar_curriculo_vaga_pede_curriculo_estruturado_e_trechos_literais_p
     assert "secoes_adicionais" in prompt
     assert "cópia IDÊNTICA" in prompt
     assert "ITENS INTEIROS" in prompt
+    assert '"requisitos_avaliados"' in prompt
+    assert "Diferencie requisitos obrigatórios dos desejáveis" in prompt
+    assert "nao_evidenciado" in prompt
     # Palavras-chave entram só via reescrita e só com sustentação no currículo.
     assert "JÁ SUSTENTA" in prompt and "NUNCA entram em uma" in prompt
     # Termo vago dentro de frase vira reescrita, não remoção.
@@ -243,6 +268,7 @@ def test_client_openai_compatibles_usa_modo_json_em_resposta_estruturada(monkeyp
     cliente.gerar_resposta_estruturada("retorne JSON", Contrato)
 
     assert payloads[0]["response_format"] == {"type": "json_object"}
+    assert payloads[0]["max_tokens"] == 8192
     assert "JSON Schema" in payloads[0]["messages"][0]["content"]
 
 

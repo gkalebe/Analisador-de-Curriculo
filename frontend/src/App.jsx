@@ -1,5 +1,4 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
-import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
 import Cadastro from "./pages/Cadastro.jsx";
 import RecuperarSenha from "./pages/RecuperarSenha.jsx";
@@ -28,7 +27,7 @@ function RotasAutenticadas() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
       <Route path="/cadastro" element={<Cadastro />} />
       <Route path="/usuarios/recuperar-senha" element={<RecuperarSenha />} />
