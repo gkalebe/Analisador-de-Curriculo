@@ -282,3 +282,19 @@ def test_client_openai_compatibles_mapeia_falha_http_para_erro_de_provider(monke
 
     with pytest.raises(IAIndisponivelError):
         cliente.gerar_resposta("prompt qualquer")
+
+
+def test_schema_compativel_com_gemini_aceito_pelo_sdk_google():
+    from google.generativeai.types import generation_types
+    from app.adapters.ai_service.ai_service_adapter import _schema_compativel_com_gemini
+    from app.adapters.ai_service.response_contracts import ResultadoComparacaoCurriculoVaga
+
+    schema = _schema_compativel_com_gemini(ResultadoComparacaoCurriculoVaga)
+
+    assert "pontuacao" in schema["properties"]
+    assert "maximum" not in schema["properties"]["pontuacao"]
+    assert "curriculo_estruturado" in schema["properties"]
+
+    # Não deve lançar ValueError: Unknown field for Schema: maximum/minimum/...
+    config = generation_types.to_generation_config_dict({"response_schema": schema})
+    assert config["response_schema"] is not None

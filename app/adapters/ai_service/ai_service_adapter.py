@@ -344,14 +344,34 @@ class MistralClient(OpenAICompatibleClient):
 def _schema_compativel_com_gemini(modelo: type["BaseModel"]) -> dict:
     schema_bruto = modelo.model_json_schema()
     definicoes = schema_bruto.get("$defs", {})
-    chaves_nao_suportadas = {"default", "title", "$defs", "additionalProperties"}
+    chaves_nao_suportadas = {
+        "default",
+        "title",
+        "$defs",
+        "additionalProperties",
+        "maximum",
+        "minimum",
+        "exclusiveMaximum",
+        "exclusiveMinimum",
+        "minLength",
+        "maxLength",
+        "pattern",
+    }
 
     def resolver(no):
         if isinstance(no, dict):
             if "$ref" in no:
                 nome_ref = no["$ref"].rsplit("/", 1)[-1]
                 return resolver(definicoes[nome_ref])
-            return {chave: resolver(valor) for chave, valor in no.items() if chave not in chaves_nao_suportadas}
+            resultado = {}
+            for chave, valor in no.items():
+                if chave in chaves_nao_suportadas:
+                    continue
+                if chave == "properties" and isinstance(valor, dict):
+                    resultado[chave] = {k: resolver(v) for k, v in valor.items()}
+                else:
+                    resultado[chave] = resolver(valor)
+            return resultado
         if isinstance(no, list):
             return [resolver(item) for item in no]
         return no
