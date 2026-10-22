@@ -47,12 +47,28 @@ class ChatService:
         partes = []
         if getattr(vaga, "titulo", None):
             partes.append(f"Título da Vaga: {vaga.titulo}")
+        if getattr(vaga, "empresa", None):
+            partes.append(f"Empresa: {vaga.empresa}")
         if getattr(vaga, "area", None):
             partes.append(f"Área: {vaga.area}")
-        if getattr(vaga, "requisitos", None):
-            partes.append(f"Requisitos:\n{vaga.requisitos}")
+        if getattr(vaga, "localizacao", None):
+            partes.append(f"Localização: {vaga.localizacao}")
+        if getattr(vaga, "modalidade", None):
+            partes.append(f"Modalidade: {vaga.modalidade}")
+        if getattr(vaga, "senioridade", None):
+            partes.append(f"Senioridade: {vaga.senioridade}")
         if getattr(vaga, "descricao", None):
             partes.append(f"Descrição da Vaga:\n{vaga.descricao}")
+        if getattr(vaga, "responsabilidades", None):
+            partes.append(f"Responsabilidades:\n{vaga.responsabilidades}")
+        if getattr(vaga, "requisitos", None):
+            partes.append(f"Requisitos:\n{vaga.requisitos}")
+        if getattr(vaga, "requisitos_obrigatorios", None):
+            partes.append(f"Requisitos Obrigatórios:\n{vaga.requisitos_obrigatorios}")
+        if getattr(vaga, "requisitos_desejaveis", None):
+            partes.append(f"Requisitos Desejáveis:\n{vaga.requisitos_desejaveis}")
+        if getattr(vaga, "competencias", None):
+            partes.append(f"Competências:\n{vaga.competencias}")
         return "\n\n".join(partes)
 
     def enviar_mensagem(

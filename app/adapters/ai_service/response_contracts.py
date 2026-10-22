@@ -41,6 +41,33 @@ class RequisitoAvaliado(BaseModel):
     status: Literal["evidenciado", "parcial", "nao_evidenciado"]
     evidencia: str
 
+    @field_validator("tipo", mode="before")
+    @classmethod
+    def normalizar_tipo(cls, valor: str) -> str:
+        if not isinstance(valor, str):
+            return valor
+        v = valor.strip().lower()
+        if "obrigat" in v:
+            return "obrigatorio"
+        if "desej" in v or "pref" in v or "diferencial" in v:
+            return "desejavel"
+        return v
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def normalizar_status(cls, valor: str) -> str:
+        if not isinstance(valor, str):
+            return valor
+        v = valor.strip().lower().replace("-", "_").replace(" ", "_")
+        v = v.replace("não", "nao").replace("parcialmente", "parcial")
+        if "nao" in v or "ausente" in v or "falta" in v:
+            return "nao_evidenciado"
+        if "parcial" in v:
+            return "parcial"
+        if "evidenciad" in v or "atendido" in v or "presente" in v or "cumpre" in v:
+            return "evidenciado"
+        return v
+
 
 class ResultadoComparacaoCurriculoVaga(BaseModel):
     model_config = ConfigDict(extra="allow")

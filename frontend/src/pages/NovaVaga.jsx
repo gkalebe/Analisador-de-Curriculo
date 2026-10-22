@@ -164,6 +164,8 @@ export default function NovaVaga() {
                     <span className="mb-1 block text-sm font-medium text-[#595859]">{rotulo}</span>
                     {tipo === "textarea" ? (
                       <textarea
+                        id={`campo-${campo}`}
+                        name={campo}
                         rows={3}
                         maxLength={limite}
                         value={form[campo]}
@@ -172,6 +174,8 @@ export default function NovaVaga() {
                       />
                     ) : (
                       <input
+                        id={`campo-${campo}`}
+                        name={campo}
                         type={tipo}
                         maxLength={limite}
                         value={form[campo]}

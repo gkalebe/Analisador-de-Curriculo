@@ -111,7 +111,13 @@ def _itens_json_ld(documentos):
             itens.append(item)
             grafo = item.get("@graph", [])
             pendentes.extend(grafo if isinstance(grafo, list) else [grafo])
-    return itens
+
+    def _e_job_posting(item: dict) -> bool:
+        tipos = item.get("@type", [])
+        tipos = tipos if isinstance(tipos, list) else [tipos]
+        return any(isinstance(t, str) and "JobPosting" in t for t in tipos)
+
+    return sorted(itens, key=lambda i: 0 if _e_job_posting(i) else 1)
 
 
 def _texto_html(valor):
@@ -347,5 +353,5 @@ def importar_vaga(url: str, limite_caracteres: int) -> dict[str, str]:
         "competencias": " ".join((competencias or "").split())[:5000],
         "idiomas": "",
         "beneficios": beneficios[:5000],
-        "url_origem": url,
+        "url_origem": url[:2048],
     }

@@ -107,3 +107,31 @@ def test_importar_vaga_separa_texto_plano_com_bullets_na_mesma_linha(monkeypatch
     assert vaga["requisitos_obrigatorios"] == "4 anos com Python e Django.\nInglês avançado."
     assert vaga["requisitos_desejaveis"] == "Desejável experiência com orientação a objetos."
     assert "Horários flexíveis." in vaga["beneficios"]
+
+
+def test_importar_vaga_prioriza_job_posting_sobre_website_ou_organization(monkeypatch):
+    html = """
+    <html><head>
+    <script type="application/ld+json">
+    {
+      "@type": "WebSite",
+      "name": "Portal de Empregos",
+      "description": "Encontre empregos em todo o Brasil."
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@type": "JobPosting",
+      "title": "Analista de Dados",
+      "description": "Atuar na modelagem e análise de dados analíticos."
+    }
+    </script>
+    </head><body></body></html>
+    """
+    monkeypatch.setattr(importador, "_validar_url_publica", lambda url: None)
+    monkeypatch.setattr(importador, "build_opener", lambda *_: OpenerFalso(html))
+
+    vaga = importador.importar_vaga("https://example.com/jobs/99", 20000)
+
+    assert vaga["titulo"] == "Analista de Dados"
+    assert vaga["descricao"] == "Atuar na modelagem e análise de dados analíticos."

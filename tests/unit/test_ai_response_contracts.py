@@ -72,3 +72,44 @@ def test_comparison_contract_accepts_requirement_evidence_breakdown():
 
     assert resultado.requisitos_avaliados[0].tipo == "obrigatorio"
     assert resultado.requisitos_avaliados[0].status == "evidenciado"
+
+
+def test_comparison_contract_normalizes_accented_and_formatted_requirement_types_and_status():
+    resposta = {
+        "pontuacao": 80,
+        "resumo": "Aderência.",
+        "observacoes": "Teste.",
+        "palavras_chave": {"correspondentes": [], "ausentes": []},
+        "diagnostico_ats": {"pontos_fortes": [], "o_que_reorganizar": [], "o_que_retirar": []},
+        "sugestoes_reescrita": [],
+        "requisitos_avaliados": [
+            {
+                "requisito": "Django",
+                "tipo": "Obrigatório",
+                "status": "não evidenciado",
+                "evidencia": "Não encontrado.",
+            },
+            {
+                "requisito": "FastAPI",
+                "tipo": "desejável",
+                "status": "nao-evidenciado",
+                "evidencia": "Não citado.",
+            },
+            {
+                "requisito": "Docker",
+                "tipo": "diferencial",
+                "status": "parcialmente atendido",
+                "evidencia": "Menção básica.",
+            },
+        ],
+        "curriculo_estruturado": {"nome_completo": "Ana"},
+    }
+
+    resultado = interpretar_resultado_comparacao(json.dumps(resposta))
+
+    assert resultado.requisitos_avaliados[0].tipo == "obrigatorio"
+    assert resultado.requisitos_avaliados[0].status == "nao_evidenciado"
+    assert resultado.requisitos_avaliados[1].tipo == "desejavel"
+    assert resultado.requisitos_avaliados[1].status == "nao_evidenciado"
+    assert resultado.requisitos_avaliados[2].tipo == "desejavel"
+    assert resultado.requisitos_avaliados[2].status == "parcial"
