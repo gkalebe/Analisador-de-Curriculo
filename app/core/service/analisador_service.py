@@ -24,7 +24,7 @@ from app.core.service.extracao_curriculo import (
     normalizar_dados_curriculo,
     obter_dados_curriculo_com_cache,
 )
-from app.core.service.reescrita_curriculo import aplicar_sugestoes_sem_ia
+from app.core.service.reescrita_curriculo import aplicar_reescrita, aplicar_sugestoes_sem_ia
 
 # Mesmos 4 campos estruturados usados na tela de edição (EditarCurriculo.jsx) — a IA já
 # devolve qual desses campos cada sugestão de reescrita tem como alvo (ver
@@ -518,10 +518,99 @@ class AnalisadorService:
         else:
             dados_atuais = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
 
+        # Preserva habilidades técnicas que o candidato adicionou explicitamente em dados_editados
+        habilidades_adicionadas = []
+        if curriculo.dados_editados and "habilidades_tecnicas" in curriculo.dados_editados:
+            habilidades_atuais_lower = {h.lower() for h in (dados_atuais.get("habilidades_tecnicas") or [])}
+            habilidades_adicionadas = [
+                h for h in (curriculo.dados_editados.get("habilidades_tecnicas") or [])
+                if h and h.lower() not in habilidades_atuais_lower
+            ]
+
         dados_aplicados, relatorio = aplicar_sugestoes_sem_ia(dados_atuais, sugestoes, curriculo.texto_extraido or "")
-        if relatorio["total_aplicadas"] > 0:
+
+        for hab in habilidades_adicionadas:
+            if not any(hab.lower() == item.lower() for item in dados_aplicados["habilidades_tecnicas"]):
+                dados_aplicados["habilidades_tecnicas"].append(hab)
+
+        if relatorio["total_aplicadas"] > 0 or habilidades_adicionadas:
             curriculo = self.curriculo_repository.salvar_edicao(curriculo, dados_aplicados)
         return curriculo, relatorio
+
+    def aplicar_sugestao_individual(
+        self,
+        id_usuario: uuid.UUID,
+        id_curriculo: uuid.UUID,
+        trecho_original: str,
+        versao_otimizada: str,
+        campo: str | None = None,
+    ) -> tuple[Curriculo, bool]:
+        """Aplica uma sugestão de reescrita específica (ou editada pelo usuário) no currículo."""
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        texto_bruto = curriculo.texto_extraido or ""
+        base = curriculo.dados_editados or curriculo.dados_extraidos or {}
+        if not base and not curriculo.dados_extraidos:
+            base = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+        dados_atuais = normalizar_dados_curriculo(base, texto_bruto)
+
+        aplicou = aplicar_reescrita(dados_atuais, trecho_original, versao_otimizada, campo)
+        if aplicou:
+            dados_salvos = normalizar_dados_curriculo(dados_atuais, texto_bruto)
+            curriculo = self.curriculo_repository.salvar_edicao(curriculo, dados_salvos)
+            self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados_planos_de(dados_salvos))
+        return curriculo, aplicou
+
+    def adicionar_habilidade_curriculo(
+        self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, habilidade: str
+    ) -> Curriculo:
+        """Adiciona uma tecnologia/habilidade dominada pelo usuário ao currículo estruturado."""
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        habilidade_limpa = (habilidade or "").strip()
+        if not habilidade_limpa:
+            raise ValueError("O nome da habilidade não pode ficar vazio.")
+
+        texto_bruto = curriculo.texto_extraido or ""
+        base = curriculo.dados_editados or curriculo.dados_extraidos or {}
+        if not base and not curriculo.dados_extraidos:
+            base = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+        dados_atuais = normalizar_dados_curriculo(base, texto_bruto)
+
+        habilidades = list(dados_atuais.get("habilidades_tecnicas") or [])
+        if not any(h.lower() == habilidade_limpa.lower() for h in habilidades):
+            habilidades.append(habilidade_limpa)
+            dados_atuais["habilidades_tecnicas"] = habilidades
+            dados_salvos = normalizar_dados_curriculo(dados_atuais, texto_bruto)
+            curriculo = self.curriculo_repository.salvar_edicao(curriculo, dados_salvos)
+            self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados_planos_de(dados_salvos))
+        return curriculo
+
+    def remover_habilidade_curriculo(
+        self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID, habilidade: str
+    ) -> Curriculo:
+        """Remove uma tecnologia/habilidade do currículo estruturado."""
+        curriculo = self.curriculo_repository.buscar_por_id(id_curriculo)
+        if curriculo is None or curriculo.id_usuario != id_usuario:
+            raise CurriculoNaoEncontradoError
+
+        habilidade_limpa = (habilidade or "").strip().lower()
+        texto_bruto = curriculo.texto_extraido or ""
+        base = curriculo.dados_editados or curriculo.dados_extraidos or {}
+        if not base and not curriculo.dados_extraidos:
+            base = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+        dados_atuais = normalizar_dados_curriculo(base, texto_bruto)
+
+        habilidades = [h for h in (dados_atuais.get("habilidades_tecnicas") or []) if h.strip().lower() != habilidade_limpa]
+        dados_atuais["habilidades_tecnicas"] = habilidades
+        dados_salvos = normalizar_dados_curriculo(dados_atuais, texto_bruto)
+        curriculo = self.curriculo_repository.salvar_edicao(curriculo, dados_salvos)
+        self.curriculo_repository.salvar_candidato(curriculo.id_curriculo, dados_planos_de(dados_salvos))
+        return curriculo
 
     def _salvar_curriculo_estruturado_da_analise(self, curriculo: Curriculo, resultado_ia: str) -> None:
         """A análise já devolve o currículo estruturado completo (`curriculo_estruturado`);

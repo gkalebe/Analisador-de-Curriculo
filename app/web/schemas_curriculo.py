@@ -97,6 +97,16 @@ class CurriculoDetalhesResponse(BaseModel):
     dados: CurriculoDadosEstruturados | None = None
 
 
+class CurriculoAplicarSugestaoIndividualRequest(BaseModel):
+    trecho_original: str
+    versao_otimizada: str
+    campo: str | None = None
+
+
+class CurriculoHabilidadeRequest(BaseModel):
+    habilidade: str
+
+
 class CurriculoEdicaoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -107,3 +117,4 @@ class CurriculoEdicaoResponse(BaseModel):
     sugestoes: dict | None = None
     # Preenchido só pela rota de aplicar sugestões: o que foi/não foi aplicado na reescrita.
     relatorio_aplicacao: dict | None = None
+    aplicou: bool | None = None

@@ -1154,3 +1154,82 @@ def test_excluir_curriculo_inexistente_lanca_erro():
 
     with pytest.raises(CurriculoNaoEncontradoError):
         service.excluir_curriculo(uuid.uuid4(), uuid.uuid4())
+
+
+def test_aplicar_sugestao_individual_sucesso():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="texto bruto",
+        dados_extraidos={
+            "resumo_profissional": "Desenvolvedor focado em backend.",
+            "habilidades_tecnicas": ["Python"],
+        },
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    curriculo_atualizado, aplicou = service.aplicar_sugestao_individual(
+        id_usuario=id_usuario,
+        id_curriculo=curriculo.id_curriculo,
+        trecho_original="Desenvolvedor focado em backend.",
+        versao_otimizada="Engenheiro de Software com foco em sistemas distribuídos de alta escala.",
+        campo="resumo",
+    )
+
+    assert aplicou is True
+    assert curriculo_atualizado.dados_editados is not None
+    assert (
+        curriculo_atualizado.dados_editados["resumo_profissional"]
+        == "Engenheiro de Software com foco em sistemas distribuídos de alta escala."
+    )
+
+
+def test_adicionar_e_remover_habilidade_curriculo():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="texto bruto",
+        dados_extraidos={
+            "habilidades_tecnicas": ["Python", "FastAPI"],
+        },
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    # Adiciona Docker
+    service.adicionar_habilidade_curriculo(id_usuario, curriculo.id_curriculo, "Docker")
+    assert "Docker" in curriculo.dados_editados["habilidades_tecnicas"]
+
+    # Tentativa de duplicata (case insensitive) não duplica
+    service.adicionar_habilidade_curriculo(id_usuario, curriculo.id_curriculo, "docker")
+    assert curriculo.dados_editados["habilidades_tecnicas"].count("Docker") == 1
+
+    # Remove Python
+    service.remover_habilidade_curriculo(id_usuario, curriculo.id_curriculo, "Python")
+    assert "Python" not in curriculo.dados_editados["habilidades_tecnicas"]
+    assert "Docker" in curriculo.dados_editados["habilidades_tecnicas"]
+
+
+def test_aplicar_sugestoes_preserva_habilidades_adicionadas():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = _preparar_curriculo_com_sugestoes(service, id_usuario)
+    curriculo.dados_extraidos = {
+        "resumo_profissional": "Ela fez coisas na empresa",
+        "habilidades_tecnicas": ["Python"],
+    }
+
+    # Usuário adiciona uma tecnologia extra que dominou
+    service.adicionar_habilidade_curriculo(id_usuario, curriculo.id_curriculo, "Kubernetes")
+
+    # Aplica todas as sugestões
+    curriculo_apos, relatorio = service.aplicar_sugestoes_curriculo(id_usuario, curriculo.id_curriculo)
+
+    assert relatorio["total_aplicadas"] > 0
+    # Kubernetes deve ser preservado mesmo após reescrever
+    assert "Kubernetes" in curriculo_apos.dados_editados["habilidades_tecnicas"]
