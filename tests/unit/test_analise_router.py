@@ -109,6 +109,30 @@ class AnalisadorServiceFalso:
             raise CurriculoNaoEncontradoError
         self.curriculos_excluidos.append(id_curriculo)
 
+    def aplicar_sugestao_individual(self, id_usuario, id_curriculo, trecho_original, versao_otimizada, campo=None):
+        if self.deve_recusar_curriculo_nao_encontrado:
+            raise CurriculoNaoEncontradoError
+        return None, True
+
+    def adicionar_habilidade_curriculo(self, id_usuario, id_curriculo, habilidade):
+        if self.deve_recusar_curriculo_nao_encontrado:
+            raise CurriculoNaoEncontradoError
+        return None
+
+    def remover_habilidade_curriculo(self, id_usuario, id_curriculo, habilidade):
+        if self.deve_recusar_curriculo_nao_encontrado:
+            raise CurriculoNaoEncontradoError
+        return None
+
+    def obter_dados_edicao_curriculo(self, id_usuario, id_curriculo):
+        return {
+            "id_curriculo": id_curriculo,
+            "dados": {"nome_completo": "Ana", "habilidades_tecnicas": ["Python"]},
+            "possui_edicao": True,
+            "editado_em": None,
+            "sugestoes": None,
+        }
+
 
 def _usuario() -> Usuario:
     return Usuario(
@@ -536,3 +560,52 @@ def test_excluir_curriculo_inexistente_retorna_404():
 
     app.dependency_overrides.clear()
     assert response.status_code == 404
+
+
+def test_aplicar_sugestao_individual_endpoint():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    id_curriculo = uuid.uuid4()
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        f"/analises/curriculos/{id_curriculo}/edicao/aplicar-sugestao",
+        params={"email": usuario.email},
+        json={
+            "trecho_original": "Fazia deploys",
+            "versao_otimizada": "Orquestrei implantações de CI/CD",
+            "campo": "experiencia_profissional",
+        },
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    corpo = response.json()
+    assert corpo["aplicou"] is True
+    assert corpo["possui_edicao"] is True
+
+
+def test_adicionar_e_remover_habilidade_endpoints():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    id_curriculo = uuid.uuid4()
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    # Adicionar
+    resp_add = client.post(
+        f"/analises/curriculos/{id_curriculo}/edicao/adicionar-habilidade",
+        params={"email": usuario.email},
+        json={"habilidade": "Docker"},
+    )
+    assert resp_add.status_code == 200
+
+    # Remover
+    resp_rem = client.post(
+        f"/analises/curriculos/{id_curriculo}/edicao/remover-habilidade",
+        params={"email": usuario.email},
+        json={"habilidade": "Docker"},
+    )
+    assert resp_rem.status_code == 200
+    app.dependency_overrides.clear()

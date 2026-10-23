@@ -11,7 +11,14 @@ import { ApiError } from "../api/client.js";
  * Nunca lança: se não houver sugestões (400) ou nada puder ser aplicado, devolve um aviso e
  * segue para a galeria com a versão original, para o usuário não ficar travado.
  */
-export async function prepararCurriculoParaTemplate(idCurriculo, email) {
+export async function prepararCurriculoParaTemplate(idCurriculo, email, pularAplicacaoAutomatica = false) {
+  if (pularAplicacaoAutomatica) {
+    return {
+      versao: "editada",
+      aviso: "Currículo personalizado com suas escolhas preparado com sucesso.",
+      relatorio: null,
+    };
+  }
   try {
     const resposta = await aplicarSugestoesCurriculo(idCurriculo, email);
     const relatorio = resposta?.relatorio_aplicacao || null;
