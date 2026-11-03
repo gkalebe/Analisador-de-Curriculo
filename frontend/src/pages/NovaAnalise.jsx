@@ -279,7 +279,7 @@ export default function NovaAnalise() {
           const habs = res.dados?.habilidades_tecnicas || [];
           setHabilidadesNoCurriculo(new Set(habs.map((h) => h.toLowerCase().trim())));
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [resultado, emailInicial]);
 
@@ -558,11 +558,10 @@ export default function NovaAnalise() {
                               onClick={() => alternarHabilidade(palavra)}
                               disabled={estaCarregando}
                               title={jaAdicionada ? "Já adicionada ao seu currículo. Clique para remover." : "Clique no + para adicionar esta tecnologia ao seu currículo"}
-                              className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer shadow-sm ${
-                                jaAdicionada
-                                  ? "bg-emerald-100 text-emerald-950 border border-emerald-400 hover:bg-rose-50 hover:border-rose-400 hover:text-rose-900"
-                                  : "bg-white text-amber-900 border border-amber-300 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-900"
-                              }`}
+                              className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer shadow-sm ${jaAdicionada
+                                ? "bg-emerald-100 text-emerald-950 border border-emerald-400 hover:bg-rose-50 hover:border-rose-400 hover:text-rose-900"
+                                : "bg-white text-amber-900 border border-amber-300 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-900"
+                                }`}
                             >
                               {estaCarregando ? (
                                 <i className="ti ti-loader animate-spin text-[11px]"></i>
@@ -756,11 +755,10 @@ export default function NovaAnalise() {
                     {sugestoesState.map((sugestao, idx) => (
                       <div
                         key={idx}
-                        className={`rounded-xl border transition-all p-4 md:p-5 space-y-3 ${
-                          sugestao.aplicada
-                            ? "border-emerald-300 bg-emerald-50/20 shadow-sm ring-1 ring-emerald-200"
-                            : "border-gray-200 bg-[#fafafa]"
-                        }`}
+                        className={`rounded-xl border transition-all p-4 md:p-5 space-y-3 ${sugestao.aplicada
+                          ? "border-emerald-300 bg-emerald-50/20 shadow-sm ring-1 ring-emerald-200"
+                          : "border-gray-200 bg-[#fafafa]"
+                          }`}
                       >
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* Versão Original */}
@@ -784,11 +782,10 @@ export default function NovaAnalise() {
 
                           {/* Versão Otimizada */}
                           <div
-                            className={`rounded-lg border p-3.5 space-y-2.5 transition-all ${
-                              sugestao.aplicada
-                                ? "border-emerald-300 bg-emerald-50/40"
-                                : "border-emerald-200 bg-white"
-                            }`}
+                            className={`rounded-lg border p-3.5 space-y-2.5 transition-all ${sugestao.aplicada
+                              ? "border-emerald-300 bg-emerald-50/40"
+                              : "border-emerald-200 bg-white"
+                              }`}
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="flex items-center gap-1.5">
@@ -952,7 +949,7 @@ export default function NovaAnalise() {
                     className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 text-center rounded-lg bg-[#1e5e3f] px-5 py-2 text-sm font-bold text-white hover:bg-[#174a32] shadow-sm transition-colors disabled:opacity-60 disabled:cursor-wait"
                   >
                     {transformando && <i className="ti ti-loader animate-spin"></i>}
-                    {transformando ? "Aplicando sugestões..." : "Transformar em Template ATS"}
+                    {transformando ? "Aplicando sugestões..." : "Transformar Currículo"}
                   </button>
                 </div>
               </div>
@@ -964,8 +961,8 @@ export default function NovaAnalise() {
           <div className="rounded-lg border-[0.5px] border-black bg-white p-6 space-y-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-              <i className="ti ti-briefcase text-[28px] text-[#1e5e3f]"></i>
-              <h2 className="font-brand text-[28px] text-black">1. Escolha a vaga</h2>
+                <i className="ti ti-briefcase text-[28px] text-[#1e5e3f]"></i>
+                <h2 className="font-brand text-[28px] text-black">1. Escolha a vaga</h2>
               </div>
               <ImportarVagaButton
                 email={emailInicial}
@@ -1031,8 +1028,8 @@ export default function NovaAnalise() {
                   type="button"
                   onClick={() => setOrigemCurriculo("salvo")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${origemCurriculo === "salvo"
-                      ? "bg-white text-black shadow-sm font-semibold"
-                      : "text-gray-600 hover:text-black"
+                    ? "bg-white text-black shadow-sm font-semibold"
+                    : "text-gray-600 hover:text-black"
                     }`}
                 >
                   <i className="ti ti-folder-check"></i>
@@ -1042,8 +1039,8 @@ export default function NovaAnalise() {
                   type="button"
                   onClick={() => setOrigemCurriculo("novo")}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${origemCurriculo === "novo"
-                      ? "bg-white text-black shadow-sm font-semibold"
-                      : "text-gray-600 hover:text-black"
+                    ? "bg-white text-black shadow-sm font-semibold"
+                    : "text-gray-600 hover:text-black"
                     }`}
                 >
                   <i className="ti ti-upload"></i>
@@ -1076,8 +1073,8 @@ export default function NovaAnalise() {
                             key={curr.id_curriculo}
                             onClick={() => setIdCurriculoSelecionado(curr.id_curriculo)}
                             className={`flex items-center justify-between p-3.5 rounded-lg border cursor-pointer transition-all ${selecionado
-                                ? "border-[#1e5e3f] bg-[#f0fdf4] ring-1 ring-[#1e5e3f]"
-                                : "border-gray-200 bg-white hover:border-gray-400"
+                              ? "border-[#1e5e3f] bg-[#f0fdf4] ring-1 ring-[#1e5e3f]"
+                              : "border-gray-200 bg-white hover:border-gray-400"
                               }`}
                           >
                             <div className="flex items-center gap-3 min-w-0">
