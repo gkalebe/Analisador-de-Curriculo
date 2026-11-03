@@ -37,6 +37,7 @@ class AnalisadorServiceFalso:
         self.deve_recusar_nao_implementado = False
         self.deve_recusar_resposta_ia_invalida = False
         self.uploads_processados: list[dict] = []
+        self.previews_processadas: list[dict] = []
         self.analises_criadas: list[dict] = []
         self.analises_para_listar: list = []
         self.arquivo_curriculo: tuple[bytes, str] = (b"conteudo pdf", "curriculo.pdf")
@@ -46,13 +47,23 @@ class AnalisadorServiceFalso:
         self.curriculos_excluidos: list = []
         self.deve_recusar_curriculo_nao_encontrado = False
 
-    def processar_upload_curriculo(self, conteudo, nome_arquivo, extensao, id_usuario):
+    def previsualizar_upload_curriculo(self, conteudo, nome_arquivo, extensao):
+        resultado = {
+            "nome_arquivo": nome_arquivo,
+            "tamanho_texto_extraido": len(conteudo),
+            "dados": {"nome_completo": "Ana"},
+        }
+        self.previews_processadas.append(resultado)
+        return resultado
+
+    def processar_upload_curriculo(self, conteudo, nome_arquivo, extensao, id_usuario, dados_revisados=None):
         if self.deve_recusar_formato:
             raise FormatoNaoSuportadoError(extensao)
         resultado = {
             "id_curriculo": str(uuid.uuid4()),
             "nome_arquivo": nome_arquivo,
             "tamanho_texto_extraido": len(conteudo),
+            "dados": dados_revisados or {},
         }
         self.uploads_processados.append(resultado)
         return resultado
@@ -138,6 +149,46 @@ def test_upload_curriculo_com_sucesso():
     corpo = response.json()
     assert corpo["nome_arquivo"] == "curriculo.pdf"
     assert corpo["tamanho_texto_extraido"] == len(b"conteudo do curriculo")
+
+
+def test_previsualizar_upload_curriculo_nao_persiste_curriculo():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/analises/preview-upload",
+        files={"file": ("curriculo.pdf", b"conteudo do curriculo", "application/pdf")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["dados"]["nome_completo"] == "Ana"
+    assert len(service_falso.previews_processadas) == 1
+    assert service_falso.uploads_processados == []
+
+
+def test_upload_curriculo_salva_os_dados_depois_da_confirmacao():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.post(
+        "/analises/upload",
+        data={
+            "dados_revisados": '{"nome_completo":"Ana revisada","experiencias":[]}',
+        },
+        files={"file": ("curriculo.pdf", b"conteudo do curriculo", "application/pdf")},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 201
+    assert service_falso.uploads_processados[0]["dados"] == {
+        "nome_completo": "Ana revisada",
+        "experiencias": [],
+    }
 
 
 def test_upload_curriculo_com_formato_nao_suportado_retorna_400():

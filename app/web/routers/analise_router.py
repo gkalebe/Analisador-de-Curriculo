@@ -1,5 +1,6 @@
 import urllib.parse
 import uuid
+import json
 
 from fastapi import (
     APIRouter,
@@ -44,6 +45,7 @@ from app.web.schemas_curriculo import (
     CurriculoEdicaoTextoLivreRequest,
     CurriculoItemResponse,
     CurriculoListResponse,
+    CurriculoPreviewResponse,
     CurriculoResponse,
 )
 
@@ -54,10 +56,44 @@ def get_analisador_service(db: Session = Depends(get_db)) -> AnalisadorService:
     return AnalisadorService(db)
 
 
+@router.post("/preview-upload", response_model=CurriculoPreviewResponse)
+async def previsualizar_upload_curriculo(
+    email: str | None = Form(None),
+    file: UploadFile = File(...),
+    usuario=Depends(get_usuario_atual),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoPreviewResponse:
+    nome_arquivo = file.filename or ""
+    extensao = nome_arquivo.rsplit(".", 1)[-1].lower() if "." in nome_arquivo else ""
+    if extensao not in CurriculoParser.FORMATOS_SUPORTADOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato não suportado. Envie um arquivo PDF ou DOCX.",
+        )
+    conteudo = await file.read()
+    limite_mb = analisador_service.settings.max_upload_size_mb
+    if len(conteudo) > limite_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"O arquivo excede o limite de {limite_mb}MB.",
+        )
+
+    try:
+        resultado = analisador_service.previsualizar_upload_curriculo(conteudo, nome_arquivo, extensao)
+    except FormatoNaoSuportadoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato não suportado. Envie um arquivo PDF ou DOCX.",
+        ) from erro
+
+    return CurriculoPreviewResponse.model_validate(resultado)
+
+
 @router.post("/upload", response_model=CurriculoResponse, status_code=status.HTTP_201_CREATED)
 async def upload_curriculo(
     email: str | None = Form(None),
     file: UploadFile = File(...),
+    dados_revisados: str | None = Form(None),
     usuario=Depends(get_usuario_atual),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> CurriculoResponse:
@@ -77,15 +113,36 @@ async def upload_curriculo(
             detail=f"O arquivo excede o limite de {limite_mb}MB.",
         )
 
+    dados_revisados_dict = None
+    if dados_revisados is not None:
+        try:
+            dados_revisados_dict = json.loads(dados_revisados)
+        except json.JSONDecodeError as erro:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Os dados revisados do currículo não são um JSON válido.",
+            ) from erro
+        if not isinstance(dados_revisados_dict, dict):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Os dados revisados do currículo devem ser um objeto JSON.",
+            )
+
     try:
         resultado = analisador_service.processar_upload_curriculo(
-            conteudo, nome_arquivo, extensao, usuario.id_usuario
+            conteudo,
+            nome_arquivo,
+            extensao,
+            usuario.id_usuario,
+            dados_revisados_dict,
         )
     except FormatoNaoSuportadoError as erro:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Formato não suportado. Envie um arquivo PDF ou DOCX.",
         ) from erro
+    except ValueError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
 
     return CurriculoResponse.model_validate(resultado)
 
@@ -259,6 +316,7 @@ def listar_curriculos(
                 data_upload=curriculo.data_upload,
                 status_processamento=curriculo.status_processamento,
                 possui_arquivo=curriculo.conteudo_arquivo is not None,
+                possui_edicao=curriculo.dados_editados is not None,
             )
             for curriculo in curriculos
         ]
@@ -353,6 +411,8 @@ def atualizar_curriculo(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Currículo não encontrado para este usuário.",
         ) from erro
+    except ValueError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
 
     return CurriculoDetalhesResponse.model_validate(detalhes)
 
@@ -403,6 +463,8 @@ def obter_edicao_curriculo(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Currículo não encontrado para este usuário.",
         ) from erro
+    except ValueError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
 
     return CurriculoEdicaoResponse.model_validate(dados_edicao)
 
@@ -425,6 +487,8 @@ def salvar_edicao_estruturada_curriculo(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Currículo não encontrado para este usuário.",
         ) from erro
+    except ValueError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
 
     return CurriculoEdicaoResponse.model_validate(dados_edicao)
 

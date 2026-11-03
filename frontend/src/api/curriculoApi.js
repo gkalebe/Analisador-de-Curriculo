@@ -1,8 +1,15 @@
 import { requisitar, requisitarArquivo, requisitarComArquivo } from "./client.js";
 
-export function enviarCurriculo(email, file) {
+export function previsualizarCurriculo(email, file) {
   const formData = new FormData();
   formData.append("file", file);
+  return requisitarComArquivo("/analises/preview-upload", formData);
+}
+
+export function enviarCurriculo(email, file, dadosRevisados) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("dados_revisados", JSON.stringify(dadosRevisados));
   return requisitarComArquivo("/analises/upload", formData);
 }
 

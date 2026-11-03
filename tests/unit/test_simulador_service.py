@@ -235,3 +235,28 @@ def test_obter_simulacao_de_outro_usuario_nao_encontrada(simulador_service):
 
     with pytest.raises(SimulacaoNaoEncontradaError):
         simulador_service.obter_simulacao(id_usuario=id_usuario, id_simulacao=simulacao_de_outro.id_simulacao)
+
+
+def test_montar_texto_vaga_com_dados_complementares(simulador_service):
+    vaga = Vaga(
+        id_vaga=uuid.uuid4(),
+        id_usuario=uuid.uuid4(),
+        titulo="Engenheiro de Software",
+        empresa="Tech Corp",
+        area="Tecnologia",
+        descricao="Desenvolvimento de plataformas.",
+        responsabilidades="Liderar equipe e projetar arquitetura.",
+        requisitos_obrigatorios="Python e Docker.",
+        requisitos_desejaveis="Kubernetes.",
+        competencias="Comunicação e liderança.",
+    )
+
+    texto = simulador_service._montar_texto_vaga(vaga)
+
+    assert "Título da Vaga: Engenheiro de Software" in texto
+    assert "Empresa: Tech Corp" in texto
+    assert "Descrição da Vaga:\nDesenvolvimento de plataformas." in texto
+    assert "Responsabilidades:\nLiderar equipe e projetar arquitetura." in texto
+    assert "Requisitos Obrigatórios:\nPython e Docker." in texto
+    assert "Requisitos Desejáveis:\nKubernetes." in texto
+    assert "Competências:\nComunicação e liderança." in texto

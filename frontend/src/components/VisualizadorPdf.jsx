@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import * as pdfjsLib from "pdfjs-dist/build/pdf.mjs";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { baixarArquivoCurriculo } from "../api/curriculoApi.js";
 import { ApiError } from "../api/client.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
+  "pdfjs-dist/legacy/build/pdf.worker.mjs",
   import.meta.url,
 ).toString();
 

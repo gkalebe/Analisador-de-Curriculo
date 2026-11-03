@@ -2,23 +2,11 @@ import uuid
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import get_settings
-from app.core.database import Base
 from app.core.persistencia.curriculo_repository import CurriculoRepository
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.usuario import Usuario
-
-
-@pytest.fixture(scope="module")
-def engine():
-    engine = create_engine(get_settings().database_url)
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
-    engine.dispose()
 
 
 @pytest.fixture

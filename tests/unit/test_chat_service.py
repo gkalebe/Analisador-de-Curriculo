@@ -67,6 +67,36 @@ def test_enviar_mensagem_apenas_curriculo(chat_service):
     )
 
 
+def test_enviar_mensagem_usa_dados_revisados_do_curriculo(chat_service):
+    id_usuario = uuid.uuid4()
+    id_curriculo = uuid.uuid4()
+    curriculo = Curriculo(
+        id_curriculo=id_curriculo,
+        id_usuario=id_usuario,
+        nome_arquivo="curriculo.pdf",
+        texto_extraido="Texto original do currículo",
+        dados_editados={
+            "nome_completo": "Ana Revisada",
+            "resumo_profissional": "Resumo atualizado",
+            "habilidades_tecnicas": ["Python"],
+        },
+    )
+    chat_service.curriculo_repository.buscar_por_id = MagicMock(return_value=curriculo)
+    chat_service.chat_repository.listar = MagicMock(return_value=[])
+    chat_service.chat_repository.criar = MagicMock(side_effect=lambda m: m)
+
+    chat_service.enviar_mensagem(
+        id_usuario=id_usuario,
+        pergunta="Resuma meu perfil",
+        id_curriculo=id_curriculo,
+    )
+
+    texto_enviado = chat_service.ai_service_adapter.responder_chat.call_args.kwargs["texto_curriculo"]
+    assert "Nome: Ana Revisada" in texto_enviado
+    assert "Resumo profissional: Resumo atualizado" in texto_enviado
+    assert "Texto original do currículo" not in texto_enviado
+
+
 def test_enviar_mensagem_apenas_vaga(chat_service):
     id_usuario = uuid.uuid4()
     id_vaga = uuid.uuid4()
@@ -268,3 +298,28 @@ def test_listar_historico_validacoes(chat_service):
     chat_service.vaga_repository.buscar_por_id = MagicMock(return_value=None)
     with pytest.raises(VagaNaoEncontradaError):
         chat_service.listar_historico(id_usuario, id_vaga=uuid.uuid4())
+
+
+def test_montar_texto_vaga_com_dados_complementares(chat_service):
+    vaga = Vaga(
+        id_vaga=uuid.uuid4(),
+        id_usuario=uuid.uuid4(),
+        titulo="Engenheiro de Software",
+        empresa="Tech Corp",
+        area="Tecnologia",
+        descricao="Desenvolvimento de plataformas.",
+        responsabilidades="Liderar equipe e projetar arquitetura.",
+        requisitos_obrigatorios="Python e Docker.",
+        requisitos_desejaveis="Kubernetes.",
+        competencias="Comunicação e liderança.",
+    )
+
+    texto = chat_service._montar_texto_vaga(vaga)
+
+    assert "Título da Vaga: Engenheiro de Software" in texto
+    assert "Empresa: Tech Corp" in texto
+    assert "Descrição da Vaga:\nDesenvolvimento de plataformas." in texto
+    assert "Responsabilidades:\nLiderar equipe e projetar arquitetura." in texto
+    assert "Requisitos Obrigatórios:\nPython e Docker." in texto
+    assert "Requisitos Desejáveis:\nKubernetes." in texto
+    assert "Competências:\nComunicação e liderança." in texto

@@ -126,8 +126,12 @@ class AIServiceAdapterFalso:
         ),
     ):
         self.resposta = resposta
+        self.textos_vaga: list[str] = []
+        self.texto_curriculo_comparado = None
 
     def comparar_curriculo_vaga(self, texto_curriculo: str, texto_vaga: str) -> str:
+        self.textos_vaga.append(texto_vaga)
+        self.texto_curriculo_comparado = texto_curriculo
         return self.resposta
 
 
@@ -151,6 +155,63 @@ def _criar_service_completo_com_fakes() -> AnalisadorService:
     service.ai_service_adapter = AIServiceAdapterFalso()
     service.curriculo_parser = CurriculoParserFalso()
     return service
+
+
+def test_previsualizar_upload_curriculo_extrai_dados_sem_persistir():
+    service = _criar_service_completo_com_fakes()
+    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: json.dumps(
+        {"nome_completo": "Ana Silva"}
+    )
+
+    resultado = service.previsualizar_upload_curriculo(
+        b"texto do curriculo", "ana.pdf", "pdf"
+    )
+
+    assert resultado["dados"]["nome_completo"] == "Ana Silva"
+    assert resultado["tamanho_texto_extraido"] == len("texto do curriculo")
+    assert service.curriculo_repository.curriculos == []
+
+
+def test_processar_upload_curriculo_persiste_dados_confirmados_sem_marcar_edicao():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    dados_revisados = {"nome_completo": "Ana Revisada", "habilidades_tecnicas": ["Python"]}
+
+    resultado = service.processar_upload_curriculo(
+        b"texto original",
+        "ana.pdf",
+        "pdf",
+        id_usuario,
+        dados_revisados,
+    )
+
+    curriculo = service.curriculo_repository.buscar_por_id(uuid.UUID(resultado["id_curriculo"]))
+    assert curriculo.dados_extraidos["nome_completo"] == "Ana Revisada"
+    assert curriculo.dados_editados is None
+    assert service.curriculo_repository.buscar_candidato(curriculo.id_curriculo)["nome"] == "Ana Revisada"
+
+
+def test_salvar_nome_sem_alterar_dados_nao_cria_versao_revisada():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="ana.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="texto original",
+        dados_extraidos={"nome_completo": "Ana Silva"},
+    )
+    service.curriculo_repository.criar(curriculo)
+    dados = service.obter_dados_edicao_curriculo(id_usuario, curriculo.id_curriculo)["dados"]
+
+    atualizado = service.salvar_edicao_estruturada_curriculo(
+        id_usuario,
+        curriculo.id_curriculo,
+        dados | {"nome_curriculo": "Currículo atualizado"},
+    )
+
+    assert atualizado.nome_curriculo == "Currículo atualizado"
+    assert atualizado.dados_editados is None
 
 
 def test_cadastrar_vaga_persiste_com_dados_completos():
@@ -178,6 +239,27 @@ def test_cadastrar_vaga_aceita_apenas_descricao_obrigatoria():
     assert vaga.titulo is None
     assert vaga.requisitos is None
     assert vaga.area is None
+
+
+def test_cadastrar_vaga_persiste_contexto_opcional():
+    service, fake = _criar_service_com_fake()
+
+    vaga = service.cadastrar_vaga(
+        id_usuario=uuid.uuid4(),
+        descricao="Descrição da oportunidade.",
+        empresa="Empresa Exemplo",
+        localizacao="Remoto",
+        requisitos_obrigatorios="Python",
+        requisitos_desejaveis="Experiência com cloud",
+        url_origem="https://example.com/jobs/1",
+    )
+
+    assert vaga in fake.vagas
+    assert vaga.empresa == "Empresa Exemplo"
+    assert vaga.localizacao == "Remoto"
+    assert vaga.requisitos_obrigatorios == "Python"
+    assert vaga.requisitos_desejaveis == "Experiência com cloud"
+    assert vaga.url_origem == "https://example.com/jobs/1"
 
 
 def test_cadastrar_vaga_rejeita_descricao_vazia():
@@ -252,6 +334,32 @@ def test_analisar_curriculo_para_vaga_com_sucesso():
     assert json.loads(analise.observacoes)["observacoes"] == "Ótimo encaixe."
     assert analise.id_vaga == vaga.id_vaga
     assert analise.id_usuario == id_usuario
+
+
+def test_analisar_curriculo_inclui_campos_opcionais_da_vaga_no_contexto_da_ia():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(
+        id_usuario=id_usuario,
+        descricao="Desenvolver serviços.",
+        empresa="Empresa Exemplo",
+        requisitos_obrigatorios="Python e SQL",
+        requisitos_desejaveis="Experiência com cloud",
+    )
+
+    service.analisar_curriculo_para_vaga(
+        id_usuario=id_usuario,
+        id_vaga=vaga.id_vaga,
+        conteudo="Experiência com Python".encode(),
+        nome_arquivo="curriculo.pdf",
+        extensao="pdf",
+    )
+
+    texto_vaga = service.ai_service_adapter.textos_vaga[0]
+    assert "Descrição da vaga:\nDesenvolver serviços." in texto_vaga
+    assert "Empresa:\nEmpresa Exemplo" in texto_vaga
+    assert "Requisitos obrigatórios:\nPython e SQL" in texto_vaga
+    assert "Requisitos desejáveis:\nExperiência com cloud" in texto_vaga
 
 
 def test_analisar_curriculo_para_vaga_com_vaga_de_outro_usuario_lanca_erro():
@@ -455,6 +563,68 @@ def test_analisar_curriculo_salvo_nao_sobrescreve_extracao_em_cache():
     service.analisar_curriculo_salvo_para_vaga(id_usuario=id_usuario, id_vaga=vaga.id_vaga, id_curriculo=curriculo.id_curriculo)
 
     assert curriculo.dados_extraidos == {"nome_completo": "Ana Cacheada"}
+
+
+def test_analisar_curriculo_salvo_usa_dados_editados_em_vez_do_texto_original():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="Texto original que deve ficar fora da nova análise",
+        conteudo_arquivo=b"arquivo original",
+        dados_extraidos={"nome_completo": "Ana Original"},
+        dados_editados={
+            "nome_completo": "Ana Revisada",
+            "titulo_profissional": "Desenvolvedora Python",
+            "experiencias": [{"cargo": "Engenheira", "empresa": "Empresa Nova"}],
+        },
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    service.analisar_curriculo_salvo_para_vaga(
+        id_usuario=id_usuario,
+        id_vaga=vaga.id_vaga,
+        id_curriculo=curriculo.id_curriculo,
+    )
+
+    assert "Nome: Ana Revisada" in service.ai_service_adapter.texto_curriculo_comparado
+    assert "Engenheira — Empresa Nova" in service.ai_service_adapter.texto_curriculo_comparado
+    assert "Texto original que deve ficar fora da nova análise" not in service.ai_service_adapter.texto_curriculo_comparado
+
+
+def test_curriculo_manual_salva_estrutura_e_converte_para_campos_legados():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    vaga = service.cadastrar_vaga(id_usuario=id_usuario, descricao="Vaga dev Python.")
+
+    curriculo = service.criar_curriculo_manual(
+        id_usuario=id_usuario,
+        nome_curriculo="Meu currículo",
+        dados={
+            "nome_completo": "Ana Manual",
+            "titulo_profissional": "Desenvolvedora",
+            "contato": {"email": "ana@example.com"},
+            "resumo_profissional": "Resumo manual.",
+            "experiencias": [{"cargo": "Dev", "empresa": "Empresa A"}],
+            "habilidades_tecnicas": ["Python"],
+        },
+    )
+
+    assert curriculo.dados_extraidos["nome_completo"] == "Ana Manual"
+    assert "Nome: Ana Manual" in curriculo.texto_extraido
+    assert service.curriculo_repository.candidatos[curriculo.id_curriculo]["nome"] == "Ana Manual"
+    assert service.curriculo_repository.candidatos[curriculo.id_curriculo]["habilidades"] == "Python"
+
+    service.analisar_curriculo_salvo_para_vaga(
+        id_usuario=id_usuario,
+        id_vaga=vaga.id_vaga,
+        id_curriculo=curriculo.id_curriculo,
+    )
+    assert "Nome: Ana Manual" in service.ai_service_adapter.texto_curriculo_comparado
+    assert "Experiência profissional:\nDev — Empresa A" in service.ai_service_adapter.texto_curriculo_comparado
 
 
 def test_analisar_curriculo_salvo_sem_texto_extraido_reextrai_do_arquivo_e_persiste():
@@ -794,12 +964,16 @@ def test_salvar_edicao_estruturada_curriculo_persiste_dados_completos():
     service.curriculo_repository.criar(curriculo)
 
     resultado = service.salvar_edicao_estruturada_curriculo(
-        id_usuario, curriculo.id_curriculo, {"nome": "Ana Nova", "resumo": "Resumo novo"}
+        id_usuario,
+        curriculo.id_curriculo,
+        {"nome": "Ana Nova", "resumo": "Resumo novo", "nome_curriculo": "Versão revisada"},
     )
 
     assert resultado.dados_editados["nome_completo"] == "Ana Nova"
     assert resultado.dados_editados["resumo_profissional"] == "Resumo novo"
     assert resultado.dados_editados["texto_bruto"] == "texto bruto"
+    assert curriculo.nome_curriculo == "Versão revisada"
+    assert service.curriculo_repository.candidatos[curriculo.id_curriculo]["nome"] == "Ana Nova"
 
 
 def test_salvar_edicao_estruturada_plana_preserva_secoes_que_os_7_campos_nao_representam():
