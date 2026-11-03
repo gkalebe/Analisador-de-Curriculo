@@ -72,3 +72,24 @@ export function aplicarSugestoesCurriculo(idCurriculo, email) {
     method: "POST",
   });
 }
+
+export function aplicarSugestaoIndividual(idCurriculo, email, { trecho_original, versao_otimizada, campo }) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao/aplicar-sugestao`, {
+    method: "POST",
+    body: { trecho_original, versao_otimizada, campo },
+  });
+}
+
+export function adicionarHabilidadeCurriculo(idCurriculo, email, habilidade) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao/adicionar-habilidade`, {
+    method: "POST",
+    body: { habilidade },
+  });
+}
+
+export function removerHabilidadeCurriculo(idCurriculo, email, habilidade) {
+  return requisitar(`/analises/curriculos/${idCurriculo}/edicao/remover-habilidade`, {
+    method: "POST",
+    body: { habilidade },
+  });
+}
