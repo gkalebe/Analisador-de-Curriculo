@@ -10,8 +10,11 @@ class PlanoService:
     def __init__(self, db: Session):
         self.analise_repository = AnaliseRepository(db)
 
-    def obter_historico_e_lacunas(self, id_usuario) -> dict:
+    def obter_historico_e_lacunas(self, id_usuario, limit: int | None = None, offset: int = 0) -> dict:
+        # As lacunas recorrentes são um agregado sobre TODAS as análises do usuário, então a
+        # leitura continua completa; a paginação recorta apenas a lista `historico`.
         analises = self.analise_repository.listar_por_usuario(id_usuario)
+        fim = None if limit is None else offset + limit
 
         historico = [
             {
@@ -20,7 +23,7 @@ class PlanoService:
                 "vaga_titulo": analise.vaga.titulo or analise.vaga.area or "Vaga sem título",
                 "pontuacao": analise.pontuacao,
             }
-            for analise in analises
+            for analise in analises[offset:fim]
         ]
 
         contador_lacunas = Counter()
@@ -33,7 +36,11 @@ class PlanoService:
             for competencia, frequencia in contador_lacunas.most_common()
         ]
 
-        return {"historico": historico, "lacunas_recorrentes": lacunas_recorrentes}
+        return {
+            "historico": historico,
+            "total_historico": len(analises),
+            "lacunas_recorrentes": lacunas_recorrentes,
+        }
 
     def _competencias_em_lacuna(self, analise) -> list[str]:
         requisitos = (analise.vaga.requisitos or "").strip()
