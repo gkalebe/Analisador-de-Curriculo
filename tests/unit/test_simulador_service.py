@@ -23,7 +23,7 @@ def mock_db():
 @pytest.fixture
 def simulador_service(mock_db):
     ai_adapter = MagicMock()
-    service = SimuladorService(db=mock_db, ai_service_adapter=ai_adapter)
+    service = SimuladorService(db=mock_db, ai_service_adapter=ai_adapter, uso_ia_service=MagicMock())
     return service
 
 

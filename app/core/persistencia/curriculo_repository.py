@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.persistencia.models.candidato import Candidato
 from app.core.persistencia.models.curriculo import Curriculo
+from app.core.persistencia.models.usuario import Usuario
 
 
 class CurriculoRepository:
@@ -24,6 +25,17 @@ class CurriculoRepository:
     def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Curriculo]:
         stmt = select(Curriculo).where(Curriculo.id_usuario == id_usuario).order_by(Curriculo.data_upload.desc())
         return list(self.db.execute(stmt).scalars().all())
+
+    def bloquear_usuario_e_contar_por_usuario(self, id_usuario: uuid.UUID) -> tuple[Usuario | None, int]:
+        usuario = self.db.execute(
+            select(Usuario).where(Usuario.id_usuario == id_usuario).with_for_update()
+        ).scalar_one_or_none()
+        if usuario is None:
+            return None, 0
+        total = self.db.execute(
+            select(func.count()).select_from(Curriculo).where(Curriculo.id_usuario == id_usuario)
+        ).scalar_one()
+        return usuario, total
 
     def buscar_candidato(self, id_curriculo: uuid.UUID) -> Candidato | None:
         return self.db.query(Candidato).filter(Candidato.id_curriculo == id_curriculo).one_or_none()

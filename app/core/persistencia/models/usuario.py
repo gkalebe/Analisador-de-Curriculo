@@ -25,6 +25,7 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     perfil: Mapped[str] = mapped_column(String(50), nullable=False, default="candidato")
+    plano_codigo: Mapped[str] = mapped_column(String(20), nullable=False, default="free", server_default="free")
     notificacoes_por_email: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     data_cadastro: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     exclusao_solicitada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

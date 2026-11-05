@@ -18,6 +18,7 @@ estruturado → plano (`dados_planos_de`).
 """
 
 import json
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
@@ -298,7 +299,11 @@ def _interpretar_json_ia(resultado_ia: str | None) -> dict | None:
     return dados_ia if isinstance(dados_ia, dict) else None
 
 
-def extrair_dados_estruturados_curriculo(ai_service_adapter: AIServiceAdapter, texto_extraido: str) -> dict:
+def extrair_dados_estruturados_curriculo(
+    ai_service_adapter: AIServiceAdapter,
+    texto_extraido: str,
+    ao_falhar_ia: Callable[[], None] | None = None,
+) -> dict:
     """
     Usa a IA para transformar o texto bruto extraído de um currículo no schema estruturado
     completo (contato, resumo, experiências com bullets, formação, habilidades, idiomas,
@@ -313,15 +318,21 @@ def extrair_dados_estruturados_curriculo(ai_service_adapter: AIServiceAdapter, t
     try:
         resultado_ia = ai_service_adapter.extrair_dados_estruturados(texto_extraido)
     except (IAConfiguracaoAusenteError, IAIndisponivelError):
+        if ao_falhar_ia is not None:
+            ao_falhar_ia()
         return dados_curriculo_vazios(texto_extraido)
 
     dados_ia = _interpretar_json_ia(resultado_ia)
     if dados_ia is None:
+        if ao_falhar_ia is not None:
+            ao_falhar_ia()
         return dados_curriculo_vazios(texto_extraido)
 
     try:
         return normalizar_dados_curriculo(dados_ia, texto_extraido)
     except ValueError:
+        if ao_falhar_ia is not None:
+            ao_falhar_ia()
         return dados_curriculo_vazios(texto_extraido)
 
 
@@ -400,6 +411,7 @@ def obter_dados_curriculo_com_cache(
     curriculo: "Curriculo",
     ai_service_adapter: AIServiceAdapter,
     curriculo_repository: "CurriculoRepository",
+    ao_falhar_ia: Callable[[], None] | None = None,
 ) -> dict:
     """
     Fonte única de dados estruturados de um currículo para edição/exportação/preview,
@@ -424,7 +436,7 @@ def obter_dados_curriculo_com_cache(
     if curriculo.dados_extraidos:
         return normalizar_dados_curriculo(curriculo.dados_extraidos, texto_bruto)
 
-    dados = extrair_dados_estruturados_curriculo(ai_service_adapter, texto_bruto)
+    dados = extrair_dados_estruturados_curriculo(ai_service_adapter, texto_bruto, ao_falhar_ia)
     if dados_tem_conteudo(dados):
         curriculo_repository.salvar_dados_extraidos(curriculo, dados)
     return dados

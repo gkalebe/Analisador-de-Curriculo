@@ -8,6 +8,7 @@ from app.adapters.ai_service.ai_service_adapter import AIServiceAdapter
 from app.core.persistencia.models.simulacao_entrevista import SimulacaoEntrevista
 from app.core.persistencia.simulacao_repository import SimulacaoRepository
 from app.core.persistencia.vaga_repository import VagaRepository
+from app.core.service.uso_ia_service import UsoIAService
 
 TIPOS_OBRIGATORIOS = ("comportamental", "tecnica", "situacional")
 
@@ -29,8 +30,14 @@ class RespostaVaziaError(Exception):
 
 
 class SimuladorService:
-    def __init__(self, db: Session, ai_service_adapter: AIServiceAdapter | None = None):
+    def __init__(
+        self,
+        db: Session,
+        ai_service_adapter: AIServiceAdapter | None = None,
+        uso_ia_service: UsoIAService | None = None,
+    ):
         self.db = db
+        self.uso_ia_service = uso_ia_service or UsoIAService(db)
         self.vaga_repository = VagaRepository(db)
         self.simulacao_repository = SimulacaoRepository(db)
         self.ai_service_adapter = ai_service_adapter or AIServiceAdapter()
@@ -74,23 +81,24 @@ class SimuladorService:
             raise VagaNaoEncontradaError
 
         texto_vaga = self._montar_texto_vaga(vaga)
-        resultado_ia = self.ai_service_adapter.gerar_perguntas_entrevista(texto_vaga)
-        perguntas_geradas = self._interpretar_perguntas(resultado_ia)
+        with self.uso_ia_service.reservar(id_usuario, "entrevista_inicio"):
+            resultado_ia = self.ai_service_adapter.gerar_perguntas_entrevista(texto_vaga)
+            perguntas_geradas = self._interpretar_perguntas(resultado_ia)
 
-        perguntas = [
-            {
-                "id_pergunta": str(uuid.uuid4()),
-                "tipo": p["tipo"],
-                "texto": p["texto"],
-                "resposta": None,
-                "feedback": None,
-                "respondida_em": None,
-            }
-            for p in perguntas_geradas
-        ]
+            perguntas = [
+                {
+                    "id_pergunta": str(uuid.uuid4()),
+                    "tipo": p["tipo"],
+                    "texto": p["texto"],
+                    "resposta": None,
+                    "feedback": None,
+                    "respondida_em": None,
+                }
+                for p in perguntas_geradas
+            ]
 
-        simulacao = SimulacaoEntrevista(id_usuario=id_usuario, id_vaga=id_vaga, perguntas=perguntas)
-        return self.simulacao_repository.criar(simulacao)
+            simulacao = SimulacaoEntrevista(id_usuario=id_usuario, id_vaga=id_vaga, perguntas=perguntas)
+            return self.simulacao_repository.criar(simulacao)
 
     def obter_simulacao(self, id_usuario: uuid.UUID, id_simulacao: uuid.UUID) -> SimulacaoEntrevista:
         simulacao = self.simulacao_repository.buscar_por_id(id_simulacao)
@@ -120,23 +128,24 @@ class SimuladorService:
         vaga = self.vaga_repository.buscar_por_id(simulacao.id_vaga)
         texto_vaga = self._montar_texto_vaga(vaga) if vaga else ""
 
-        resultado_ia = self.ai_service_adapter.avaliar_resposta_entrevista(
-            texto_vaga=texto_vaga,
-            pergunta=pergunta["texto"],
-            tipo=pergunta["tipo"],
-            resposta=resposta_normalizada,
-        )
-        feedback = self._interpretar_feedback(resultado_ia)
+        with self.uso_ia_service.reservar(id_usuario, "entrevista_feedback"):
+            resultado_ia = self.ai_service_adapter.avaliar_resposta_entrevista(
+                texto_vaga=texto_vaga,
+                pergunta=pergunta["texto"],
+                tipo=pergunta["tipo"],
+                resposta=resposta_normalizada,
+            )
+            feedback = self._interpretar_feedback(resultado_ia)
 
-        pergunta_atualizada = {
-            **pergunta,
-            "resposta": resposta_normalizada,
-            "feedback": feedback,
-            "respondida_em": datetime.now(timezone.utc).isoformat(),
-        }
-        novas_perguntas = [*perguntas[:indice], pergunta_atualizada, *perguntas[indice + 1 :]]
+            pergunta_atualizada = {
+                **pergunta,
+                "resposta": resposta_normalizada,
+                "feedback": feedback,
+                "respondida_em": datetime.now(timezone.utc).isoformat(),
+            }
+            novas_perguntas = [*perguntas[:indice], pergunta_atualizada, *perguntas[indice + 1 :]]
 
-        return self.simulacao_repository.salvar_perguntas(simulacao, novas_perguntas)
+            return self.simulacao_repository.salvar_perguntas(simulacao, novas_perguntas)
 
     def listar_simulacoes_usuario(self, id_usuario: uuid.UUID) -> list[SimulacaoEntrevista]:
         return self.simulacao_repository.listar_por_usuario(id_usuario)

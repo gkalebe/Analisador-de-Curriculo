@@ -14,6 +14,7 @@ import SimulacaoEntrevista from "./pages/SimulacaoEntrevista.jsx";
 import VisualizarAnalise from "./pages/VisualizarAnalise.jsx";
 import BibliotecaCurriculos from "./pages/BibliotecaCurriculos.jsx";
 import ConfiguracoesUsuario from "./pages/ConfiguracoesUsuario.jsx";
+import Planos from "./pages/Planos.jsx";
 import { lerSessao } from "./models/usuario.js";
 
 function RotasAutenticadas() {
@@ -34,6 +35,7 @@ export default function App() {
       <Route path="/usuarios/redefinir-senha" element={<RedefinirSenha />} />
       <Route element={<RotasAutenticadas />}>
         <Route path="/usuarios/configuracoes" element={<ConfiguracoesUsuario />} />
+        <Route path="/planos" element={<Planos />} />
         <Route path="/analises/nova" element={<NovaAnalise />} />
         <Route path="/analises/historico" element={<HistoricoAnalises />} />
         <Route path="/analises/historico/visualizar" element={<VisualizarAnalise />} />

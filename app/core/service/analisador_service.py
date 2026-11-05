@@ -1,5 +1,6 @@
 import json
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -24,7 +25,9 @@ from app.core.service.extracao_curriculo import (
     normalizar_dados_curriculo,
     obter_dados_curriculo_com_cache,
 )
+from app.core.service.catalogo_planos import obter_plano
 from app.core.service.reescrita_curriculo import aplicar_sugestoes_sem_ia
+from app.core.service.uso_ia_service import UsoIAService
 
 # Mesmos 4 campos estruturados usados na tela de edição (EditarCurriculo.jsx) — a IA já
 # devolve qual desses campos cada sugestão de reescrita tem como alvo (ver
@@ -65,8 +68,13 @@ class AnaliseNaoEncontradaError(Exception):
     pass
 
 
+class LimiteCurriculosPlanoError(Exception):
+    pass
+
+
 class AnalisadorService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, uso_ia_service: UsoIAService | None = None):
+        self.uso_ia_service = uso_ia_service or UsoIAService(db)
         self.curriculo_repository = CurriculoRepository(db)
         self.vaga_repository = VagaRepository(db)
         self.analise_repository = AnaliseRepository(db)
@@ -74,9 +82,25 @@ class AnalisadorService:
         self.ai_service_adapter = AIServiceAdapter()
         self.settings = get_settings()
 
-    def previsualizar_upload_curriculo(self, conteudo: bytes, nome_arquivo: str, extensao: str) -> dict:
+    def previsualizar_upload_curriculo(
+        self, conteudo: bytes, nome_arquivo: str, extensao: str, id_usuario: uuid.UUID
+    ) -> dict:
         texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
-        dados_estruturados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
+        reserva = (
+            self.uso_ia_service.reservar(id_usuario, "estruturacao_curriculo")
+            if texto_extraido.strip()
+            else nullcontext()
+        )
+        with reserva as uso:
+            dados_estruturados = extrair_dados_estruturados_curriculo(
+                self.ai_service_adapter,
+                texto_extraido,
+                ao_falhar_ia=(
+                    (lambda: self.uso_ia_service.liberar(uso))
+                    if uso is not None
+                    else None
+                ),
+            )
         return {
             "nome_arquivo": nome_arquivo,
             "tamanho_texto_extraido": len(texto_extraido),
@@ -92,42 +116,55 @@ class AnalisadorService:
         dados_revisados: dict | None = None,
     ) -> dict:
         texto_extraido = self.curriculo_parser.extrair_texto(conteudo, extensao)
-        dados_estruturados = (
-            normalizar_dados_curriculo(dados_revisados, texto_extraido)
-            if dados_revisados is not None
-            else extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto_extraido)
+        usa_ia = dados_revisados is None and bool(texto_extraido.strip())
+        reserva = (
+            self.uso_ia_service.reservar(id_usuario, "estruturacao_curriculo")
+            if usa_ia
+            else nullcontext()
         )
+        with reserva as uso:
+            dados_estruturados = (
+                normalizar_dados_curriculo(dados_revisados, texto_extraido)
+                if dados_revisados is not None
+                else extrair_dados_estruturados_curriculo(
+                    self.ai_service_adapter,
+                    texto_extraido,
+                    ao_falhar_ia=(
+                        (lambda: self.uso_ia_service.liberar(uso))
+                        if uso is not None
+                        else None
+                    ),
+                )
+            )
 
-        novo_curriculo = Curriculo(
-            nome_arquivo=nome_arquivo,
-            id_usuario=id_usuario,
-            status_processamento="concluido",
-            texto_extraido=texto_extraido,
-            conteudo_arquivo=conteudo,
-        )
-        self.curriculo_repository.criar(novo_curriculo)
+            self._validar_limite_curriculos(id_usuario)
+            novo_curriculo = Curriculo(
+                nome_arquivo=nome_arquivo,
+                id_usuario=id_usuario,
+                status_processamento="concluido",
+                texto_extraido=texto_extraido,
+                conteudo_arquivo=conteudo,
+            )
+            self.curriculo_repository.criar(novo_curriculo)
 
-        # A extração completa (experiências com bullets, idiomas, certificações, seções
-        # adicionais...) vai para `dados_extraidos`, que é o que a exportação em template
-        # usa — assim a primeira exportação não precisa chamar a IA de novo. A tabela
-        # `candidato` (aba "Currículo") recebe só a projeção plana de 7 campos.
-        if dados_tem_conteudo(dados_estruturados):
-            self.curriculo_repository.salvar_dados_extraidos(novo_curriculo, dados_estruturados)
-        dados_planos = dados_planos_de(dados_estruturados)
-        self.curriculo_repository.salvar_candidato(novo_curriculo.id_curriculo, dados_planos)
+            if dados_tem_conteudo(dados_estruturados):
+                self.curriculo_repository.salvar_dados_extraidos(novo_curriculo, dados_estruturados)
+            dados_planos = dados_planos_de(dados_estruturados)
+            self.curriculo_repository.salvar_candidato(novo_curriculo.id_curriculo, dados_planos)
 
-        return {
-            "id_curriculo": str(novo_curriculo.id_curriculo),
-            "nome_arquivo": nome_arquivo,
-            "tamanho_texto_extraido": len(texto_extraido),
-            "dados": dados_planos,
-        }
+            return {
+                "id_curriculo": str(novo_curriculo.id_curriculo),
+                "nome_arquivo": nome_arquivo,
+                "tamanho_texto_extraido": len(texto_extraido),
+                "dados": dados_planos,
+            }
 
     def criar_curriculo_manual(self, id_usuario: uuid.UUID, nome_curriculo: str, dados: dict) -> Curriculo:
         nome_normalizado = (nome_curriculo or "").strip()
         if not nome_normalizado:
             raise ValueError("Informe um nome para o currículo.")
 
+        self._validar_limite_curriculos(id_usuario)
         curriculo = Curriculo(
             nome_arquivo=nome_normalizado,
             nome_curriculo=nome_normalizado,
@@ -242,34 +279,37 @@ class AnalisadorService:
         if vaga is None or vaga.id_usuario != id_usuario:
             raise VagaNaoEncontradaError
 
+        self._validar_limite_curriculos(id_usuario)
         texto_curriculo = self.curriculo_parser.extrair_texto(conteudo, extensao)
 
-        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(
-            texto_curriculo, self._texto_vaga_para_analise(vaga)
-        )
-        pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
+        with self.uso_ia_service.reservar(id_usuario, "analise_vaga"):
+            resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(
+                texto_curriculo, self._texto_vaga_para_analise(vaga)
+            )
+            pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
 
-        novo_curriculo = Curriculo(
-            nome_arquivo=nome_arquivo,
-            id_usuario=id_usuario,
-            status_processamento="processando",
-            texto_extraido=texto_curriculo,
-            conteudo_arquivo=conteudo,
-        )
-        self.curriculo_repository.criar(novo_curriculo)
+            self._validar_limite_curriculos(id_usuario)
+            novo_curriculo = Curriculo(
+                nome_arquivo=nome_arquivo,
+                id_usuario=id_usuario,
+                status_processamento="processando",
+                texto_extraido=texto_curriculo,
+                conteudo_arquivo=conteudo,
+            )
+            self.curriculo_repository.criar(novo_curriculo)
 
-        self._salvar_curriculo_estruturado_da_analise(novo_curriculo, resultado_ia)
+            self._salvar_curriculo_estruturado_da_analise(novo_curriculo, resultado_ia)
 
-        analise = Analise(
-            id_curriculo=novo_curriculo.id_curriculo,
-            id_vaga=vaga.id_vaga,
-            id_usuario=id_usuario,
-            pontuacao=pontuacao,
-            observacoes=observacoes,
-        )
-        analise = self.analise_repository.criar(analise)
-        self.curriculo_repository.atualizar_status(novo_curriculo, "concluido")
-        return analise
+            analise = Analise(
+                id_curriculo=novo_curriculo.id_curriculo,
+                id_vaga=vaga.id_vaga,
+                id_usuario=id_usuario,
+                pontuacao=pontuacao,
+                observacoes=observacoes,
+            )
+            analise = self.analise_repository.criar(analise)
+            self.curriculo_repository.atualizar_status(novo_curriculo, "concluido")
+            return analise
 
     def analisar_curriculo_salvo_para_vaga(
         self,
@@ -301,24 +341,34 @@ class AnalisadorService:
             else:
                 raise CurriculoArquivoNaoEncontradoError
 
-        resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(
-            texto_curriculo, self._texto_vaga_para_analise(vaga)
-        )
-        pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
-        self._salvar_curriculo_estruturado_da_analise(curriculo, resultado_ia)
+        with self.uso_ia_service.reservar(id_usuario, "analise_vaga"):
+            resultado_ia = self.ai_service_adapter.comparar_curriculo_vaga(
+                texto_curriculo, self._texto_vaga_para_analise(vaga)
+            )
+            pontuacao, observacoes = self._interpretar_resultado_ia(resultado_ia)
+            self._salvar_curriculo_estruturado_da_analise(curriculo, resultado_ia)
 
-        analise = Analise(
-            id_curriculo=curriculo.id_curriculo,
-            id_vaga=vaga.id_vaga,
-            id_usuario=id_usuario,
-            pontuacao=pontuacao,
-            observacoes=observacoes,
-        )
-        analise = self.analise_repository.criar(analise)
-        return analise
+            analise = Analise(
+                id_curriculo=curriculo.id_curriculo,
+                id_vaga=vaga.id_vaga,
+                id_usuario=id_usuario,
+                pontuacao=pontuacao,
+                observacoes=observacoes,
+            )
+            return self.analise_repository.criar(analise)
 
     def listar_curriculos_usuario(self, id_usuario: uuid.UUID) -> list[Curriculo]:
         return self.curriculo_repository.listar_por_usuario(id_usuario)
+
+    def _validar_limite_curriculos(self, id_usuario: uuid.UUID) -> None:
+        usuario, total = self.curriculo_repository.bloquear_usuario_e_contar_por_usuario(id_usuario)
+        if usuario is None:
+            raise CurriculoNaoEncontradoError
+        limite = obter_plano(usuario.plano_codigo).limite_curriculos
+        if total >= limite:
+            raise LimiteCurriculosPlanoError(
+                f"Seu plano permite guardar até {limite} currículos. Exclua um currículo para cadastrar outro."
+            )
 
     def listar_biblioteca_curriculos(self, id_usuario: uuid.UUID) -> list[dict]:
         limite_retencao = datetime.now(timezone.utc) - timedelta(days=self.settings.retencao_curriculo_dias)
@@ -439,7 +489,23 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+        precisa_estruturar = not curriculo.dados_editados and not curriculo.dados_extraidos
+        reserva = (
+            self.uso_ia_service.reservar(id_usuario, "estruturacao_curriculo")
+            if precisa_estruturar and (curriculo.texto_extraido or "").strip()
+            else nullcontext()
+        )
+        with reserva as uso:
+            dados = obter_dados_curriculo_com_cache(
+                curriculo,
+                self.ai_service_adapter,
+                self.curriculo_repository,
+                ao_falhar_ia=(
+                    (lambda: self.uso_ia_service.liberar(uso))
+                    if uso is not None
+                    else None
+                ),
+            )
 
         return {
             "id_curriculo": curriculo.id_curriculo,
@@ -486,9 +552,23 @@ class AnalisadorService:
         if curriculo is None or curriculo.id_usuario != id_usuario:
             raise CurriculoNaoEncontradoError
 
-        dados = extrair_dados_estruturados_curriculo(self.ai_service_adapter, texto)
-        dados["texto_bruto"] = texto
-        return self.curriculo_repository.salvar_edicao(curriculo, dados)
+        reserva = (
+            self.uso_ia_service.reservar(id_usuario, "estruturacao_curriculo")
+            if texto.strip()
+            else nullcontext()
+        )
+        with reserva as uso:
+            dados = extrair_dados_estruturados_curriculo(
+                self.ai_service_adapter,
+                texto,
+                ao_falhar_ia=(
+                    (lambda: self.uso_ia_service.liberar(uso))
+                    if uso is not None
+                    else None
+                ),
+            )
+            dados["texto_bruto"] = texto
+            return self.curriculo_repository.salvar_edicao(curriculo, dados)
 
     def aplicar_sugestoes_curriculo(self, id_usuario: uuid.UUID, id_curriculo: uuid.UUID) -> tuple[Curriculo, dict]:
         """Reescreve o currículo com as sugestões da última análise — SEM IA, só com o que já
@@ -516,7 +596,22 @@ class AnalisadorService:
         if curriculo.dados_extraidos:
             dados_atuais = normalizar_dados_curriculo(curriculo.dados_extraidos, curriculo.texto_extraido or "")
         else:
-            dados_atuais = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+            reserva = (
+                self.uso_ia_service.reservar(id_usuario, "estruturacao_curriculo")
+                if (curriculo.texto_extraido or "").strip()
+                else nullcontext()
+            )
+            with reserva as uso:
+                dados_atuais = obter_dados_curriculo_com_cache(
+                    curriculo,
+                    self.ai_service_adapter,
+                    self.curriculo_repository,
+                    ao_falhar_ia=(
+                        (lambda: self.uso_ia_service.liberar(uso))
+                        if uso is not None
+                        else None
+                    ),
+                )
 
         dados_aplicados, relatorio = aplicar_sugestoes_sem_ia(dados_atuais, sugestoes, curriculo.texto_extraido or "")
         if relatorio["total_aplicadas"] > 0:

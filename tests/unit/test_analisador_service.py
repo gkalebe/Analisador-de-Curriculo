@@ -1,6 +1,7 @@
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -14,6 +15,7 @@ from app.core.service.analisador_service import (
     CurriculoNaoEncontradoError,
     DescricaoVagaMuitoLongaError,
     DescricaoVagaObrigatoriaError,
+    LimiteCurriculosPlanoError,
     NenhumaSugestaoDisponivelError,
     VagaDuplicadaError,
     VagaNaoEncontradaError,
@@ -50,6 +52,9 @@ class CurriculoRepositorioFalso:
 
     def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Curriculo]:
         return [c for c in self.curriculos if c.id_usuario == id_usuario]
+
+    def bloquear_usuario_e_contar_por_usuario(self, id_usuario: uuid.UUID):
+        return type("UsuarioFalso", (), {"plano_codigo": "pro"})(), len(self.listar_por_usuario(id_usuario))
 
     def atualizar_status(self, curriculo: Curriculo, status: str) -> Curriculo:
         curriculo.status_processamento = status
@@ -142,6 +147,7 @@ class CurriculoParserFalso:
 
 def _criar_service_com_fake() -> tuple[AnalisadorService, VagaRepositorioFalso]:
     service = AnalisadorService(db=None)
+    service.uso_ia_service = MagicMock()
     fake = VagaRepositorioFalso()
     service.vaga_repository = fake
     return service, fake
@@ -149,6 +155,7 @@ def _criar_service_com_fake() -> tuple[AnalisadorService, VagaRepositorioFalso]:
 
 def _criar_service_completo_com_fakes() -> AnalisadorService:
     service = AnalisadorService(db=None)
+    service.uso_ia_service = MagicMock()
     service.vaga_repository = VagaRepositorioFalso()
     service.curriculo_repository = CurriculoRepositorioFalso()
     service.analise_repository = AnaliseRepositorioFalso()
@@ -164,7 +171,7 @@ def test_previsualizar_upload_curriculo_extrai_dados_sem_persistir():
     )
 
     resultado = service.previsualizar_upload_curriculo(
-        b"texto do curriculo", "ana.pdf", "pdf"
+        b"texto do curriculo", "ana.pdf", "pdf", uuid.uuid4()
     )
 
     assert resultado["dados"]["nome_completo"] == "Ana Silva"
@@ -189,6 +196,25 @@ def test_processar_upload_curriculo_persiste_dados_confirmados_sem_marcar_edicao
     assert curriculo.dados_extraidos["nome_completo"] == "Ana Revisada"
     assert curriculo.dados_editados is None
     assert service.curriculo_repository.buscar_candidato(curriculo.id_curriculo)["nome"] == "Ana Revisada"
+
+
+def test_criar_curriculo_manual_recusa_quando_plano_atinge_limite():
+    service = _criar_service_completo_com_fakes()
+    id_usuario = uuid.uuid4()
+    service.curriculo_repository.curriculos = [
+        Curriculo(
+            id_curriculo=uuid.uuid4(),
+            id_usuario=id_usuario,
+            nome_arquivo=f"curriculo-{indice}.pdf",
+            texto_extraido="",
+        )
+        for indice in range(100)
+    ]
+
+    with pytest.raises(LimiteCurriculosPlanoError, match="até 100 currículos"):
+        service.criar_curriculo_manual(id_usuario, "Novo currículo", {})
+
+    assert len(service.curriculo_repository.curriculos) == 100
 
 
 def test_salvar_nome_sem_alterar_dados_nao_cria_versao_revisada():
