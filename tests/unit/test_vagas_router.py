@@ -53,8 +53,12 @@ class AnalisadorServiceFalso:
         self.vagas_criadas.append(vaga)
         return vaga
 
-    def listar_vagas_usuario(self, id_usuario):
-        return [vaga for vaga in self.vagas_criadas if vaga.id_usuario == id_usuario]
+    def listar_vagas_usuario(self, id_usuario, limit=None, offset=0):
+        vagas = [vaga for vaga in self.vagas_criadas if vaga.id_usuario == id_usuario]
+        return vagas[offset:] if limit is None else vagas[offset : offset + limit]
+
+    def contar_vagas_usuario(self, id_usuario):
+        return len([vaga for vaga in self.vagas_criadas if vaga.id_usuario == id_usuario])
 
 
 def _usuario() -> Usuario:
@@ -90,6 +94,39 @@ def test_listar_vagas_com_email_conhecido_retorna_lista():
     corpo = response.json()
     assert len(corpo["vagas"]) == 1
     assert corpo["vagas"][0]["descricao"] == "Vaga para dev Python pleno."
+    assert corpo["paginacao"] == {"total": 1, "limit": None, "offset": 0}
+
+
+def test_listar_vagas_paginado_devolve_pagina_e_total():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    for i in range(5):
+        service_falso.cadastrar_vaga(usuario.id_usuario, f"Vaga {i}")
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.get("/api/vagas", params={"limit": 2, "offset": 2})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    corpo = response.json()
+    assert [v["descricao"] for v in corpo["vagas"]] == ["Vaga 2", "Vaga 3"]
+    assert corpo["paginacao"] == {"total": 5, "limit": 2, "offset": 2}
+
+
+def test_listar_vagas_com_parametros_de_paginacao_invalidos_retorna_422():
+    usuario = _usuario()
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: AnalisadorServiceFalso()
+
+    respostas = [
+        client.get("/api/vagas", params={"limit": 0}),
+        client.get("/api/vagas", params={"limit": 101}),
+        client.get("/api/vagas", params={"offset": -1}),
+    ]
+
+    app.dependency_overrides.clear()
+    assert [r.status_code for r in respostas] == [422, 422, 422]
 
 
 def test_criar_vaga_com_sucesso():

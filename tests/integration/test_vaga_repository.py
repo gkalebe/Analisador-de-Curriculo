@@ -2,23 +2,11 @@ import uuid
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.core.config import get_settings
-from app.core.database import Base
 from app.core.persistencia.models.usuario import Usuario
 from app.core.persistencia.models.vaga import Vaga
 from app.core.persistencia.vaga_repository import VagaRepository
-
-
-@pytest.fixture(scope="module")
-def engine():
-    engine = create_engine(get_settings().database_url)
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
-    engine.dispose()
 
 
 @pytest.fixture
@@ -95,3 +83,19 @@ def test_listar_por_usuario_retorna_apenas_vagas_do_usuario(db: Session, usuario
 
     assert len(vagas_do_usuario) == 2
     assert all(vaga.id_usuario == usuario.id_usuario for vaga in vagas_do_usuario)
+
+
+def test_listar_por_usuario_pagina_com_limit_offset_e_conta_total(db: Session, usuario: Usuario):
+    repositorio = VagaRepository(db)
+    for i in range(5):
+        repositorio.criar(Vaga(descricao=f"Vaga {i}", id_usuario=usuario.id_usuario))
+
+    todas = repositorio.listar_por_usuario(usuario.id_usuario)
+    primeira_pagina = repositorio.listar_por_usuario(usuario.id_usuario, limit=2, offset=0)
+    segunda_pagina = repositorio.listar_por_usuario(usuario.id_usuario, limit=2, offset=2)
+    alem_do_fim = repositorio.listar_por_usuario(usuario.id_usuario, limit=2, offset=10)
+
+    assert len(todas) == 5
+    assert [v.id_vaga for v in primeira_pagina + segunda_pagina] == [v.id_vaga for v in todas[:4]]
+    assert alem_do_fim == []
+    assert repositorio.contar_por_usuario(usuario.id_usuario) == 5

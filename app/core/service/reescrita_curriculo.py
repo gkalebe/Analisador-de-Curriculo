@@ -337,3 +337,6 @@ def aplicar_sugestoes_sem_ia(dados_atuais: dict, sugestoes: dict, texto_bruto: s
         "total_aplicadas": reescritas_aplicadas + len(remocoes_aplicadas),
     }
     return normalizar_dados_curriculo(dados, texto_bruto), relatorio
+
+
+aplicar_reescrita = _aplicar_reescrita

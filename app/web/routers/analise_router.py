@@ -34,16 +34,19 @@ from app.core.service.analisador_service import (
     VagaNaoEncontradaError,
 )
 from app.web.dependencies import get_usuario_atual
+from app.web.paginacao import ParametrosPaginacao, get_paginacao, montar_meta
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     BibliotecaCurriculoItemResponse,
     BibliotecaCurriculosResponse,
+    CurriculoAplicarSugestaoIndividualRequest,
     CurriculoAtualizacaoRequest,
     CurriculoCriacaoManualRequest,
     CurriculoDetalhesResponse,
     CurriculoEdicaoEstruturadaRequest,
     CurriculoEdicaoResponse,
     CurriculoEdicaoTextoLivreRequest,
+    CurriculoHabilidadeRequest,
     CurriculoItemResponse,
     CurriculoListResponse,
     CurriculoPreviewResponse,
@@ -276,17 +279,25 @@ async def criar_analise(
 def listar_analises(
     email: str | None = None,
     usuario=Depends(get_usuario_atual),
+    paginacao: ParametrosPaginacao = Depends(get_paginacao),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> AnaliseListResponse:
     try:
-        analises = analisador_service.listar_analises_usuario(usuario.id_usuario)
+        analises = analisador_service.listar_analises_usuario(
+            usuario.id_usuario, limit=paginacao.limit, offset=paginacao.offset
+        )
     except NotImplementedError as erro:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Essa funcionalidade ainda não foi implementada pelo time.",
         ) from erro
 
-    return AnaliseListResponse(analises=[AnaliseResponse.model_validate(a) for a in analises])
+    return AnaliseListResponse(
+        analises=[AnaliseResponse.model_validate(a) for a in analises],
+        paginacao=montar_meta(
+            len(analises), paginacao, lambda: analisador_service.contar_analises_usuario(usuario.id_usuario)
+        ),
+    )
 
 
 @router.delete("/{id_analise}", status_code=status.HTTP_204_NO_CONTENT)
@@ -550,3 +561,71 @@ def aplicar_sugestoes_curriculo(
         ) from erro
 
     return CurriculoEdicaoResponse.model_validate({**dados_edicao, "relatorio_aplicacao": relatorio})
+
+
+@router.post("/curriculos/{id_curriculo}/edicao/aplicar-sugestao", response_model=CurriculoEdicaoResponse)
+def aplicar_sugestao_individual_curriculo(
+    id_curriculo: uuid.UUID,
+    payload: CurriculoAplicarSugestaoIndividualRequest,
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    try:
+        _, aplicou = analisador_service.aplicar_sugestao_individual(
+            usuario.id_usuario,
+            id_curriculo,
+            payload.trecho_original,
+            payload.versao_otimizada,
+            payload.campo,
+        )
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return CurriculoEdicaoResponse.model_validate({**dados_edicao, "aplicou": aplicou})
+
+
+@router.post("/curriculos/{id_curriculo}/edicao/adicionar-habilidade", response_model=CurriculoEdicaoResponse)
+def adicionar_habilidade_curriculo(
+    id_curriculo: uuid.UUID,
+    payload: CurriculoHabilidadeRequest,
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    try:
+        analisador_service.adicionar_habilidade_curriculo(usuario.id_usuario, id_curriculo, payload.habilidade)
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+    except ValueError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)
+
+
+@router.post("/curriculos/{id_curriculo}/edicao/remover-habilidade", response_model=CurriculoEdicaoResponse)
+def remover_habilidade_curriculo(
+    id_curriculo: uuid.UUID,
+    payload: CurriculoHabilidadeRequest,
+    email: str | None = None,
+    usuario=Depends(get_usuario_atual),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> CurriculoEdicaoResponse:
+    try:
+        analisador_service.remover_habilidade_curriculo(usuario.id_usuario, id_curriculo, payload.habilidade)
+        dados_edicao = analisador_service.obter_dados_edicao_curriculo(usuario.id_usuario, id_curriculo)
+    except CurriculoNaoEncontradoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Currículo não encontrado para este usuário.",
+        ) from erro
+
+    return CurriculoEdicaoResponse.model_validate(dados_edicao)

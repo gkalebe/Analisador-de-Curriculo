@@ -97,3 +97,18 @@ def test_sem_analises_retorna_listas_vazias():
 
     assert resultado["historico"] == []
     assert resultado["lacunas_recorrentes"] == []
+
+
+def test_obter_historico_paginado_recorta_historico_mas_mantem_lacunas_de_todas():
+    id_usuario = uuid.uuid4()
+    analises = [
+        _criar_analise(id_usuario, pontuacao=float(i), requisitos="Docker", texto_curriculo="Python")
+        for i in range(4)
+    ]
+    service = _criar_service(analises)
+
+    resultado = service.obter_historico_e_lacunas(id_usuario, limit=2, offset=1)
+
+    assert [item["pontuacao"] for item in resultado["historico"]] == [1.0, 2.0]
+    assert resultado["total_historico"] == 4
+    assert resultado["lacunas_recorrentes"] == [{"competencia": "Docker", "frequencia": 4}]
