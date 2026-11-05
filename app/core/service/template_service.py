@@ -1,4 +1,5 @@
 import uuid
+from contextlib import nullcontext
 
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.core.service.extracao_curriculo import (
     normalizar_dados_curriculo,
     obter_dados_curriculo_com_cache,
 )
+from app.core.service.uso_ia_service import UsoIAService
 
 
 class NenhumaAnaliseEncontradaError(Exception):
@@ -126,7 +128,8 @@ VERSOES_SUPORTADAS = {"original", "editada"}
 
 
 class TemplateService:
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, uso_ia_service: UsoIAService | None = None):
+        self.uso_ia_service = uso_ia_service or UsoIAService(db)
         self.curriculo_repository = CurriculoRepository(db)
         self.analise_repository = AnaliseRepository(db)
         self.ai_service_adapter = AIServiceAdapter()
@@ -165,7 +168,23 @@ class TemplateService:
         if versao == "editada" and curriculo.dados_editados:
             dados = normalizar_dados_curriculo(curriculo.dados_editados, curriculo.texto_extraido or "")
         else:
-            dados = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+            precisa_estruturar = not curriculo.dados_editados and not curriculo.dados_extraidos
+            reserva = (
+                self.uso_ia_service.reservar(id_usuario, "estruturacao_curriculo")
+                if precisa_estruturar and (curriculo.texto_extraido or "").strip()
+                else nullcontext()
+            )
+            with reserva as uso:
+                dados = obter_dados_curriculo_com_cache(
+                    curriculo,
+                    self.ai_service_adapter,
+                    self.curriculo_repository,
+                    ao_falhar_ia=(
+                        (lambda: self.uso_ia_service.liberar(uso))
+                        if uso is not None
+                        else None
+                    ),
+                )
 
         if formato == "pdf":
             conteudo = self.curriculo_exporter.gerar_pdf(dados, id_template)

@@ -39,6 +39,43 @@ npm run dev
 
 A aplicação (telas) sobe em `http://localhost:5173` e consome a API em `http://localhost:8000` via CORS. Os dois processos rodam em paralelo durante o desenvolvimento.
 
+### Stripe em modo de teste
+
+Para habilitar compras, crie produtos com preços recorrentes mensais em BRL no Dashboard Stripe de teste e configure no `.env` local:
+
+```
+STRIPE_MODE=test
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_PRO=price_...
+STRIPE_PRICE_MAX=price_...
+STRIPE_PRICE_ULTIMATE=price_...
+```
+
+Configure o Customer Portal no Dashboard para métodos de pagamento e cancelamento ao fim do período; deixe mudanças de plano desativadas no portal para que upgrades/downgrades sigam as regras do aplicativo. Ajuste `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL` e `STRIPE_PORTAL_RETURN_URL` para a URL local do frontend (no Compose de desenvolvimento, `http://127.0.0.1:4173/planos`). O webhook precisa encaminhar, no mínimo, `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed` e `charge.refunded`. Para desenvolvimento, encaminhe eventos com a Stripe CLI:
+
+```
+stripe listen --forward-to http://127.0.0.1:8000/assinaturas/webhook
+```
+
+Use o `whsec_...` exibido pela CLI como `STRIPE_WEBHOOK_SECRET`. Não use chaves live em desenvolvimento, não publique segredos. Após alterar o `.env` no Compose, recrie o serviço da API para carregar as variáveis:
+
+```
+docker compose -f docker-compose.dev.yml up -d --force-recreate web
+```
+
+Ao retornar do Checkout, a tela consulta `/assinaturas/me/uso` e tenta reconciliar o pagamento confirmado mesmo se o webhook ainda não chegou. Essa consulta também reconcilia a assinatura existente com o Stripe, para corrigir o plano se uma atualização de webhook atrasar ou falhar. Upgrades de uma assinatura ativa pedem confirmação antes de chamar a Stripe e podem gerar cobrança proporcional imediata pelo restante do ciclo; a tela atualiza o plano usando a resposta confirmada da Stripe, sem depender da chegada do webhook. Se a página continuar mostrando confirmação pendente, atualize-a antes de iniciar outro pagamento; se persistir, verifique os logs da API e as tentativas de entrega do webhook no Dashboard Stripe.
+
+A conta demo Ultimate é criada somente quando solicitada, em ambiente `development`/`test`/`local`, e exige credenciais próprias no `.env`:
+
+```
+DEMO_ACCOUNT_EMAIL=demo@example.com
+DEMO_ACCOUNT_PASSWORD=uma-senha-local-com-12-caracteres-ou-mais
+docker compose -f docker-compose.dev.yml exec web python -m app.scripts.seed_demo_account
+```
+
+Se a API estiver rodando diretamente no host, use `python -m app.scripts.seed_demo_account` no lugar do comando Docker. O comando é idempotente, atualiza a senha da conta configurada e não é executado automaticamente no startup. Não configure essas credenciais em produção.
+
 Para subir o projeto inteiro, incluindo banco, API e frontend:
 
 ```

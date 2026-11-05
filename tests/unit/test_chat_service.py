@@ -25,7 +25,7 @@ def mock_db():
 def chat_service(mock_db):
     ai_adapter = MagicMock()
     ai_adapter.responder_chat.return_value = "Resposta simulada da IA."
-    service = ChatService(db=mock_db, ai_service_adapter=ai_adapter)
+    service = ChatService(db=mock_db, ai_service_adapter=ai_adapter, uso_ia_service=MagicMock())
     return service
 
 

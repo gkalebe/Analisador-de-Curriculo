@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -74,6 +75,7 @@ RESPOSTA_IA_PADRAO = (
 
 def _criar_service_com_fakes(analises=None, curriculos=None, ai_adapter=None, exporter=None) -> TemplateService:
     service = TemplateService(db=None)
+    service.uso_ia_service = MagicMock()
     service.analise_repository = AnaliseRepositorioFalso(analises)
     service.curriculo_repository = CurriculoRepositorioFalso(curriculos)
     service.ai_service_adapter = ai_adapter or AIServiceAdapterFalso(resposta=RESPOSTA_IA_PADRAO)

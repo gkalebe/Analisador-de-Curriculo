@@ -29,6 +29,7 @@ from app.core.service.analisador_service import (
     AnaliseNaoEncontradaError,
     CurriculoArquivoNaoEncontradoError,
     CurriculoNaoEncontradoError,
+    LimiteCurriculosPlanoError,
     NenhumaSugestaoDisponivelError,
     VagaNaoEncontradaError,
 )
@@ -79,7 +80,9 @@ async def previsualizar_upload_curriculo(
         )
 
     try:
-        resultado = analisador_service.previsualizar_upload_curriculo(conteudo, nome_arquivo, extensao)
+        resultado = analisador_service.previsualizar_upload_curriculo(
+            conteudo, nome_arquivo, extensao, usuario.id_usuario
+        )
     except FormatoNaoSuportadoError as erro:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -143,6 +146,8 @@ async def upload_curriculo(
         ) from erro
     except ValueError as erro:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
+    except LimiteCurriculosPlanoError as erro:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(erro)) from erro
 
     return CurriculoResponse.model_validate(resultado)
 
@@ -231,6 +236,8 @@ async def criar_analise(
             nome_arquivo=nome_arquivo,
             extensao=extensao,
         )
+    except LimiteCurriculosPlanoError as erro:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(erro)) from erro
     except VagaNaoEncontradaError as erro:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -339,6 +346,8 @@ def criar_curriculo_manual(
         detalhes = analisador_service.obter_detalhes_curriculo(usuario.id_usuario, curriculo.id_curriculo)
     except ValueError as erro:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
+    except LimiteCurriculosPlanoError as erro:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(erro)) from erro
     return CurriculoDetalhesResponse.model_validate(detalhes)
 
 

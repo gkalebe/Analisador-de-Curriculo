@@ -2,14 +2,17 @@ import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import app.core.persistencia.models
 from app.core.config import get_settings
 from app.core.rate_limit import limiter
+from app.core.service.uso_ia_service import CotaIAExcedidaError, CotaIATemporariamenteIndisponivelError
 from app.web.routers import (
     analise_router,
+    assinatura_router,
     auth_router,
     chat_router,
     diagnostico_router,
@@ -28,6 +31,36 @@ app = FastAPI(title="Analisador de Currículos", version="0.1.0")
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(CotaIAExcedidaError)
+def tratar_cota_ia_excedida(_request: Request, erro: CotaIAExcedidaError) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": {
+                "codigo": "cota_ia_excedida",
+                "tipo_operacao": erro.tipo_operacao,
+                "renovacao_em": erro.renovacao_em.isoformat(),
+                "mensagem": "Você atingiu o limite desta operação do seu plano.",
+            }
+        },
+    )
+
+
+@app.exception_handler(CotaIATemporariamenteIndisponivelError)
+def tratar_ciclo_cobranca_indisponivel(
+    _request: Request, _erro: CotaIATemporariamenteIndisponivelError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": {
+                "codigo": "ciclo_cobranca_indisponivel",
+                "mensagem": "Não foi possível confirmar seu ciclo de cobrança. Tente novamente em instantes.",
+            }
+        },
+    )
 
 # Front-end agora é uma SPA em React (frontend/), servida separadamente pelo Vite em
 # desenvolvimento (http://localhost:5173) ou publicada no domínio de produção. A lista
@@ -68,6 +101,7 @@ async def adicionar_cabecalhos_seguranca(request: Request, chamar_proximo):
 app.include_router(auth_router.router)
 app.include_router(vagas_router.router)
 app.include_router(analise_router.router)
+app.include_router(assinatura_router.router)
 app.include_router(chat_router.router)
 app.include_router(diagnostico_router.router)
 app.include_router(simulador_router.router)

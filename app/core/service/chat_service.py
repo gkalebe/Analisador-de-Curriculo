@@ -11,6 +11,7 @@ from app.core.persistencia.pergunta_anonimizada_repository import (
 )
 from app.core.persistencia.vaga_repository import VagaRepository
 from app.core.service.extracao_curriculo import dados_para_texto_analise
+from app.core.service.uso_ia_service import UsoIAService
 
 
 class CurriculoNaoEncontradoError(Exception):
@@ -34,8 +35,14 @@ class PerguntaVaziaError(Exception):
 
 
 class ChatService:
-    def __init__(self, db: Session, ai_service_adapter: AIServiceAdapter | None = None):
+    def __init__(
+        self,
+        db: Session,
+        ai_service_adapter: AIServiceAdapter | None = None,
+        uso_ia_service: UsoIAService | None = None,
+    ):
         self.db = db
+        self.uso_ia_service = uso_ia_service or UsoIAService(db)
         self.chat_repository = ChatRepository(db)
         self.curriculo_repository = CurriculoRepository(db)
         self.vaga_repository = VagaRepository(db)
@@ -122,34 +129,35 @@ class ChatService:
         # persistíssemos antes e a chamada à IA falhasse (ex.: indisponibilidade
         # temporária do Gemini), a pergunta ficava salva sem resposta — órfã no
         # histórico para sempre, aparecendo como um espaço em branco na conversa.
-        resposta_texto = self.ai_service_adapter.responder_chat(
-            texto_curriculo=texto_curriculo,
-            historico=historico,
-            pergunta=pergunta_normalizada,
-            texto_vaga=texto_vaga,
-        )
-
-        mensagem_usuario = self.chat_repository.criar(
-            MensagemChat(
-                id_usuario=id_usuario,
-                id_curriculo=id_curriculo_resolvido,
-                id_vaga=id_vaga_resolvido,
-                autor="usuario",
-                conteudo=pergunta_normalizada,
+        with self.uso_ia_service.reservar(id_usuario, "mensagem_chat"):
+            resposta_texto = self.ai_service_adapter.responder_chat(
+                texto_curriculo=texto_curriculo,
+                historico=historico,
+                pergunta=pergunta_normalizada,
+                texto_vaga=texto_vaga,
             )
-        )
 
-        mensagem_assistente = self.chat_repository.criar(
-            MensagemChat(
-                id_usuario=id_usuario,
-                id_curriculo=id_curriculo_resolvido,
-                id_vaga=id_vaga_resolvido,
-                autor="assistente",
-                conteudo=resposta_texto.strip(),
+            mensagem_usuario = self.chat_repository.criar(
+                MensagemChat(
+                    id_usuario=id_usuario,
+                    id_curriculo=id_curriculo_resolvido,
+                    id_vaga=id_vaga_resolvido,
+                    autor="usuario",
+                    conteudo=pergunta_normalizada,
+                )
             )
-        )
 
-        return mensagem_usuario, mensagem_assistente
+            mensagem_assistente = self.chat_repository.criar(
+                MensagemChat(
+                    id_usuario=id_usuario,
+                    id_curriculo=id_curriculo_resolvido,
+                    id_vaga=id_vaga_resolvido,
+                    autor="assistente",
+                    conteudo=resposta_texto.strip(),
+                )
+            )
+
+            return mensagem_usuario, mensagem_assistente
 
     def listar_historico(
         self,

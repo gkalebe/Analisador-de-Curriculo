@@ -10,6 +10,7 @@ const ITENS = [
   { chave: "simulacao", rotulo: "Simular entrevista", icone: "ti-microphone", rota: "/analises/simulacao" },
   { chave: "templates", rotulo: "Templates ATS", icone: "ti-layout-grid", rota: "/templates" },
   { chave: "chatbot", rotulo: "ChatBOT", icone: "ti-robot", rota: "/analises/chat" },
+  { chave: "planos", rotulo: "Planos e uso", icone: "ti-credit-card", rota: "/planos" },
 ];
 
 export default function Sidebar({ email, ativo }) {

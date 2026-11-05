@@ -41,6 +41,25 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_use_tls: bool = True
     sendgrid_api_key: str = ""
+    stripe_mode: str = "test"
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_pro: str = ""
+    stripe_price_max: str = ""
+    stripe_price_ultimate: str = ""
+    stripe_success_url: str = "http://localhost:4173/planos?checkout=success&session_id={CHECKOUT_SESSION_ID}"
+    stripe_cancel_url: str = "http://localhost:4173/planos?checkout=cancelled"
+    stripe_portal_return_url: str = "http://127.0.0.1:4173/planos"
+    demo_account_email: str = ""
+    demo_account_password: str = ""
+
+    @property
+    def stripe_price_ids(self) -> dict[str, str]:
+        return {
+            "pro": self.stripe_price_pro,
+            "max": self.stripe_price_max,
+            "ultimate": self.stripe_price_ultimate,
+        }
 
     @property
     def cors_origins_lista(self) -> list[str]:

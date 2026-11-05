@@ -47,7 +47,7 @@ class AnalisadorServiceFalso:
         self.curriculos_excluidos: list = []
         self.deve_recusar_curriculo_nao_encontrado = False
 
-    def previsualizar_upload_curriculo(self, conteudo, nome_arquivo, extensao):
+    def previsualizar_upload_curriculo(self, conteudo, nome_arquivo, extensao, id_usuario):
         resultado = {
             "nome_arquivo": nome_arquivo,
             "tamanho_texto_extraido": len(conteudo),
