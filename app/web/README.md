@@ -12,6 +12,17 @@ Regra da Clean Architecture simplificada: esta camada conhece o `core`, mas o `c
 
 As rotas que leem ou alteram dados do usuário exigem `Authorization: Bearer <access_token>`. A dependency compartilhada em `dependencies.py` valida assinatura, prazo e finalidade do JWT, resolve o usuário pelo `sub` (`id_usuario`) e responde `401` quando o token estiver ausente, inválido, expirado ou apontar para uma conta inexistente. O e-mail ainda aceito por alguns schemas/parâmetros é apenas compatibilidade de payload e nunca define o proprietário dos dados.
 
+## Paginação das listagens
+
+`GET /analises`, `GET /api/vagas`, `GET /painel/historico` e `GET /simulador` seguem o mesmo padrão, definido em `app/web/paginacao.py`:
+
+- Query params opcionais: `limit` (1 a 100) e `offset` (>= 0, padrão 0). Valores fora da faixa retornam `422`.
+- **Sem `limit`, a listagem devolve todos os itens** (comportamento anterior, para não quebrar o front atual). Novas telas devem preferir passar `limit`.
+- Toda resposta traz, além da lista, `paginacao: {"total", "limit", "offset"}` — `total` é a quantidade de itens do usuário, independente da página. A query de contagem só roda quando o total não dá para deduzir da própria página (página cheia ou vazia além do fim).
+- Ordenação estável: mais recente primeiro, com desempate pelo id, para que páginas consecutivas não repitam nem pulem itens.
+- `GET /painel/historico`: a paginação recorta só `historico`; `lacunas_recorrentes` continua agregando **todas** as análises (por isso esse endpoint ainda lê todas as análises do banco — só o payload diminui).
+- Repositórios: `listar_por_usuario(id_usuario, limit=None, offset=0)` e `contar_por_usuario(id_usuario)` em `analise_repository.py`, `vaga_repository.py` e `simulacao_repository.py`.
+
 ## Routers e donos por Sprint
 
 | Arquivo | Módulo | US | Sprint | Dev |

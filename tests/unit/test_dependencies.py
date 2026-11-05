@@ -28,7 +28,7 @@ class AnalisadorServiceFalso:
     def __init__(self):
         self.ids_usuario = []
 
-    def listar_vagas_usuario(self, id_usuario):
+    def listar_vagas_usuario(self, id_usuario, limit=None, offset=0):
         self.ids_usuario.append(id_usuario)
         return []
 

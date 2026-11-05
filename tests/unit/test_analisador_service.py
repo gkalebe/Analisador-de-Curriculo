@@ -32,8 +32,12 @@ class VagaRepositorioFalso:
     def buscar_por_id(self, id_vaga: uuid.UUID) -> Vaga | None:
         return next((vaga for vaga in self.vagas if vaga.id_vaga == id_vaga), None)
 
-    def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Vaga]:
-        return [vaga for vaga in self.vagas if vaga.id_usuario == id_usuario]
+    def listar_por_usuario(self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0) -> list[Vaga]:
+        vagas = [vaga for vaga in self.vagas if vaga.id_usuario == id_usuario]
+        return vagas[offset:] if limit is None else vagas[offset : offset + limit]
+
+    def contar_por_usuario(self, id_usuario: uuid.UUID) -> int:
+        return len([vaga for vaga in self.vagas if vaga.id_usuario == id_usuario])
 
 
 class CurriculoRepositorioFalso:
@@ -90,8 +94,12 @@ class AnaliseRepositorioFalso:
         self.analises.append(analise)
         return analise
 
-    def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
-        return [analise for analise in self.analises if analise.id_usuario == id_usuario]
+    def listar_por_usuario(self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0) -> list[Analise]:
+        analises = [analise for analise in self.analises if analise.id_usuario == id_usuario]
+        return analises[offset:] if limit is None else analises[offset : offset + limit]
+
+    def contar_por_usuario(self, id_usuario: uuid.UUID) -> int:
+        return len([analise for analise in self.analises if analise.id_usuario == id_usuario])
 
     def buscar_por_id(self, id_analise: uuid.UUID) -> Analise | None:
         return next((a for a in self.analises if a.id_analise == id_analise), None)

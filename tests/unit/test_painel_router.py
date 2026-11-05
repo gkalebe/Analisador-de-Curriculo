@@ -21,9 +21,11 @@ class UsuarioRepositorioFalso:
 class PlanoServiceFalso:
     def __init__(self):
         self.resultado = {"historico": [], "lacunas_recorrentes": []}
+        self.paginacao_recebida = None
 
-    def obter_historico_e_lacunas(self, id_usuario):
-        return self.resultado
+    def obter_historico_e_lacunas(self, id_usuario, limit=None, offset=0):
+        self.paginacao_recebida = (limit, offset)
+        return {"total_historico": len(self.resultado["historico"]), **self.resultado}
 
 
 def _usuario() -> Usuario:
@@ -69,6 +71,21 @@ def test_obter_historico_com_sucesso():
     corpo = response.json()
     assert corpo["historico"][0]["vaga_titulo"] == "Dev Backend"
     assert corpo["lacunas_recorrentes"][0]["competencia"] == "Docker"
+    assert corpo["paginacao"] == {"total": 1, "limit": None, "offset": 0}
+
+
+def test_obter_historico_repassa_paginacao_ao_servico():
+    usuario = _usuario()
+    service_falso = PlanoServiceFalso()
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_plano_service] = lambda: service_falso
+
+    response = client.get("/painel/historico", params={"limit": 10, "offset": 20})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert service_falso.paginacao_recebida == (10, 20)
+    assert response.json()["paginacao"]["limit"] == 10
 
 
 def test_obter_historico_sem_analises_retorna_listas_vazias():

@@ -204,8 +204,11 @@ class AnalisadorService:
         )
         return self.vaga_repository.criar(vaga)
 
-    def listar_vagas_usuario(self, id_usuario: uuid.UUID) -> list[Vaga]:
-        return self.vaga_repository.listar_por_usuario(id_usuario)
+    def listar_vagas_usuario(self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0) -> list[Vaga]:
+        return self.vaga_repository.listar_por_usuario(id_usuario, limit=limit, offset=offset)
+
+    def contar_vagas_usuario(self, id_usuario: uuid.UUID) -> int:
+        return self.vaga_repository.contar_por_usuario(id_usuario)
 
     @staticmethod
     def _texto_vaga_para_analise(vaga: Vaga) -> str:
@@ -424,8 +427,13 @@ class AnalisadorService:
 
         return curriculo.conteudo_arquivo, curriculo.nome_arquivo
 
-    def listar_analises_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
-        return self.analise_repository.listar_por_usuario(id_usuario)
+    def listar_analises_usuario(
+        self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0
+    ) -> list[Analise]:
+        return self.analise_repository.listar_por_usuario(id_usuario, limit=limit, offset=offset)
+
+    def contar_analises_usuario(self, id_usuario: uuid.UUID) -> int:
+        return self.analise_repository.contar_por_usuario(id_usuario)
 
     def excluir_analise(self, id_usuario: uuid.UUID, id_analise: uuid.UUID) -> None:
         analise = self.analise_repository.buscar_por_id(id_analise)

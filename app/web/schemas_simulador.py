@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
+from app.web.paginacao import PaginacaoMeta
+
 
 class SimulacaoIniciarRequest(BaseModel):
     email: EmailStr | None = None
@@ -57,3 +59,4 @@ class SimulacaoItemResponse(BaseModel):
 
 class SimulacaoListResponse(BaseModel):
     simulacoes: list[SimulacaoItemResponse]
+    paginacao: PaginacaoMeta
