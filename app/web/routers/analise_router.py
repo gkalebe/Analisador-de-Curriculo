@@ -33,6 +33,7 @@ from app.core.service.analisador_service import (
     VagaNaoEncontradaError,
 )
 from app.web.dependencies import get_usuario_atual
+from app.web.paginacao import ParametrosPaginacao, get_paginacao, montar_meta
 from app.web.schemas_analise import AnaliseListResponse, AnaliseResponse
 from app.web.schemas_curriculo import (
     BibliotecaCurriculoItemResponse,
@@ -271,17 +272,25 @@ async def criar_analise(
 def listar_analises(
     email: str | None = None,
     usuario=Depends(get_usuario_atual),
+    paginacao: ParametrosPaginacao = Depends(get_paginacao),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> AnaliseListResponse:
     try:
-        analises = analisador_service.listar_analises_usuario(usuario.id_usuario)
+        analises = analisador_service.listar_analises_usuario(
+            usuario.id_usuario, limit=paginacao.limit, offset=paginacao.offset
+        )
     except NotImplementedError as erro:
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Essa funcionalidade ainda não foi implementada pelo time.",
         ) from erro
 
-    return AnaliseListResponse(analises=[AnaliseResponse.model_validate(a) for a in analises])
+    return AnaliseListResponse(
+        analises=[AnaliseResponse.model_validate(a) for a in analises],
+        paginacao=montar_meta(
+            len(analises), paginacao, lambda: analisador_service.contar_analises_usuario(usuario.id_usuario)
+        ),
+    )
 
 
 @router.delete("/{id_analise}", status_code=status.HTTP_204_NO_CONTENT)

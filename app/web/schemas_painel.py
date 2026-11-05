@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.web.paginacao import PaginacaoMeta
+
 
 class HistoricoAnaliseItem(BaseModel):
     id_analise: uuid.UUID
@@ -20,4 +22,5 @@ class LacunaRecorrente(BaseModel):
 
 class PainelHistoricoResponse(BaseModel):
     historico: list[HistoricoAnaliseItem]
+    paginacao: PaginacaoMeta
     lacunas_recorrentes: list[LacunaRecorrente]

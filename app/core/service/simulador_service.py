@@ -138,8 +138,13 @@ class SimuladorService:
 
         return self.simulacao_repository.salvar_perguntas(simulacao, novas_perguntas)
 
-    def listar_simulacoes_usuario(self, id_usuario: uuid.UUID) -> list[SimulacaoEntrevista]:
-        return self.simulacao_repository.listar_por_usuario(id_usuario)
+    def listar_simulacoes_usuario(
+        self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0
+    ) -> list[SimulacaoEntrevista]:
+        return self.simulacao_repository.listar_por_usuario(id_usuario, limit=limit, offset=offset)
+
+    def contar_simulacoes_usuario(self, id_usuario: uuid.UUID) -> int:
+        return self.simulacao_repository.contar_por_usuario(id_usuario)
 
     def _interpretar_perguntas(self, resultado_ia: str) -> list[dict]:
         dados = self._extrair_json(resultado_ia)

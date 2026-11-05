@@ -9,6 +9,7 @@ from app.core.service.analisador_service import (
     VagaDuplicadaError,
 )
 from app.web.dependencies import get_usuario_atual
+from app.web.paginacao import ParametrosPaginacao, get_paginacao, montar_meta
 from app.core.service.importador_vaga_service import ImportacaoVagaError, importar_vaga
 from app.web.schemas_vaga import (
     VagaCreateRequest,
@@ -28,10 +29,14 @@ def get_analisador_service(db: Session = Depends(get_db)) -> AnalisadorService:
 @router.get("", response_model=VagaListResponse)
 def listar_vagas(
     usuario=Depends(get_usuario_atual),
+    paginacao: ParametrosPaginacao = Depends(get_paginacao),
     analisador_service: AnalisadorService = Depends(get_analisador_service),
 ) -> VagaListResponse:
-    vagas = analisador_service.listar_vagas_usuario(usuario.id_usuario)
-    return VagaListResponse(vagas=[VagaResponse.model_validate(vaga) for vaga in vagas])
+    vagas = analisador_service.listar_vagas_usuario(usuario.id_usuario, limit=paginacao.limit, offset=paginacao.offset)
+    return VagaListResponse(
+        vagas=[VagaResponse.model_validate(vaga) for vaga in vagas],
+        paginacao=montar_meta(len(vagas), paginacao, lambda: analisador_service.contar_vagas_usuario(usuario.id_usuario)),
+    )
 
 
 @router.post("", response_model=VagaResponse, status_code=status.HTTP_201_CREATED)

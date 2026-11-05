@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.web.paginacao import PaginacaoMeta
+
 
 class AnaliseResponse(BaseModel):
     id_analise: uuid.UUID
@@ -20,3 +22,4 @@ class AnaliseResponse(BaseModel):
 
 class AnaliseListResponse(BaseModel):
     analises: list[AnaliseResponse]
+    paginacao: PaginacaoMeta

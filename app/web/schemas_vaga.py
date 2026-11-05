@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.web.paginacao import PaginacaoMeta
+
 
 class VagaCreateRequest(BaseModel):
     email: EmailStr | None = None
@@ -84,3 +86,4 @@ class VagaResponse(BaseModel):
 
 class VagaListResponse(BaseModel):
     vagas: list[VagaResponse]
+    paginacao: PaginacaoMeta
