@@ -38,7 +38,7 @@ def competencias_correspondem(a: str, b: str) -> bool:
     if na == nb:
         return True
     menor, maior = sorted((na, nb), key=len)
-    return len(menor) >= 3 and re.search(rf"(?<!\w){re.escape(menor)}(?!\w)", maior) is not None
+    return len(menor) >= 2 and re.search(rf"(?<!\w){re.escape(menor)}(?!\w)", maior) is not None
 
 
 def texto_limpo(valor) -> str:

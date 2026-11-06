@@ -147,3 +147,14 @@ def test_recalcular_recomendacoes_gravadas_preserva_origem():
     segunda = montar_recomendacoes({**_resultado(), "recomendacoes_competencias": primeira})
 
     assert segunda == primeira
+
+
+def test_termo_ausente_curto_contido_em_requisito_nao_vira_lacuna_duplicada():
+    resultado = {
+        "requisitos_avaliados": [
+            {"requisito": "AWS (Lambda, S3, EC2)", "tipo": "obrigatorio", "status": "nao_evidenciado"}
+        ],
+        "palavras_chave": {"ausentes": ["AWS", "Lambda", "S3", "EC2"]},
+    }
+
+    assert [lacuna["competencia"] for lacuna in identificar_lacunas(resultado)] == ["AWS (Lambda, S3, EC2)"]
