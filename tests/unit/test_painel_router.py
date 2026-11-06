@@ -100,3 +100,29 @@ def test_obter_historico_sem_analises_retorna_listas_vazias():
     corpo = response.json()
     assert corpo["historico"] == []
     assert corpo["lacunas_recorrentes"] == []
+
+
+def test_plano_desenvolvimento_retorna_dashboard_consolidado():
+    from app.core.service.plano_desenvolvimento import consolidar_planos, montar_plano_desenvolvimento
+
+    usuario = Usuario(id_usuario=uuid.uuid4(), nome="Ana", email="ana@example.com", senha_hash="h")
+    referencia = {"id_analise": uuid.uuid4(), "vaga_titulo": "Backend"}
+    plano = montar_plano_desenvolvimento(
+        {"requisitos_avaliados": [{"requisito": "AWS", "tipo": "obrigatorio", "status": "nao_evidenciado"}]}
+    )
+
+    class ServicePlano:
+        def obter_plano_desenvolvimento(self, id_usuario):
+            return consolidar_planos([(referencia, plano)])
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_plano_service] = lambda: ServicePlano()
+    response = client.get("/painel/plano-desenvolvimento")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    corpo = response.json()
+    assert corpo["resumo"]["alta"] == 1
+    assert corpo["itens"][0]["competencia"] == "AWS"
+    assert corpo["itens"][0]["vagas"][0]["vaga_titulo"] == "Backend"
+    assert corpo["itens"][0]["trilha"]
