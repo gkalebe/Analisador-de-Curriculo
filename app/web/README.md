@@ -30,7 +30,6 @@ As rotas que leem ou alteram dados do usuário exigem `Authorization: Bearer <ac
 | `auth_router.py` | Autenticação | US-001, US-002, US-003, US-017 | 1 | Kevin, Gabriel Kalebe, Allan |
 | `analise_router.py` | Upload de currículo / Biblioteca | US-004, US-005, US-006, US-007, US-018 | 1-2, 4 | Gustavo Souto Pereira, Allan, Kevin, Gabriel Kalebe, Carlos, Vitor Bittencourt (US-018) |
 | `vagas_router.py` | Vagas | US-019 | 1-2 | Gabriel Kalebe |
-| `diagnostico_router.py` | Diagnóstico | US-008, US-009 | 2 | Gabriel Kalebe, Allan |
 | `simulador_router.py` | Simulador | US-010, US-011 | 3 | Kevin, Gabriel Kalebe |
 | `templates_router.py` | Templates ATS | US-012, US-013 | 3 | Allan, Carlos (implementado por Gabriel Kalebe, com autorização do time) |
 | `painel_router.py` | Plano Dev. / Painel | US-014 a US-016 | 4 | Kevin, Gabriel Kalebe (US-016 back, concluído), Carlos, Allan |
@@ -39,7 +38,7 @@ Cada router já está registrado em `app/main.py`. Ao implementar uma US, adicio
 
 ## O que falta (routers ainda com só o esqueleto)
 
-- Endpoints reais em `diagnostico_router.py` e `simulador_router.py` (hoje só têm a função `get_*_service` de injeção de dependência). `auth_router.py`, `vagas_router.py`, `analise_router.py`, `templates_router.py` já estão implementados, e `painel_router.py` tem o endpoint de US-016 implementado (ver seções abaixo); US-014 e US-015 seguem pendentes nesse mesmo router. US-018 (Biblioteca) ficou em `analise_router.py`, junto dos demais endpoints de currículo.
+- US-008 e US-009 (Diagnóstico) nunca ganharam endpoint próprio — `diagnostico_router.py`/`diagnostico_service.py` ficaram registrados como esqueleto morto (zero rotas) e foram removidos; o diagnóstico de ATS que existe hoje (`diagnostico_ats` na resposta de `POST /analises`) é produzido dentro de `analisador_service.py`, não por esses arquivos. Se US-008/US-009 ainda forem necessárias como endpoint dedicado, isso precisa ser desenhado do zero. `auth_router.py`, `vagas_router.py`, `analise_router.py`, `templates_router.py`, `simulador_router.py` já estão implementados, e `painel_router.py` tem o endpoint de US-016 implementado (ver seções abaixo); US-014 e US-015 seguem pendentes nesse mesmo router. US-018 (Biblioteca) ficou em `analise_router.py`, junto dos demais endpoints de currículo.
 - `POST /analises` (rodar uma análise) já está implementado de ponta a ponta — ver seção "Nova análise" abaixo. Devolve `503` se nenhuma chave de provider de IA estiver configurada no `.env`.
 - Telas React correspondentes em `frontend/src/pages/` para os módulos ainda pendentes — hoje só existem as telas de autenticação, painel, vagas e upload.
 - Validação de payload com Pydantic (schemas de request/response) — já feito por domínio em `schemas_auth.py`, `schemas_vaga.py` e `schemas_curriculo.py`; siga esse padrão para os próximos módulos, não volte a usar um `schemas.py` único.

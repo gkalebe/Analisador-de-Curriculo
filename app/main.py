@@ -12,7 +12,6 @@ from app.web.routers import (
     analise_router,
     auth_router,
     chat_router,
-    diagnostico_router,
     painel_router,
     simulador_router,
     templates_router,
@@ -69,7 +68,6 @@ app.include_router(auth_router.router)
 app.include_router(vagas_router.router)
 app.include_router(analise_router.router)
 app.include_router(chat_router.router)
-app.include_router(diagnostico_router.router)
 app.include_router(simulador_router.router)
 app.include_router(templates_router.router)
 app.include_router(painel_router.router)
