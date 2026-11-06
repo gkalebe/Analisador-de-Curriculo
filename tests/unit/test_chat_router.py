@@ -179,3 +179,22 @@ def test_rotas_especificas_vaga():
         assert len(resp_get.json()["mensagens"]) == 2
     finally:
         app.dependency_overrides.clear()
+
+
+def test_enviar_mensagem_com_resposta_bloqueada_da_ia_devolve_502_com_mensagem():
+    from app.adapters.ai_service.ai_service_adapter import IARespostaInvalidaError
+
+    usuario = Usuario(
+        id_usuario=uuid.uuid4(), nome="Teste", email="teste@example.com", senha_hash="hash", perfil="candidato"
+    )
+    servico = MagicMock()
+    servico.enviar_mensagem.side_effect = IARespostaInvalidaError("A IA não conseguiu gerar uma resposta.")
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_chat_service] = lambda: servico
+    try:
+        response = client.post("/chat/mensagens", json={"pergunta": "Oi", "id_vaga": str(uuid.uuid4())})
+        assert response.status_code == status.HTTP_502_BAD_GATEWAY
+        assert response.json()["detail"] == "A IA não conseguiu gerar uma resposta."
+    finally:
+        app.dependency_overrides.clear()

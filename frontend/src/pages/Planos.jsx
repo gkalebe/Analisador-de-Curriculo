@@ -17,15 +17,14 @@ const ROTULOS_USO = {
   estruturacao_curriculo: "Estruturações de currículo com IA",
   mensagem_chat: "Mensagens do chatbot",
   entrevista_inicio: "Entrevistas iniciadas",
-  entrevista_feedback: "Respostas de entrevista avaliadas",
+  entrevista_avaliacao: "Entrevistas avaliadas",
 };
 
 const METRICAS_PLANO = [
   { chave: "limite_analises", rotulo: "Análises de currículo" },
   { chave: "limite_estruturacoes", rotulo: "Estruturações de currículo com IA" },
   { chave: "limite_mensagens_chat", rotulo: "Mensagens do chatbot" },
-  { chave: "limite_entrevistas", rotulo: "Entrevistas iniciadas" },
-  { chave: "limite_respostas_entrevista", rotulo: "Respostas avaliadas" },
+  { chave: "limite_entrevistas", rotulo: "Entrevistas simuladas (iniciar e avaliar)" },
   { chave: "limite_curriculos", rotulo: "Currículos guardados" },
 ];
 const ORDEM_PLANOS = { free: 0, pro: 1, max: 2, ultimate: 3 };
@@ -385,7 +384,7 @@ export default function Planos() {
                           estruturacao_curriculo: uso.plano.limite_estruturacoes,
                           mensagem_chat: uso.plano.limite_mensagens_chat,
                           entrevista_inicio: uso.plano.limite_entrevistas,
-                          entrevista_feedback: uso.plano.limite_respostas_entrevista,
+                          entrevista_avaliacao: uso.plano.limite_entrevistas,
                         }[tipo];
                         const consumido = uso.usos[tipo] || 0;
                         const progresso = limite ? Math.min((consumido / limite) * 100, 100) : 0;

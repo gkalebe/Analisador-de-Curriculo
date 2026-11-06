@@ -7,6 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import app.core.persistencia.models
+from app.adapters.ai_service.ai_service_adapter import IARespostaInvalidaError
 from app.core.config import get_settings
 from app.core.rate_limit import limiter
 from app.core.service.uso_ia_service import CotaIAExcedidaError, CotaIATemporariamenteIndisponivelError
@@ -46,6 +47,13 @@ def tratar_cota_ia_excedida(_request: Request, erro: CotaIAExcedidaError) -> JSO
             }
         },
     )
+
+
+@app.exception_handler(IARespostaInvalidaError)
+def tratar_resposta_ia_invalida(_request: Request, erro: IARespostaInvalidaError) -> JSONResponse:
+    # Rede de segurança: rotas que não tratam o erro explicitamente respondem 502 com mensagem
+    # (resposta bloqueada/inválida da IA), em vez de um 500 genérico.
+    return JSONResponse(status_code=502, content={"detail": str(erro)})
 
 
 @app.exception_handler(CotaIATemporariamenteIndisponivelError)

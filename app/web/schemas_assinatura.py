@@ -13,7 +13,6 @@ class PlanoCatalogoResponse(BaseModel):
     limite_estruturacoes: int
     limite_mensagens_chat: int
     limite_entrevistas: int
-    limite_respostas_entrevista: int
     limite_curriculos: int
     creditos_orcamento: int
     creditos_analise: int

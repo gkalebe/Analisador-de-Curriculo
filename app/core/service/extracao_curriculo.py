@@ -27,6 +27,7 @@ from app.adapters.ai_service.ai_service_adapter import (
     AIServiceAdapter,
     IAConfiguracaoAusenteError,
     IAIndisponivelError,
+    IARespostaInvalidaError,
 )
 from app.adapters.ai_service.curriculo_schema import DadosCurriculoEstruturado
 
@@ -317,7 +318,7 @@ def extrair_dados_estruturados_curriculo(
 
     try:
         resultado_ia = ai_service_adapter.extrair_dados_estruturados(texto_extraido)
-    except (IAConfiguracaoAusenteError, IAIndisponivelError):
+    except (IAConfiguracaoAusenteError, IAIndisponivelError, IARespostaInvalidaError):
         if ao_falhar_ia is not None:
             ao_falhar_ia()
         return dados_curriculo_vazios(texto_extraido)

@@ -113,3 +113,51 @@ def test_comparison_contract_normalizes_accented_and_formatted_requirement_types
     assert resultado.requisitos_avaliados[1].status == "nao_evidenciado"
     assert resultado.requisitos_avaliados[2].tipo == "desejavel"
     assert resultado.requisitos_avaliados[2].status == "parcial"
+
+
+def _dimensoes(nota=8):
+    return {
+        "clareza": {"nota": nota, "comentario": "ok"},
+        "objetividade": {"nota": nota, "comentario": "ok"},
+        "coerencia": {"nota": nota, "comentario": "ok"},
+        "alinhamento": {"nota": nota, "comentario": "ok"},
+        "feedback_geral": "ok",
+    }
+
+
+def _avaliacao(ordens, nota=8):
+    return json.dumps(
+        {"avaliacoes": [{"ordem": o, **_dimensoes(nota)} for o in ordens], "feedback_geral": "Geral."}
+    )
+
+
+def test_avaliacao_entrevista_aceita_json_valido_e_com_markdown():
+    from app.adapters.ai_service.response_contracts import interpretar_avaliacao_entrevista
+
+    resultado = interpretar_avaliacao_entrevista(f"```json\n{_avaliacao([1, 2, 3])}\n```", 3)
+
+    assert [a.ordem for a in resultado.avaliacoes] == [1, 2, 3]
+    assert resultado.feedback_geral == "Geral."
+    assert resultado.avaliacoes[0].clareza.nota == 8
+
+
+@pytest.mark.parametrize(
+    "resposta",
+    [
+        "não é json",
+        "[]",
+        json.dumps({"avaliacoes": "nada"}),
+        _avaliacao([1, 2]),  # falta a pergunta 3
+        _avaliacao([1, 2, 3, 4]),  # pergunta inexistente
+        _avaliacao([1, 2, 2]),  # repetida
+        _avaliacao([1, 2, 3], nota=10.5),
+        _avaliacao([1, 2, 3], nota=-1),
+        _avaliacao([1, 2, 3], nota=True),
+        _avaliacao([1, 2, 3], nota="alta"),
+    ],
+)
+def test_avaliacao_entrevista_rejeita_resposta_invalida(resposta):
+    from app.adapters.ai_service.response_contracts import interpretar_avaliacao_entrevista
+
+    with pytest.raises(IARespostaInvalidaError):
+        interpretar_avaliacao_entrevista(resposta, 3)

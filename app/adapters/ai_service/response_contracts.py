@@ -105,3 +105,63 @@ def interpretar_resultado_comparacao(resultado: str) -> ResultadoComparacaoCurri
         return ResultadoComparacaoCurriculoVaga.model_validate(dados)
     except (ValueError, TypeError) as erro:
         raise IARespostaInvalidaError("A resposta da IA não corresponde ao contrato da análise.") from erro
+
+
+class DimensaoAvaliacaoEntrevista(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    nota: float = Field(ge=0, le=10)
+    comentario: str = ""
+
+    @field_validator("nota", mode="before")
+    @classmethod
+    def rejeitar_booleano_como_nota(cls, valor):
+        if isinstance(valor, bool):
+            raise ValueError("A nota precisa ser numérica.")
+        return valor
+
+
+class AvaliacaoPerguntaEntrevista(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    # Posição (1..N) da pergunta no roteiro enviado à IA; mais robusto que pedir que ela
+    # devolva um UUID sem alterá-lo.
+    ordem: int
+    clareza: DimensaoAvaliacaoEntrevista
+    objetividade: DimensaoAvaliacaoEntrevista
+    coerencia: DimensaoAvaliacaoEntrevista
+    alinhamento: DimensaoAvaliacaoEntrevista
+    feedback_geral: str = ""
+
+
+class ResultadoAvaliacaoEntrevista(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    avaliacoes: list[AvaliacaoPerguntaEntrevista]
+    feedback_geral: str = ""
+
+
+def interpretar_avaliacao_entrevista(resultado: str, total_perguntas: int) -> ResultadoAvaliacaoEntrevista:
+    """Valida a avaliação em lote: JSON válido, notas de 0 a 10 e exatamente uma avaliação para
+    cada pergunta (ordem 1..total_perguntas), sem faltar nem repetir. Qualquer desvio vira
+    `IARespostaInvalidaError` — nunca uma simulação "avaliada" pela metade."""
+    texto = (resultado or "").strip()
+    if texto.startswith("```"):
+        texto = texto.strip("`").strip()
+        if texto.lower().startswith("json"):
+            texto = texto[4:].strip()
+
+    try:
+        dados = json.loads(texto)
+    except (json.JSONDecodeError, TypeError) as erro:
+        raise IARespostaInvalidaError("A IA não retornou um JSON válido para a avaliação da entrevista.") from erro
+
+    try:
+        avaliacao = ResultadoAvaliacaoEntrevista.model_validate(dados)
+    except (ValueError, TypeError) as erro:
+        raise IARespostaInvalidaError("A resposta da IA não corresponde ao formato da avaliação da entrevista.") from erro
+
+    ordens = [item.ordem for item in avaliacao.avaliacoes]
+    if sorted(ordens) != list(range(1, total_perguntas + 1)):
+        raise IARespostaInvalidaError("A IA não avaliou todas as perguntas da entrevista. Tente novamente.")
+    return avaliacao

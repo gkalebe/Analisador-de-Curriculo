@@ -6,11 +6,40 @@ export const API_URL =
     ? `https://${urlOriginal}`
     : urlOriginal;
 
+const MENSAGEM_PADRAO = "Erro na requisição.";
+
+/**
+ * O backend devolve `detail` em três formatos: texto (HTTPException comum), objeto
+ * `{codigo, mensagem, ...}` (cota de IA excedida, ciclo de cobrança indisponível) ou lista de
+ * erros de validação do FastAPI/Pydantic (422). Devolve a melhor mensagem legível para cada um.
+ */
+function mensagemDoErro(status, corpo) {
+  const detail = corpo?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+    if (typeof detail.mensagem === "string" && detail.mensagem.trim()) return detail.mensagem;
+  }
+  if (Array.isArray(detail)) {
+    const mensagens = detail
+      .map((item) => (typeof item?.msg === "string" ? item.msg.replace(/^Value error, /, "") : ""))
+      .filter(Boolean);
+    if (mensagens.length > 0) return mensagens.join(" ");
+  }
+  if (status === 429) return "Muitas requisições em pouco tempo. Aguarde um instante e tente novamente.";
+  if (status >= 500) return "O servidor não conseguiu concluir a operação. Tente novamente em instantes.";
+  return MENSAGEM_PADRAO;
+}
+
 export class ApiError extends Error {
   constructor(status, body) {
-    super(typeof body?.detail === "string" ? body.detail : "Erro na requisição.");
+    super(mensagemDoErro(status, body));
     this.status = status;
     this.body = body;
+    const detail = body?.detail;
+    const detalheObjeto = detail && typeof detail === "object" && !Array.isArray(detail) ? detail : null;
+    // Presentes quando `detail` é objeto, p.ex. cota_ia_excedida (com renovacao_em, ISO 8601).
+    this.codigo = detalheObjeto?.codigo ?? null;
+    this.renovacao_em = detalheObjeto?.renovacao_em ?? null;
   }
 }
 

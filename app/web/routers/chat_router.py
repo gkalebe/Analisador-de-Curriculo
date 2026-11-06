@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.adapters.ai_service.ai_service_adapter import (
     IAConfiguracaoAusenteError,
     IAIndisponivelError,
+    IARespostaInvalidaError,
 )
 from app.core.database import get_db
 from app.core.service.chat_service import (
@@ -103,6 +104,8 @@ def enviar_mensagem_geral(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
     except IAIndisponivelError as erro:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IARespostaInvalidaError as erro:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(erro)) from erro
 
     return ChatEnviarResponse(
         mensagem_usuario=MensagemChatResponse.model_validate(mensagem_usuario),

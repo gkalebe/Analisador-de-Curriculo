@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.persistencia.uso_ia_repository import JanelaCobrancaExpiradaError, LimiteUsoIAExcedidoError
-from app.core.service.catalogo_planos import PLANOS, PESO_CREDITOS_OPERACAO
+from app.core.service.catalogo_planos import LIMITES_OPERACAO, PLANOS, PESO_CREDITOS_OPERACAO
 from app.core.service.uso_ia_service import (
     CotaIAExcedidaError,
     CotaIATemporariamenteIndisponivelError,
@@ -27,9 +27,35 @@ def test_pesos_de_operacao_cobrem_chat_entrevista_e_estrutura_curriculo():
         "analise_vaga": 10,
         "estruturacao_curriculo": 6,
         "mensagem_chat": 1,
-        "entrevista_inicio": 4,
-        "entrevista_feedback": 2,
+        "entrevista_inicio": 2,
+        "entrevista_avaliacao": 2,
     }
+
+
+@pytest.mark.parametrize("plano", PLANOS.values())
+def test_catalogo_creditos_das_demais_operacoes_comportam_todos_os_limites_do_plano(plano):
+    # Soma o pior caso mensal de tudo que não é análise: se estourar, o usuário bateria o
+    # orçamento de créditos antes do limite por operação (limite "enganoso" na tela de planos).
+    consumo_maximo = (
+        plano.limite_estruturacoes * PESO_CREDITOS_OPERACAO["estruturacao_curriculo"]
+        + plano.limite_mensagens_chat * PESO_CREDITOS_OPERACAO["mensagem_chat"]
+        + plano.limite_entrevistas
+        * (PESO_CREDITOS_OPERACAO["entrevista_inicio"] + PESO_CREDITOS_OPERACAO["entrevista_avaliacao"])
+    )
+
+    assert consumo_maximo <= plano.creditos_demais_operacoes
+
+
+def test_limites_de_entrevista_por_plano_e_avaliacao_um_para_um_com_inicio():
+    assert {codigo: plano.limite_entrevistas for codigo, plano in PLANOS.items()} == {
+        "free": 0,
+        "pro": 5,
+        "max": 15,
+        "ultimate": 30,
+    }
+    assert LIMITES_OPERACAO["entrevista_avaliacao"] == LIMITES_OPERACAO["entrevista_inicio"] == "limite_entrevistas"
+    assert "entrevista_feedback" not in LIMITES_OPERACAO
+    assert not hasattr(PLANOS["pro"], "limite_respostas_entrevista")
 
 
 def test_catalogo_http_exibe_preco_e_cotas_atualizados():
@@ -37,11 +63,12 @@ def test_catalogo_http_exibe_preco_e_cotas_atualizados():
 
     assert resposta.status_code == 200
     planos = {plano["codigo"]: plano for plano in resposta.json()["planos"]}
-    assert planos["pro"]["preco_centavos"] == 1990
-    assert planos["max"]["preco_centavos"] == 5490
-    assert planos["ultimate"]["preco_centavos"] == 13990
+    assert planos["pro"]["preco_centavos"] == 1999
+    assert planos["max"]["preco_centavos"] == 5499
+    assert planos["ultimate"]["preco_centavos"] == 13999
     assert planos["pro"]["limite_mensagens_chat"] == 10
-    assert planos["pro"]["limite_entrevistas"] == 1
+    assert planos["pro"]["limite_entrevistas"] == 5
+    assert "limite_respostas_entrevista" not in planos["pro"]
 
 
 def test_reserva_sucesso_finaliza_uso_como_consumido():
