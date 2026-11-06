@@ -69,6 +69,17 @@ class RequisitoAvaliado(BaseModel):
         return v
 
 
+class RecomendacaoCompetenciaIA(BaseModel):
+    """US-014: orientação da IA para evidenciar uma competência em lacuna. A cobertura (uma
+    recomendação por lacuna) é garantida depois, em core/service/recomendacoes_competencias.py."""
+
+    model_config = ConfigDict(extra="allow")
+
+    competencia: str
+    orientacoes: list[str] = Field(default_factory=list)
+    onde_evidenciar: str = ""
+
+
 class ResultadoComparacaoCurriculoVaga(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -79,6 +90,7 @@ class ResultadoComparacaoCurriculoVaga(BaseModel):
     diagnostico_ats: DiagnosticoATS
     sugestoes_reescrita: list[SugestaoReescrita]
     requisitos_avaliados: list[RequisitoAvaliado] = Field(default_factory=list)
+    recomendacoes_competencias: list[RecomendacaoCompetenciaIA] = Field(default_factory=list)
     curriculo_estruturado: DadosCurriculoEstruturado
 
     @field_validator("pontuacao", mode="before")

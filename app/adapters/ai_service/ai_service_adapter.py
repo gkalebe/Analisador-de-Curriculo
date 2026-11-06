@@ -654,7 +654,15 @@ class AIServiceAdapter:
             "os bullets de experiência mais fracos ou menos alinhados à vaga, uma sugestão por item. Se o "
             "currículo for curto e não houver 4 trechos a melhorar, gere menos — nunca invente problemas.\n"
             "13. \"o_que_reorganizar\" é orientação para o candidato ler (a ordem das seções no documento "
-            "final é fixa, no padrão ATS); seja breve. Mantenha \"motivo\" em 1 frase curta.\n\n"
+            "final é fixa, no padrão ATS); seja breve. Mantenha \"motivo\" em 1 frase curta.\n"
+            "14. \"recomendacoes_competencias\": para CADA requisito com status 'parcial' ou "
+            "'nao_evidenciado' e para CADA palavra-chave ausente, gere ao menos 1 orientação específica "
+            "de como evidenciar essa competência no currículo (onde colocar, que tipo de contexto e "
+            "resultado descrever, qual termo exato da vaga usar). As orientações NUNCA afirmam que o "
+            "candidato tem a competência e NUNCA sugerem incluir experiência, ferramenta, empresa, número "
+            "ou certificação que não esteja no currículo: quando não houver sustentação, escreva de forma "
+            "condicional (\"Se você já usou X em...\") ou oriente a desenvolver a competência antes de "
+            "citá-la.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
             "{\n"
@@ -684,6 +692,13 @@ class AIServiceAdapter:
             '      "trecho_original": "<cópia idêntica de UM item de curriculo_estruturado (bullet, frase do resumo, habilidade ou curso)>",\n'
             '      "sugestao_otimizada": "<versão reescrita completa que substitui o item, com verbos de ação e termos da vaga que o currículo sustenta, SEM inventar fatos>",\n'
             '      "motivo": "<1 frase: por que melhora em ATS/recrutadores>"\n'
+            "    }\n"
+            "  ],\n"
+            '  "recomendacoes_competencias": [\n'
+            "    {\n"
+            '      "competencia": "<requisito ou termo em lacuna, com o mesmo texto usado acima>",\n'
+            '      "orientacoes": ["<orientação específica e verdadeira para evidenciar a competência>"],\n'
+            '      "onde_evidenciar": "<resumo | experiencia_profissional | habilidades | formacao | projetos>"\n'
             "    }\n"
             "  ],\n"
             f'  "curriculo_estruturado": {FORMATO_JSON_CURRICULO_ESTRUTURADO}\n'
