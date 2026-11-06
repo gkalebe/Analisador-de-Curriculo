@@ -2,6 +2,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import AIServiceAdapter
@@ -12,6 +13,7 @@ from app.core.persistencia.vaga_repository import VagaRepository
 from app.core.service.uso_ia_service import UsoIAService
 
 TIPOS_OBRIGATORIOS = ("comportamental", "tecnica", "situacional")
+MAXIMO_PERGUNTAS_POR_SIMULACAO = 20
 
 
 class VagaNaoEncontradaError(Exception):
@@ -23,6 +25,10 @@ class SimulacaoNaoEncontradaError(Exception):
 
 
 class SimulacaoJaAvaliadaError(Exception):
+    pass
+
+
+class SimulacaoEmAvaliacaoError(Exception):
     pass
 
 
@@ -109,9 +115,20 @@ class SimuladorService:
 
     def excluir_simulacao(self, id_usuario: uuid.UUID, id_simulacao: uuid.UUID) -> None:
         """Exclusão definitiva, pedida pelo próprio usuário. Não devolve cota: a entrevista
-        (e a avaliação, se houve) já foi consumida no ciclo. Trava a linha para não apagar
-        uma simulação que está sendo avaliada nesse instante."""
-        simulacao = self.simulacao_repository.buscar_por_id_para_atualizacao(id_simulacao)
+        (e a avaliação, se houve) já foi consumida no ciclo. Trava a linha filtrando pelo dono e
+        com NOWAIT: se a entrevista estiver sendo avaliada nesse instante, responde 409 sem
+        pendurar o DELETE nem arriscar apagar a linha antes da serialização da resposta."""
+        try:
+            simulacao = self.simulacao_repository.buscar_por_id_para_atualizacao(
+                id_simulacao, id_usuario=id_usuario, nowait=True
+            )
+        except OperationalError as erro:
+            self.simulacao_repository.db.rollback()
+            if getattr(getattr(erro, "orig", None), "pgcode", None) == "55P03" or "lock" in str(erro).lower():
+                raise SimulacaoEmAvaliacaoError(
+                    "Esta entrevista está sendo avaliada; tente excluir quando terminar."
+                ) from erro
+            raise
         if simulacao is None or simulacao.id_usuario != id_usuario:
             self.simulacao_repository.db.rollback()
             raise SimulacaoNaoEncontradaError
@@ -135,14 +152,21 @@ class SimuladorService:
         simulação. Concorrência: a linha da simulação é travada (FOR UPDATE) durante a chamada
         de IA e re-verificada depois da reserva de cota, então duas requisições simultâneas nunca
         avaliam (nem cobram) a mesma simulação duas vezes. A reserva é liberada se a IA falhar ou
-        devolver algo inválido."""
+        devolver algo inválido.
+
+        Trade-off conhecido: o `FOR UPDATE` mantém a transação aberta durante a chamada de IA. Na
+        escala atual isso é aceitável e evita uma coluna extra de estado; se a contenção de
+        conexões ou o tempo de fallback da IA crescer, basta substituir por uma marca curta
+        (`avaliando_desde` + `UPDATE ... WHERE avaliada_em IS NULL`)."""
         simulacao = self.obter_simulacao(id_usuario, id_simulacao)
         self._validar_avaliacao_possivel(simulacao, respostas)
 
         with self.uso_ia_service.reservar(id_usuario, "entrevista_avaliacao"):
             # O commit da reserva soltou qualquer lock anterior: trava a linha agora e confere de
             # novo, porque outra requisição pode ter concluído a avaliação nesse intervalo.
-            simulacao = self.simulacao_repository.buscar_por_id_para_atualizacao(id_simulacao)
+            simulacao = self.simulacao_repository.buscar_por_id_para_atualizacao(
+                id_simulacao, id_usuario=id_usuario
+            )
             if simulacao is None or simulacao.id_usuario != id_usuario:
                 raise SimulacaoNaoEncontradaError
             self._validar_avaliacao_possivel(simulacao, respostas)
@@ -224,16 +248,23 @@ class SimuladorService:
                     perguntas.append({"tipo": tipo, "texto": texto})
 
         # Garante a cobertura mínima exigida (RN de aceite: ao menos 1 comportamental, 1
-        # técnica e 1 situacional), mesmo que a IA devolva algo incompleto ou fora do formato.
+        # técnica e 1 situacional) e limita ao teto aceito pelo schema de avaliação (20), mesmo
+        # que a IA devolva algo incompleto ou em excesso.
+        if len(perguntas) > MAXIMO_PERGUNTAS_POR_SIMULACAO:
+            perguntas = perguntas[:MAXIMO_PERGUNTAS_POR_SIMULACAO]
         tipos_presentes = {p["tipo"] for p in perguntas}
+        faltantes = [tipo for tipo in TIPOS_OBRIGATORIOS if tipo not in tipos_presentes]
+        if faltantes and len(perguntas) + len(faltantes) > MAXIMO_PERGUNTAS_POR_SIMULACAO:
+            perguntas = perguntas[: MAXIMO_PERGUNTAS_POR_SIMULACAO - len(faltantes)]
+            tipos_presentes = {p["tipo"] for p in perguntas}
+            faltantes = [tipo for tipo in TIPOS_OBRIGATORIOS if tipo not in tipos_presentes]
         perguntas_reserva = {
             "comportamental": "Conte sobre uma situação em que você precisou lidar com um conflito em equipe.",
             "tecnica": "Descreva sua experiência com as principais ferramentas exigidas por esta vaga.",
             "situacional": "Como você agiria se recebesse uma tarefa com prazo apertado e prioridades conflitantes?",
         }
-        for tipo in TIPOS_OBRIGATORIOS:
-            if tipo not in tipos_presentes:
-                perguntas.append({"tipo": tipo, "texto": perguntas_reserva[tipo]})
+        for tipo in faltantes:
+            perguntas.append({"tipo": tipo, "texto": perguntas_reserva[tipo]})
 
         return perguntas
 

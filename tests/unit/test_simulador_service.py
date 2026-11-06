@@ -6,12 +6,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from sqlalchemy.exc import OperationalError
+
 from app.adapters.ai_service.ai_service_adapter import IAIndisponivelError, IARespostaInvalidaError
 from app.core.persistencia.models.simulacao_entrevista import SimulacaoEntrevista
 from app.core.persistencia.models.vaga import Vaga
 from app.core.service.uso_ia_service import UsoIAService
 from app.core.service.simulador_service import (
+    MAXIMO_PERGUNTAS_POR_SIMULACAO,
     RespostasInvalidasError,
+    SimulacaoEmAvaliacaoError,
     SimulacaoJaAvaliadaError,
     SimulacaoNaoEncontradaError,
     SimuladorService,
@@ -421,8 +425,43 @@ def test_excluir_simulacao_do_proprio_usuario_remove_sem_devolver_cota(simulador
 
     simulador_service.excluir_simulacao(id_usuario, simulacao.id_simulacao)
 
+    repo.buscar_por_id_para_atualizacao.assert_called_once_with(
+        simulacao.id_simulacao, id_usuario=id_usuario, nowait=True
+    )
     repo.excluir.assert_called_once_with(simulacao)
     simulador_service.uso_ia_service.reservar.assert_not_called()
+
+
+def test_excluir_simulacao_em_avaliacao_faz_rollback_e_lanca_conflito(simulador_service):
+    id_usuario = uuid.uuid4()
+    id_simulacao = uuid.uuid4()
+    repo = simulador_service.simulacao_repository
+    repo.db = MagicMock()
+    repo.excluir = MagicMock()
+    erro_lock = OperationalError("SELECT ... FOR UPDATE NOWAIT", {}, SimpleNamespace(pgcode="55P03"))
+    repo.buscar_por_id_para_atualizacao = MagicMock(side_effect=erro_lock)
+
+    with pytest.raises(SimulacaoEmAvaliacaoError, match="sendo avaliada"):
+        simulador_service.excluir_simulacao(id_usuario, id_simulacao)
+
+    repo.db.rollback.assert_called_once()
+    repo.excluir.assert_not_called()
+
+
+def test_interpretar_perguntas_limita_ao_teto_do_schema_preservando_tipos_obrigatorios(simulador_service):
+    excesso = json.dumps(
+        {
+            "perguntas": [
+                {"tipo": "tecnica", "texto": f"Pergunta técnica {i}?"}
+                for i in range(MAXIMO_PERGUNTAS_POR_SIMULACAO + 5)
+            ]
+        }
+    )
+
+    perguntas = simulador_service._interpretar_perguntas(excesso)
+
+    assert len(perguntas) == MAXIMO_PERGUNTAS_POR_SIMULACAO
+    assert {p["tipo"] for p in perguntas} == {"comportamental", "tecnica", "situacional"}
 
 
 def test_excluir_simulacao_de_outro_usuario_ou_inexistente_nao_encontrada(simulador_service):

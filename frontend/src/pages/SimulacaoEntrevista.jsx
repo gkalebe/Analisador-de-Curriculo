@@ -64,7 +64,16 @@ function BadgeStatus({ simulacao }) {
   );
 }
 
-function ItemHistorico({ simulacao, selecionada, onAbrir, onExcluir, excluindo }) {
+function deduplicarHistorico(itens) {
+  const vistos = new Set();
+  return (itens || []).filter((item) => {
+    if (!item?.id_simulacao || vistos.has(item.id_simulacao)) return false;
+    vistos.add(item.id_simulacao);
+    return true;
+  });
+}
+
+function ItemHistorico({ simulacao, selecionada, onAbrir, onExcluir, excluindo, desabilitarExclusao }) {
   return (
     <li className="relative">
       <button
@@ -88,7 +97,7 @@ function ItemHistorico({ simulacao, selecionada, onAbrir, onExcluir, excluindo }
       <button
         type="button"
         onClick={() => onExcluir(simulacao)}
-        disabled={excluindo}
+        disabled={excluindo || desabilitarExclusao}
         aria-label={`Excluir entrevista ${tituloDaSimulacao(simulacao)}`}
         title="Excluir entrevista"
         className="absolute right-2 top-2 rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
@@ -211,7 +220,7 @@ export default function SimulacaoEntrevista() {
   const [carregandoVagas, setCarregandoVagas] = useState(false);
   const [idVagaSelecionada, setIdVagaSelecionada] = useState(idVagaParam);
 
-  const [historico, setHistorico] = useState({ itens: [], total: 0 });
+  const [historico, setHistorico] = useState({ itens: [], total: 0, offset: 0 });
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
   const [erroHistorico, setErroHistorico] = useState(null);
 
@@ -236,8 +245,12 @@ export default function SimulacaoEntrevista() {
 
   const limiteEntrevistas = uso?.plano?.limite_entrevistas;
   const entrevistasUsadas = uso?.usos?.entrevista_inicio || 0;
+  const avaliacoesUsadas = uso?.usos?.entrevista_avaliacao || 0;
   const planoSemEntrevistas = limiteEntrevistas === 0;
   const cotaEsgotada = typeof limiteEntrevistas === "number" && limiteEntrevistas > 0 && entrevistasUsadas >= limiteEntrevistas;
+  const cotaAvaliacaoEsgotada =
+    planoSemEntrevistas ||
+    (typeof limiteEntrevistas === "number" && limiteEntrevistas > 0 && avaliacoesUsadas >= limiteEntrevistas);
   const iniciosBloqueados = planoSemEntrevistas || cotaEsgotada;
 
   const atualizarUso = useCallback(() => {
@@ -260,12 +273,14 @@ export default function SimulacaoEntrevista() {
     setCarregandoHistorico(true);
     setErroHistorico(null);
     return listarSimulacoes({ limit: ITENS_POR_PAGINA, offset })
-      .then((resposta) =>
+      .then((resposta) => {
+        const recebidos = resposta.simulacoes || [];
         setHistorico((atual) => ({
-          itens: offset === 0 ? resposta.simulacoes || [] : [...atual.itens, ...(resposta.simulacoes || [])],
+          itens: offset === 0 ? deduplicarHistorico(recebidos) : deduplicarHistorico([...atual.itens, ...recebidos]),
           total: resposta.paginacao?.total ?? 0,
-        })),
-      )
+          offset: offset + recebidos.length,
+        }));
+      })
       .catch((e) => setErroHistorico(paraErroTela(e, "Não foi possível carregar o histórico de entrevistas.")))
       .finally(() => setCarregandoHistorico(false));
   }, []);
@@ -277,12 +292,13 @@ export default function SimulacaoEntrevista() {
 
   // Abre a simulação indicada na URL (?simulacao=...) e restaura o rascunho das pendentes.
   useEffect(() => {
-    if (!emailInicial) return;
+    if (!emailInicial) return undefined;
     if (!idSimulacaoParam) {
       setSimulacao(null);
-      return;
+      setCarregandoSimulacao(false);
+      return undefined;
     }
-    if (simulacaoAtualRef.current?.id_simulacao === idSimulacaoParam) return;
+    if (simulacaoAtualRef.current?.id_simulacao === idSimulacaoParam) return undefined;
 
     let cancelado = false;
     setCarregandoSimulacao(true);
@@ -304,6 +320,7 @@ export default function SimulacaoEntrevista() {
       });
     return () => {
       cancelado = true;
+      setCarregandoSimulacao(false);
     };
   }, [emailInicial, idSimulacaoParam]);
 
@@ -338,7 +355,7 @@ export default function SimulacaoEntrevista() {
   }
 
   async function excluir(alvo) {
-    if (excluindoId) return;
+    if (excluindoId || avaliando) return;
     const eAtual = alvo.id_simulacao === simulacao?.id_simulacao;
     const confirmado = window.confirm(
       `Excluir a entrevista "${tituloDaSimulacao(alvo)}"? Ela some do seu histórico para sempre, com perguntas, respostas e feedback. A entrevista já consumida continua contando na cota do ciclo.`,
@@ -352,6 +369,7 @@ export default function SimulacaoEntrevista() {
       setHistorico((atual) => ({
         itens: atual.itens.filter((item) => item.id_simulacao !== alvo.id_simulacao),
         total: Math.max(0, atual.total - 1),
+        offset: Math.max(0, (atual.offset ?? atual.itens.length) - 1),
       }));
       if (eAtual) {
         simulacaoAtualRef.current = null;
@@ -370,20 +388,25 @@ export default function SimulacaoEntrevista() {
     setIdVagaSelecionada(idVaga);
   }
 
-  // Mostra a simulação recém-criada/avaliada e a reflete no histórico sem recarregar a lista.
-  function aplicarSimulacao(resposta, { nova }) {
-    const resumo = resumirSimulacao(resposta);
-    setSimulacao(resposta);
-    simulacaoAtualRef.current = resposta;
+  function atualizarItemHistorico(resumo, { nova }) {
     setHistorico((atual) => {
       const existe = atual.itens.some((item) => item.id_simulacao === resumo.id_simulacao);
       return {
         itens: existe
           ? atual.itens.map((item) => (item.id_simulacao === resumo.id_simulacao ? resumo : item))
-          : [resumo, ...atual.itens],
+          : deduplicarHistorico([resumo, ...atual.itens]),
         total: existe ? atual.total : atual.total + (nova ? 1 : 0),
+        offset: (atual.offset ?? atual.itens.length) + (!existe && nova ? 1 : 0),
       };
     });
+  }
+
+  // Mostra a simulação recém-criada/avaliada e a reflete no histórico sem recarregar a lista.
+  function aplicarSimulacao(resposta, { nova }) {
+    const resumo = resumirSimulacao(resposta);
+    setSimulacao(resposta);
+    simulacaoAtualRef.current = resposta;
+    atualizarItemHistorico(resumo, { nova });
   }
 
   async function criarSimulacao(chamada, mensagemPadrao) {
@@ -449,22 +472,37 @@ export default function SimulacaoEntrevista() {
     );
     if (!confirmado) return;
 
+    const idEnviado = simulacao.id_simulacao;
     const respostas = Object.fromEntries(
       simulacao.perguntas.map((p) => [p.id_pergunta, rascunho[p.id_pergunta].trim()]),
     );
     setErro(null);
     setAvaliando(true);
     try {
-      const resposta = await avaliarSimulacao(simulacao.id_simulacao, respostas);
-      limparRascunho(simulacao.id_simulacao);
-      setRascunho({});
-      aplicarSimulacao(resposta, { nova: false });
+      const resposta = await avaliarSimulacao(idEnviado, respostas);
+      limparRascunho(idEnviado);
+      if (simulacaoAtualRef.current?.id_simulacao === idEnviado) {
+        setRascunho({});
+        aplicarSimulacao(resposta, { nova: false });
+      } else {
+        atualizarItemHistorico(resumirSimulacao(resposta), { nova: false });
+      }
       atualizarUso();
     } catch (e) {
       setErro(paraErroTela(e, "Não foi possível avaliar suas respostas. Tente novamente."));
       if (e?.status === 409) {
-        // Já avaliada (outra aba/requisição): recarrega o estado real em vez de manter o formulário.
-        obterSimulacao(simulacao.id_simulacao).then((atual) => aplicarSimulacao(atual, { nova: false })).catch(() => {});
+        // Já avaliada (outra aba/requisição): remove o rascunho obsoleto e recarrega o estado real.
+        limparRascunho(idEnviado);
+        obterSimulacao(idEnviado)
+          .then((atual) => {
+            if (simulacaoAtualRef.current?.id_simulacao === idEnviado) {
+              setRascunho({});
+              aplicarSimulacao(atual, { nova: false });
+            } else {
+              atualizarItemHistorico(resumirSimulacao(atual), { nova: false });
+            }
+          })
+          .catch(() => {});
       }
     } finally {
       setAvaliando(false);
@@ -536,6 +574,7 @@ export default function SimulacaoEntrevista() {
                     onAbrir={abrirSimulacao}
                     onExcluir={excluir}
                     excluindo={excluindoId === item.id_simulacao}
+                    desabilitarExclusao={avaliando}
                   />
                 ))}
               </ul>
@@ -545,7 +584,7 @@ export default function SimulacaoEntrevista() {
               {!carregandoHistorico && historico.itens.length < historico.total && (
                 <button
                   type="button"
-                  onClick={() => carregarHistorico(historico.itens.length)}
+                  onClick={() => carregarHistorico(historico.offset ?? historico.itens.length)}
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:border-[#1e5e3f]"
                 >
                   Carregar mais
@@ -666,7 +705,7 @@ export default function SimulacaoEntrevista() {
                         <button
                           type="button"
                           onClick={() => excluir(simulacao)}
-                          disabled={Boolean(excluindoId)}
+                          disabled={Boolean(excluindoId) || avaliando}
                           className="flex items-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
                         >
                           <i className={`ti ${excluindoId === simulacao.id_simulacao ? "ti-loader animate-spin" : "ti-trash"}`}></i>
@@ -691,6 +730,18 @@ export default function SimulacaoEntrevista() {
                       <p className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
                         Esta entrevista foi feita no formato antigo (avaliação pergunta a pergunta) e está disponível
                         somente para consulta.
+                      </p>
+                    )}
+
+                    {pendente && cotaAvaliacaoEsgotada && (
+                      <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                        {planoSemEntrevistas
+                          ? "Seu plano atual não inclui avaliação de entrevistas."
+                          : `Você já usou todas as avaliações do seu plano neste ciclo${renovacaoCota ? ` (renova em ${renovacaoCota})` : ""}.`}{" "}
+                        Suas respostas ficam salvas como rascunho neste navegador.{" "}
+                        <Link to="/planos" className="font-bold underline">
+                          Ver planos
+                        </Link>
                       </p>
                     )}
 
@@ -744,7 +795,7 @@ export default function SimulacaoEntrevista() {
                       <button
                         type="button"
                         onClick={enviarParaAvaliacao}
-                        disabled={avaliando || respostasProntas < totalPerguntas}
+                        disabled={avaliando || respostasProntas < totalPerguntas || cotaAvaliacaoEsgotada}
                         className="flex items-center gap-2 rounded-md bg-[#1e5e3f] px-4 py-3 font-bold text-white hover:bg-[#174a32] disabled:opacity-60"
                       >
                         <i className={`ti ${avaliando ? "ti-loader animate-spin" : "ti-send"}`}></i>

@@ -97,7 +97,9 @@ LIMITES_OPERACAO = {
     "estruturacao_curriculo": "limite_estruturacoes",
     "mensagem_chat": "limite_mensagens_chat",
     "entrevista_inicio": "limite_entrevistas",
-    # Cada entrevista iniciada é avaliada uma única vez (em lote), então o limite é 1:1.
+    # Mesmo teto de `entrevista_inicio` dentro do ciclo vigente. Contabilizada separadamente no
+    # envio das respostas (entrevistas iniciadas num ciclo anterior e avaliadas no atual usam a
+    # cota de avaliação do ciclo atual).
     "entrevista_avaliacao": "limite_entrevistas",
 }
 

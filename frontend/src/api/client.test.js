@@ -32,18 +32,20 @@ it("usa detail.mensagem e expõe codigo e renovacao_em quando detail é objeto",
   expect(erro.body.detail.tipo_operacao).toBe("mensagem_chat");
 });
 
-it("junta as mensagens de validação quando detail é uma lista (422)", () => {
-  const erro = new ApiError(422, {
+it("mostra apenas mensagens de value_error (em português) nos 422 e usa fallback nas internas do Pydantic", () => {
+  const comValueError = new ApiError(422, {
     detail: [
-      { loc: ["body", "respostas", 0, "resposta"], msg: "String should have at least 10 characters" },
-      { loc: ["body"], msg: "Value error, Cada pergunta deve ser respondida uma única vez." },
+      { type: "string_too_short", loc: ["body", "respostas", 0, "resposta"], msg: "String should have at least 10 characters" },
+      { type: "value_error", loc: ["body"], msg: "Value error, Cada pergunta deve ser respondida uma única vez." },
     ],
   });
+  expect(comValueError.message).toBe("Cada pergunta deve ser respondida uma única vez.");
+  expect(comValueError.codigo).toBeNull();
 
-  expect(erro.message).toBe(
-    "String should have at least 10 characters Cada pergunta deve ser respondida uma única vez.",
-  );
-  expect(erro.codigo).toBeNull();
+  const soPydanticIngles = new ApiError(422, {
+    detail: [{ type: "string_too_short", loc: ["body", "respostas", 0, "resposta"], msg: "String should have at least 10 characters" }],
+  });
+  expect(soPydanticIngles.message).toBe("Dados inválidos. Verifique os campos preenchidos e tente novamente.");
 });
 
 it("cai em mensagens genéricas por status quando não há detail legível", () => {

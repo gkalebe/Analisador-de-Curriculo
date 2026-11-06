@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import (
@@ -9,6 +9,7 @@ from app.adapters.ai_service.ai_service_adapter import (
     IARespostaInvalidaError,
 )
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.core.service.chat_service import (
     ChatService,
     ContextoChatObrigatorioError,
@@ -63,7 +64,9 @@ def listar_mensagens_geral(
 
 
 @router.post("/mensagens", response_model=ChatEnviarResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/hour")
 def enviar_mensagem_geral(
+    request: Request,
     payload: ChatMensagemRequest,
     usuario=Depends(get_usuario_atual),
     chat_service: ChatService = Depends(get_chat_service),
@@ -161,6 +164,7 @@ def listar_mensagens(
     status_code=status.HTTP_201_CREATED,
 )
 def enviar_mensagem(
+    request: Request,
     id_curriculo: uuid.UUID,
     payload: ChatMensagemRequest,
     usuario=Depends(get_usuario_atual),
@@ -173,6 +177,7 @@ def enviar_mensagem(
         id_vaga=payload.id_vaga,
     )
     return enviar_mensagem_geral(
+        request=request,
         payload=payload_com_curriculo,
         usuario=usuario,
         chat_service=chat_service,
@@ -204,6 +209,7 @@ def listar_mensagens_vaga(
     status_code=status.HTTP_201_CREATED,
 )
 def enviar_mensagem_vaga(
+    request: Request,
     id_vaga: uuid.UUID,
     payload: ChatMensagemRequest,
     usuario=Depends(get_usuario_atual),
@@ -216,6 +222,7 @@ def enviar_mensagem_vaga(
         id_vaga=id_vaga,
     )
     return enviar_mensagem_geral(
+        request=request,
         payload=payload_com_vaga,
         usuario=usuario,
         chat_service=chat_service,

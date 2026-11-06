@@ -89,7 +89,7 @@ def test_redefinir_senha_retorna_200_com_token_valido():
 
     response = client.post(
         "/usuarios/redefinir-senha",
-        json={"token": "token-valido", "nova_senha": "senha-nova-123"},
+        json={"token": "token-valido", "nova_senha": "SenhaNova123"},
     )
 
     app.dependency_overrides.clear()
@@ -104,7 +104,7 @@ def test_redefinir_senha_retorna_400_com_token_invalido():
 
     response = client.post(
         "/usuarios/redefinir-senha",
-        json={"token": "token-invalido", "nova_senha": "senha-nova-123"},
+        json={"token": "token-invalido", "nova_senha": "SenhaNova123"},
     )
 
     app.dependency_overrides.clear()
@@ -118,6 +118,18 @@ def test_redefinir_senha_rejeita_senha_curta():
     )
 
     assert response.status_code == 422
+
+
+def test_redefinir_senha_rejeita_senha_fora_das_regras_minimas():
+    response = client.post(
+        "/usuarios/redefinir-senha",
+        json={"token": "qualquer", "nova_senha": "fracaaaaa"},
+    )
+
+    assert response.status_code == 422
+    mensagem = response.json()["detail"][0]["msg"]
+    assert "letra maiúscula" in mensagem
+    assert "número" in mensagem
 
 
 def _payload_cadastro(**overrides):

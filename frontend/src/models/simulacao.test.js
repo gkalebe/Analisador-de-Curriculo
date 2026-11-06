@@ -6,6 +6,7 @@ import {
   salvarRascunho,
   todasRespondidas,
 } from "./simulacao.js";
+import { limparSessao, salvarSessao } from "./usuario.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -14,6 +15,10 @@ afterEach(() => {
 function storageEmMemoria() {
   const dados = new Map();
   return {
+    get length() {
+      return dados.size;
+    },
+    key: (indice) => Array.from(dados.keys())[indice] ?? null,
     getItem: (chave) => (dados.has(chave) ? dados.get(chave) : null),
     setItem: (chave, valor) => dados.set(chave, String(valor)),
     removeItem: (chave) => dados.delete(chave),
@@ -69,4 +74,20 @@ it("funciona sem localStorage (bloqueado ou com JSON corrompido)", () => {
 
   vi.stubGlobal("localStorage", { ...storageEmMemoria(), getItem: () => "{não é json" });
   expect(lerRascunho("sim-1")).toEqual({});
+});
+
+it("limparSessao remove todos os rascunhos de entrevista no logout", () => {
+  const storage = storageEmMemoria();
+  vi.stubGlobal("localStorage", storage);
+
+  salvarSessao({ accessToken: "t", nome: "Ana", email: "ana@example.com" });
+  salvarRascunho("sim-1", { p1: "resposta um" });
+  salvarRascunho("sim-2", { p2: "resposta dois" });
+  storage.setItem("outra_preferencia", "manter");
+
+  limparSessao();
+
+  expect(lerRascunho("sim-1")).toEqual({});
+  expect(lerRascunho("sim-2")).toEqual({});
+  expect(storage.getItem("outra_preferencia")).toBe("manter");
 });

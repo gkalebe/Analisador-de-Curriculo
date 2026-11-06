@@ -14,8 +14,10 @@ from app.adapters.ai_service.ai_service_adapter import (
 from app.core.persistencia.models.simulacao_entrevista import SimulacaoEntrevista
 from app.core.persistencia.models.usuario import Usuario
 from app.core.persistencia.models.vaga import Vaga
+from app.core.rate_limit import limiter
 from app.core.service.simulador_service import (
     RespostasInvalidasError,
+    SimulacaoEmAvaliacaoError,
     SimulacaoJaAvaliadaError,
     SimulacaoNaoEncontradaError,
     VagaNaoEncontradaError,
@@ -325,7 +327,7 @@ def test_repetir_simulacao_cria_nova_simulacao():
         app.dependency_overrides.clear()
 
 
-def test_excluir_simulacao_retorna_204_e_404():
+def test_excluir_simulacao_retorna_204_404_e_409_quando_em_avaliacao():
     usuario = _usuario()
     servico = MagicMock()
     id_simulacao = uuid.uuid4()
@@ -339,7 +341,47 @@ def test_excluir_simulacao_retorna_204_e_404():
 
         servico.excluir_simulacao.side_effect = SimulacaoNaoEncontradaError
         assert client.delete(f"/simulador/{id_simulacao}").status_code == status.HTTP_404_NOT_FOUND
+
+        servico.excluir_simulacao.side_effect = SimulacaoEmAvaliacaoError(
+            "Esta entrevista está sendo avaliada; tente excluir quando terminar."
+        )
+        conflito = client.delete(f"/simulador/{id_simulacao}")
+        assert conflito.status_code == status.HTTP_409_CONFLICT
+        assert "sendo avaliada" in conflito.json()["detail"]
     finally:
+        app.dependency_overrides.clear()
+
+
+def test_rotas_de_ia_do_simulador_aplicam_rate_limit():
+    usuario = _usuario()
+    id_simulacao, id_pergunta = uuid.uuid4(), uuid.uuid4()
+    servico = MagicMock()
+    servico.repetir_simulacao.return_value = _simulacao_avaliada(
+        usuario.id_usuario, uuid.uuid4(), uuid.uuid4(), [id_pergunta]
+    )
+    servico.avaliar_simulacao.return_value = _simulacao_avaliada(
+        usuario.id_usuario, id_simulacao, uuid.uuid4(), [id_pergunta]
+    )
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_simulador_service] = lambda: servico
+    limiter.reset()
+    limiter.enabled = True
+    try:
+        for _ in range(10):
+            assert client.post(f"/simulador/{id_simulacao}/repetir").status_code == status.HTTP_201_CREATED
+        assert client.post(f"/simulador/{id_simulacao}/repetir").status_code == status.HTTP_429_TOO_MANY_REQUESTS
+
+        payload = _payload_avaliacao(id_pergunta)
+        for _ in range(20):
+            assert client.post(f"/simulador/{id_simulacao}/avaliar", json=payload).status_code == status.HTTP_200_OK
+        assert (
+            client.post(f"/simulador/{id_simulacao}/avaliar", json=payload).status_code
+            == status.HTTP_429_TOO_MANY_REQUESTS
+        )
+    finally:
+        limiter.reset()
+        limiter.enabled = False
         app.dependency_overrides.clear()
 
 

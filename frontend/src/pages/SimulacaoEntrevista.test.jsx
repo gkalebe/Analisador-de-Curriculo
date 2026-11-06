@@ -100,6 +100,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 it("lista o histórico com vaga, status e nota, e abre uma entrevista avaliada em somente leitura", async () => {
@@ -259,4 +260,119 @@ it("excluir a entrevista aberta fecha o painel e a remove do histórico", async 
 
   await waitFor(() => expect(mocks.excluirSimulacao).toHaveBeenCalledWith("sim-avaliada"));
   await waitFor(() => expect(screen.queryByText("Entrevista sólida no geral.")).toBeNull());
+});
+
+it("clicar em 'Nova entrevista' durante o carregamento cancela o spinner e abre o seletor de vaga", async () => {
+  mocks.obterSimulacao.mockImplementation(() => new Promise(() => {}));
+  renderizar("/analises/simulacao?simulacao=sim-pendente");
+
+  expect(await screen.findByText("Carregando simulação...")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: /Nova entrevista/ }));
+
+  expect(await screen.findByText("Para qual vaga você quer treinar?")).toBeTruthy();
+  expect(screen.queryByText("Carregando simulação...")).toBeNull();
+});
+
+it("trocar de entrevista durante a avaliação não sobrescreve a entrevista aberta nem apaga seu rascunho", async () => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  let concluirAvaliacao;
+  mocks.avaliarSimulacao.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        concluirAvaliacao = resolve;
+      }),
+  );
+  renderizar("/analises/simulacao?simulacao=sim-pendente");
+
+  fireEvent.change(await screen.findByLabelText("Resposta da pergunta 1"), { target: { value: "Uso FastAPI com camadas." } });
+  fireEvent.change(screen.getByLabelText("Resposta da pergunta 2"), { target: { value: "Priorizo e comunico o risco." } });
+  fireEvent.click(screen.getByRole("button", { name: "Enviar para avaliação" }));
+
+  await waitFor(() => expect(mocks.avaliarSimulacao).toHaveBeenCalled());
+  // Enquanto avalia, o botão Excluir fica desabilitado.
+  expect(screen.getByRole("button", { name: "Excluir" }).disabled).toBe(true);
+
+  // Usuário abre outra entrevista do histórico enquanto a IA ainda está respondendo.
+  const historico = screen.getByRole("complementary", { name: "Histórico de entrevistas" });
+  fireEvent.click(within(historico).getByText("Analista de Dados"));
+
+  expect(await screen.findByText("Entrevista sólida no geral.")).toBeTruthy();
+
+  // Agora a avaliação da primeira termina: a tela continua na entrevista aberta (Analista de Dados)
+  // e o histórico reflete a primeira como avaliada.
+  concluirAvaliacao({
+    ...SIM_AVALIADA,
+    id_simulacao: "sim-pendente",
+    vaga_titulo: "Dev Backend",
+    feedback_geral: "Feedback da primeira entrevista.",
+  });
+
+  await waitFor(() => expect(within(historico).queryByText("Pendente de respostas")).toBeNull());
+  expect(screen.getByText("Entrevista sólida no geral.")).toBeTruthy();
+  expect(screen.queryByText("Feedback da primeira entrevista.")).toBeNull();
+});
+
+it("no 409 limpa o rascunho obsoleto e recarrega a entrevista já avaliada", async () => {
+  const dados = new Map();
+  vi.stubGlobal("localStorage", {
+    getItem: (chave) => (dados.has(chave) ? dados.get(chave) : null),
+    setItem: (chave, valor) => dados.set(chave, String(valor)),
+    removeItem: (chave) => dados.delete(chave),
+  });
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  mocks.avaliarSimulacao.mockRejectedValue(new ApiError(409, { detail: "Esta simulação já foi avaliada." }));
+  mocks.obterSimulacao
+    .mockResolvedValueOnce(SIM_PENDENTE)
+    .mockResolvedValueOnce({ ...SIM_AVALIADA, id_simulacao: "sim-pendente", vaga_titulo: "Dev Backend" });
+
+  renderizar("/analises/simulacao?simulacao=sim-pendente");
+
+  fireEvent.change(await screen.findByLabelText("Resposta da pergunta 1"), { target: { value: "Uso FastAPI com camadas." } });
+  fireEvent.change(screen.getByLabelText("Resposta da pergunta 2"), { target: { value: "Priorizo e comunico o risco." } });
+  expect(dados.get("simulacao_rascunho_v1:sim-pendente")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Enviar para avaliação" }));
+
+  expect(await screen.findByText("Entrevista sólida no geral.")).toBeTruthy();
+  expect(dados.has("simulacao_rascunho_v1:sim-pendente")).toBe(false);
+});
+
+it("pagina o histórico com 'Carregar mais' e deduplica itens por id_simulacao", async () => {
+  const terceira = { ...RESUMO_AVALIADA, id_simulacao: "sim-3", vaga_titulo: "Engenheiro de Dados" };
+  mocks.listarSimulacoes
+    .mockResolvedValueOnce({
+      simulacoes: [RESUMO_PENDENTE, RESUMO_AVALIADA],
+      paginacao: { total: 3, limit: 20, offset: 0 },
+    })
+    .mockResolvedValueOnce({
+      simulacoes: [RESUMO_AVALIADA, terceira],
+      paginacao: { total: 3, limit: 20, offset: 2 },
+    });
+
+  renderizar();
+
+  const botaoMais = await screen.findByRole("button", { name: "Carregar mais" });
+  fireEvent.click(botaoMais);
+
+  await waitFor(() => expect(mocks.listarSimulacoes).toHaveBeenLastCalledWith({ limit: 20, offset: 2 }));
+  const historico = screen.getByRole("complementary", { name: "Histórico de entrevistas" });
+  expect(within(historico).getByText("Engenheiro de Dados")).toBeTruthy();
+  expect(within(historico).getAllByText("Analista de Dados")).toHaveLength(1);
+});
+
+it("avisa antes de responder quando a cota de avaliação do ciclo já acabou", async () => {
+  mocks.obterUsoPlano.mockResolvedValue({
+    uso: {
+      plano: { limite_entrevistas: 5 },
+      usos: { entrevista_inicio: 2, entrevista_avaliacao: 5 },
+      fim_janela: "2026-12-01T12:00:00Z",
+    },
+  });
+  renderizar("/analises/simulacao?simulacao=sim-pendente");
+
+  expect(await screen.findByText(/Você já usou todas as avaliações do seu plano neste ciclo/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Resposta da pergunta 1"), { target: { value: "Uso FastAPI com camadas." } });
+  fireEvent.change(screen.getByLabelText("Resposta da pergunta 2"), { target: { value: "Priorizo e comunico o risco." } });
+  expect(screen.getByRole("button", { name: "Enviar para avaliação" }).disabled).toBe(true);
 });

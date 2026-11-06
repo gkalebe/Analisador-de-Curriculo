@@ -53,4 +53,16 @@ export function limparSessao() {
   localStorage.removeItem(CHAVES_SESSAO.nome);
   localStorage.removeItem(CHAVES_SESSAO.email);
   localStorage.removeItem("usuario_notificacoes_email");
+  try {
+    const chavesRascunho = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const chave = localStorage.key(i);
+      if (chave && chave.startsWith("simulacao_rascunho_v1:")) {
+        chavesRascunho.push(chave);
+      }
+    }
+    chavesRascunho.forEach((chave) => localStorage.removeItem(chave));
+  } catch {
+    // Storage indisponível: nada a limpar.
+  }
 }

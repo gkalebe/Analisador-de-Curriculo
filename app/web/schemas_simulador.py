@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from app.core.service.simulador_service import MAXIMO_PERGUNTAS_POR_SIMULACAO
 from app.web.paginacao import PaginacaoMeta
 
 
@@ -15,7 +16,6 @@ class SimulacaoIniciarRequest(BaseModel):
 
 TAMANHO_MINIMO_RESPOSTA = 10
 TAMANHO_MAXIMO_RESPOSTA = 4000
-MAXIMO_PERGUNTAS_POR_SIMULACAO = 20
 
 
 class RespostaPerguntaRequest(BaseModel):
@@ -30,7 +30,6 @@ class RespostaPerguntaRequest(BaseModel):
 
 
 class AvaliacaoSimulacaoRequest(BaseModel):
-    email: EmailStr | None = None
     respostas: list[RespostaPerguntaRequest] = Field(min_length=1, max_length=MAXIMO_PERGUNTAS_POR_SIMULACAO)
 
     @model_validator(mode="after")

@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import (
@@ -9,8 +9,10 @@ from app.adapters.ai_service.ai_service_adapter import (
     IARespostaInvalidaError,
 )
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.core.service.simulador_service import (
     RespostasInvalidasError,
+    SimulacaoEmAvaliacaoError,
     SimulacaoJaAvaliadaError,
     SimulacaoNaoEncontradaError,
     SimuladorService,
@@ -34,7 +36,9 @@ def get_simulador_service(db: Session = Depends(get_db)) -> SimuladorService:
 
 
 @router.post("/iniciar", response_model=SimulacaoResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
 def iniciar_simulacao(
+    request: Request,
     payload: SimulacaoIniciarRequest,
     usuario=Depends(get_usuario_atual),
     simulador_service: SimuladorService = Depends(get_simulador_service),
@@ -105,11 +109,18 @@ def excluir_simulacao(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Simulação de entrevista não encontrada para este usuário.",
         ) from erro
+    except SimulacaoEmAvaliacaoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(erro),
+        ) from erro
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{id_simulacao}/repetir", response_model=SimulacaoResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
 def repetir_simulacao(
+    request: Request,
     id_simulacao: uuid.UUID,
     usuario=Depends(get_usuario_atual),
     simulador_service: SimuladorService = Depends(get_simulador_service),
@@ -139,7 +150,9 @@ def repetir_simulacao(
 
 
 @router.post("/{id_simulacao}/avaliar", response_model=SimulacaoResponse)
+@limiter.limit("20/hour")
 def avaliar_simulacao(
+    request: Request,
     id_simulacao: uuid.UUID,
     payload: AvaliacaoSimulacaoRequest,
     usuario=Depends(get_usuario_atual),
