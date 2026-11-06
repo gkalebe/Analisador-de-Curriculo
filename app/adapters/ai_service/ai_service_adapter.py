@@ -662,7 +662,14 @@ class AIServiceAdapter:
             "candidato tem a competência e NUNCA sugerem incluir experiência, ferramenta, empresa, número "
             "ou certificação que não esteja no currículo: quando não houver sustentação, escreva de forma "
             "condicional (\"Se você já usou X em...\") ou oriente a desenvolver a competência antes de "
-            "citá-la.\n\n"
+            "citá-la.\n"
+            "15. \"plano_desenvolvimento\": para CADA competência em lacuna (as mesmas do item 14), monte "
+            "uma trilha prática de 2 a 4 passos para desenvolvê-la e defina a prioridade ('alta' para "
+            "requisito obrigatório não evidenciado, 'media' ou 'baixa' para os demais). Em \"certificacoes\" "
+            "cite apenas certificações REAIS e amplamente reconhecidas (emitidas pelo fabricante da "
+            "tecnologia ou por organização conhecida); se não tiver certeza de que existe, deixe a lista "
+            "vazia. Se não houver nenhuma lacuna, deixe \"itens\" vazio e sugira de 1 a 3 "
+            "\"certificacoes_opcionais\" que diferenciariam o candidato nessa vaga.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
             "{\n"
@@ -701,6 +708,17 @@ class AIServiceAdapter:
             '      "onde_evidenciar": "<resumo | experiencia_profissional | habilidades | formacao | projetos>"\n'
             "    }\n"
             "  ],\n"
+            '  "plano_desenvolvimento": {\n'
+            '    "itens": [\n'
+            "      {\n"
+            '        "competencia": "<competência em lacuna, mesmo texto do item 14>",\n'
+            '        "prioridade": "<alta | media | baixa>",\n'
+            '        "certificacoes": [{"nome": "<certificação real>", "emissor": "<organização emissora>"}],\n'
+            '        "trilha": ["<passo 1>", "<passo 2>", "<passo 3>"]\n'
+            "      }\n"
+            "    ],\n"
+            '    "certificacoes_opcionais": [{"nome": "<certificação real>", "emissor": "<organização>", "motivo": "<1 frase>"}]\n'
+            "  },\n"
             f'  "curriculo_estruturado": {FORMATO_JSON_CURRICULO_ESTRUTURADO}\n'
             "}\n\n"
             f"Descrição da vaga:\n{texto_vaga}\n\n"
