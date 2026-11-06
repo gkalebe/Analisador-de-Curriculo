@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     password_reset_expire_minutes: int = 30
     gemini_api_key: str = ""
     gemini_model_name: str = "gemini-3.8-flash"
+    # Lista separada por vírgula; usada quando o modelo principal responde 503 (alta demanda).
+    gemini_fallback_models: str = "gemini-3.6-flash,gemini-flash-latest"
     groq_api_key: str = ""
     groq_model_name: str = "openai/gpt-oss-120b"
     mistral_api_key: str = ""
@@ -60,6 +62,10 @@ class Settings(BaseSettings):
             "max": self.stripe_price_max,
             "ultimate": self.stripe_price_ultimate,
         }
+
+    @property
+    def gemini_modelos_reserva(self) -> list[str]:
+        return [m.strip() for m in self.gemini_fallback_models.split(",") if m.strip()]
 
     @property
     def cors_origins_lista(self) -> list[str]:

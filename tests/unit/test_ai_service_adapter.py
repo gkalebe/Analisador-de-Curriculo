@@ -298,3 +298,40 @@ def test_schema_compativel_com_gemini_aceito_pelo_sdk_google():
     # Não deve lançar ValueError: Unknown field for Schema: maximum/minimum/...
     config = generation_types.to_generation_config_dict({"response_schema": schema})
     assert config["response_schema"] is not None
+
+
+def test_gemini_client_usa_modelo_reserva_quando_principal_segue_sobrecarregado(monkeypatch):
+    import google.api_core.exceptions
+    import google.generativeai as genai
+
+    from app.adapters.ai_service import ai_service_adapter
+
+    class RespostaFalsa:
+        text = "ok"
+
+    chamadas: list[str] = []
+
+    class ModeloFalso:
+        def __init__(self, nome):
+            self.nome = nome
+
+        def generate_content(self, prompt, **kwargs):
+            chamadas.append(self.nome)
+            if self.nome == "principal":
+                raise google.api_core.exceptions.ServiceUnavailable("alta demanda")
+            if self.nome == "inexistente":
+                raise google.api_core.exceptions.NotFound("modelo não existe")
+            return RespostaFalsa()
+
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", ModeloFalso)
+    monkeypatch.setattr(ai_service_adapter.time, "sleep", lambda segundos: None)
+
+    cliente = GeminiClient(
+        api_key="chave-qualquer",
+        model_name="principal",
+        modelos_reserva=["inexistente", "reserva"],
+    )
+
+    assert cliente.gerar_resposta("prompt") == "ok"
+    assert chamadas == ["principal"] * ai_service_adapter.MAX_TENTATIVAS_GEMINI + ["inexistente", "reserva"]
