@@ -1,17 +1,19 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import (
     IAConfiguracaoAusenteError,
     IAIndisponivelError,
+    IARespostaInvalidaError,
 )
 from app.core.database import get_db
 from app.core.rate_limit import limiter
 from app.core.service.simulador_service import (
-    PerguntaNaoEncontradaError,
-    RespostaVaziaError,
+    RespostasInvalidasError,
+    SimulacaoEmAvaliacaoError,
+    SimulacaoJaAvaliadaError,
     SimulacaoNaoEncontradaError,
     SimuladorService,
     VagaNaoEncontradaError,
@@ -19,7 +21,7 @@ from app.core.service.simulador_service import (
 from app.web.dependencies import get_usuario_atual
 from app.web.paginacao import ParametrosPaginacao, get_paginacao, montar_meta
 from app.web.schemas_simulador import (
-    RespostaSimulacaoRequest,
+    AvaliacaoSimulacaoRequest,
     SimulacaoIniciarRequest,
     SimulacaoItemResponse,
     SimulacaoListResponse,
@@ -52,6 +54,8 @@ def iniciar_simulacao(
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
     except IAIndisponivelError as erro:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IARespostaInvalidaError as erro:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(erro)) from erro
 
     return SimulacaoResponse.model_validate(simulacao)
 
@@ -67,16 +71,7 @@ def listar_simulacoes(
         usuario.id_usuario, limit=paginacao.limit, offset=paginacao.offset
     )
     return SimulacaoListResponse(
-        simulacoes=[
-            SimulacaoItemResponse(
-                id_simulacao=s.id_simulacao,
-                id_vaga=s.id_vaga,
-                data_criacao=s.data_criacao,
-                total_perguntas=len(s.perguntas or []),
-                total_respondidas=len([p for p in (s.perguntas or []) if p.get("resposta")]),
-            )
-            for s in simulacoes
-        ],
+        simulacoes=[SimulacaoItemResponse.model_validate(s) for s in simulacoes],
         paginacao=montar_meta(
             len(simulacoes), paginacao, lambda: simulador_service.contar_simulacoes_usuario(usuario.id_usuario)
         ),
@@ -101,38 +96,96 @@ def obter_simulacao(
     return SimulacaoResponse.model_validate(simulacao)
 
 
-@router.post("/{id_simulacao}/perguntas/{id_pergunta}/resposta", response_model=SimulacaoResponse)
-@limiter.limit("20/hour")
-def responder_pergunta(
+@router.delete("/{id_simulacao}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_simulacao(
+    id_simulacao: uuid.UUID,
+    usuario=Depends(get_usuario_atual),
+    simulador_service: SimuladorService = Depends(get_simulador_service),
+) -> Response:
+    try:
+        simulador_service.excluir_simulacao(usuario.id_usuario, id_simulacao)
+    except SimulacaoNaoEncontradaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Simulação de entrevista não encontrada para este usuário.",
+        ) from erro
+    except SimulacaoEmAvaliacaoError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(erro),
+        ) from erro
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{id_simulacao}/repetir", response_model=SimulacaoResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
+def repetir_simulacao(
     request: Request,
     id_simulacao: uuid.UUID,
-    id_pergunta: uuid.UUID,
-    payload: RespostaSimulacaoRequest,
     usuario=Depends(get_usuario_atual),
     simulador_service: SimuladorService = Depends(get_simulador_service),
 ) -> SimulacaoResponse:
+    """Nova simulação (novas perguntas) para a mesma vaga; consome 1 entrevista da cota e não
+    altera a simulação original."""
     try:
-        simulacao = simulador_service.responder_pergunta(
+        simulacao = simulador_service.repetir_simulacao(usuario.id_usuario, id_simulacao)
+    except SimulacaoNaoEncontradaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Simulação de entrevista não encontrada para este usuário.",
+        ) from erro
+    except VagaNaoEncontradaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A vaga desta simulação não está mais disponível.",
+        ) from erro
+    except IAConfiguracaoAusenteError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IAIndisponivelError as erro:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IARespostaInvalidaError as erro:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(erro)) from erro
+
+    return SimulacaoResponse.model_validate(simulacao)
+
+
+@router.post("/{id_simulacao}/avaliar", response_model=SimulacaoResponse)
+@limiter.limit("20/hour")
+def avaliar_simulacao(
+    request: Request,
+    id_simulacao: uuid.UUID,
+    payload: AvaliacaoSimulacaoRequest,
+    usuario=Depends(get_usuario_atual),
+    simulador_service: SimuladorService = Depends(get_simulador_service),
+) -> SimulacaoResponse:
+    """Avalia todas as respostas de uma vez (uma chamada de IA, uma reserva de cota)."""
+    respostas = {str(item.id_pergunta): item.resposta for item in payload.respostas}
+    try:
+        simulacao = simulador_service.avaliar_simulacao(
             id_usuario=usuario.id_usuario,
             id_simulacao=id_simulacao,
-            id_pergunta=id_pergunta,
-            resposta=payload.resposta,
+            respostas=respostas,
         )
     except SimulacaoNaoEncontradaError as erro:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Simulação de entrevista não encontrada para este usuário.",
         ) from erro
-    except PerguntaNaoEncontradaError as erro:
+    except SimulacaoJaAvaliadaError as erro:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Pergunta não encontrada nesta simulação.",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Esta simulação já foi avaliada. Use \"Repetir entrevista\" para treinar de novo.",
         ) from erro
-    except RespostaVaziaError as erro:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(erro)) from erro
+    except RespostasInvalidasError as erro:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(erro)) from erro
     except IAConfiguracaoAusenteError as erro:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
     except IAIndisponivelError as erro:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(erro)) from erro
+    except IARespostaInvalidaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"{erro} Sua cota não foi consumida; envie as respostas novamente.",
+        ) from erro
 
     return SimulacaoResponse.model_validate(simulacao)

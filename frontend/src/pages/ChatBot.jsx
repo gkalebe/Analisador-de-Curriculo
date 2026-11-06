@@ -7,7 +7,7 @@ import { enviarMensagemChat, encerrarConversaChat, listarMensagensChat } from ".
 import { listarCurriculos } from "../api/curriculoApi.js";
 import { listarVagas } from "../api/vagasApi.js";
 import { lerSessao } from "../models/usuario.js";
-import { ApiError } from "../api/client.js";
+import AvisoErro, { paraErroTela } from "../components/AvisoErro.jsx";
 
 export default function ChatBot() {
   const [searchParams] = useSearchParams();
@@ -23,7 +23,7 @@ export default function ChatBot() {
   const [pergunta, setPergunta] = useState("");
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState("");
+  const [erro, setErro] = useState(null);
   const fimDaListaRef = useRef(null);
   const contextoAtualRef = useRef({ idCurriculo: "", idVaga: "" });
 
@@ -62,7 +62,7 @@ export default function ChatBot() {
     }
 
     setCarregandoHistorico(true);
-    setErro("");
+    setErro(null);
 
     listarMensagensChat({
       email: emailInicial,
@@ -70,9 +70,7 @@ export default function ChatBot() {
       idVaga: idVagaSelecionada || undefined,
     })
       .then((resposta) => setMensagens(resposta.mensagens || []))
-      .catch((e) =>
-        setErro(e instanceof ApiError ? e.message : "Não foi possível carregar o histórico da conversa."),
-      )
+      .catch((e) => setErro(paraErroTela(e, "Não foi possível carregar o histórico da conversa.")))
       .finally(() => setCarregandoHistorico(false));
   }, [emailInicial, idCurriculoSelecionado, idVagaSelecionada]);
 
@@ -136,7 +134,7 @@ export default function ChatBot() {
     const textoPergunta = (textoDireto || pergunta).trim();
     if (!textoPergunta || nenhumSelecionado || enviando) return;
 
-    setErro("");
+    setErro(null);
     setEnviando(true);
     if (!textoDireto) setPergunta("");
 
@@ -149,7 +147,7 @@ export default function ChatBot() {
       });
       setMensagens((atual) => [...atual, resposta.mensagem_usuario, resposta.mensagem_assistente]);
     } catch (e) {
-      setErro(e instanceof ApiError ? e.message : "Não foi possível enviar sua mensagem. Tente novamente.");
+      setErro(paraErroTela(e, "Não foi possível enviar sua mensagem. Tente novamente."));
       if (!textoDireto) setPergunta(textoPergunta);
     } finally {
       setEnviando(false);
@@ -386,7 +384,7 @@ export default function ChatBot() {
               </div>
             )}
 
-            {erro && <div className="px-6 py-2 text-sm text-red-700 bg-red-50 border-t border-red-200">{erro}</div>}
+            <AvisoErro erro={erro} className="px-6 py-2 text-sm text-red-700 bg-red-50 border-t border-red-200" />
 
             {/* Formulário de Envio */}
             <form

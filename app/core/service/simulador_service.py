@@ -2,15 +2,18 @@ import json
 import uuid
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import AIServiceAdapter
-from app.core.persistencia.models.simulacao_entrevista import SimulacaoEntrevista
+from app.adapters.ai_service.response_contracts import interpretar_avaliacao_entrevista
+from app.core.persistencia.models.simulacao_entrevista import SimulacaoEntrevista, calcular_nota_final
 from app.core.persistencia.simulacao_repository import SimulacaoRepository
 from app.core.persistencia.vaga_repository import VagaRepository
 from app.core.service.uso_ia_service import UsoIAService
 
 TIPOS_OBRIGATORIOS = ("comportamental", "tecnica", "situacional")
+MAXIMO_PERGUNTAS_POR_SIMULACAO = 20
 
 
 class VagaNaoEncontradaError(Exception):
@@ -21,11 +24,15 @@ class SimulacaoNaoEncontradaError(Exception):
     pass
 
 
-class PerguntaNaoEncontradaError(Exception):
+class SimulacaoJaAvaliadaError(Exception):
     pass
 
 
-class RespostaVaziaError(Exception):
+class SimulacaoEmAvaliacaoError(Exception):
+    pass
+
+
+class RespostasInvalidasError(Exception):
     pass
 
 
@@ -106,46 +113,118 @@ class SimuladorService:
             raise SimulacaoNaoEncontradaError
         return simulacao
 
-    def responder_pergunta(
+    def excluir_simulacao(self, id_usuario: uuid.UUID, id_simulacao: uuid.UUID) -> None:
+        """Exclusão definitiva, pedida pelo próprio usuário. Não devolve cota: a entrevista
+        (e a avaliação, se houve) já foi consumida no ciclo. Trava a linha filtrando pelo dono e
+        com NOWAIT: se a entrevista estiver sendo avaliada nesse instante, responde 409 sem
+        pendurar o DELETE nem arriscar apagar a linha antes da serialização da resposta."""
+        try:
+            simulacao = self.simulacao_repository.buscar_por_id_para_atualizacao(
+                id_simulacao, id_usuario=id_usuario, nowait=True
+            )
+        except OperationalError as erro:
+            self.simulacao_repository.db.rollback()
+            if getattr(getattr(erro, "orig", None), "pgcode", None) == "55P03" or "lock" in str(erro).lower():
+                raise SimulacaoEmAvaliacaoError(
+                    "Esta entrevista está sendo avaliada; tente excluir quando terminar."
+                ) from erro
+            raise
+        if simulacao is None or simulacao.id_usuario != id_usuario:
+            self.simulacao_repository.db.rollback()
+            raise SimulacaoNaoEncontradaError
+        self.simulacao_repository.excluir(simulacao)
+
+    def repetir_simulacao(self, id_usuario: uuid.UUID, id_simulacao: uuid.UUID) -> SimulacaoEntrevista:
+        """Cria uma NOVA simulação para a mesma vaga (novas perguntas, consome 1 entrevista da
+        cota). A simulação original, com respostas e feedback, não é alterada."""
+        original = self.obter_simulacao(id_usuario, id_simulacao)
+        return self.iniciar_simulacao(id_usuario, original.id_vaga)
+
+    def avaliar_simulacao(
         self,
         id_usuario: uuid.UUID,
         id_simulacao: uuid.UUID,
-        id_pergunta: uuid.UUID | str,
-        resposta: str,
+        respostas: dict[str, str],
     ) -> SimulacaoEntrevista:
+        """Avalia todas as respostas de uma vez (uma única chamada de IA, uma reserva de cota).
+
+        `respostas` mapeia id_pergunta -> texto; precisa conter exatamente as perguntas da
+        simulação. Concorrência: a linha da simulação é travada (FOR UPDATE) durante a chamada
+        de IA e re-verificada depois da reserva de cota, então duas requisições simultâneas nunca
+        avaliam (nem cobram) a mesma simulação duas vezes. A reserva é liberada se a IA falhar ou
+        devolver algo inválido.
+
+        Trade-off conhecido: o `FOR UPDATE` mantém a transação aberta durante a chamada de IA. Na
+        escala atual isso é aceitável e evita uma coluna extra de estado; se a contenção de
+        conexões ou o tempo de fallback da IA crescer, basta substituir por uma marca curta
+        (`avaliando_desde` + `UPDATE ... WHERE avaliada_em IS NULL`)."""
         simulacao = self.obter_simulacao(id_usuario, id_simulacao)
+        self._validar_avaliacao_possivel(simulacao, respostas)
 
-        resposta_normalizada = (resposta or "").strip()
-        if not resposta_normalizada:
-            raise RespostaVaziaError("Digite uma resposta antes de enviar.")
-
-        perguntas = list(simulacao.perguntas or [])
-        indice = next((i for i, p in enumerate(perguntas) if p.get("id_pergunta") == str(id_pergunta)), None)
-        if indice is None:
-            raise PerguntaNaoEncontradaError
-
-        pergunta = perguntas[indice]
-        vaga = self.vaga_repository.buscar_por_id(simulacao.id_vaga)
-        texto_vaga = self._montar_texto_vaga(vaga) if vaga else ""
-
-        with self.uso_ia_service.reservar(id_usuario, "entrevista_feedback"):
-            resultado_ia = self.ai_service_adapter.avaliar_resposta_entrevista(
-                texto_vaga=texto_vaga,
-                pergunta=pergunta["texto"],
-                tipo=pergunta["tipo"],
-                resposta=resposta_normalizada,
+        with self.uso_ia_service.reservar(id_usuario, "entrevista_avaliacao"):
+            # O commit da reserva soltou qualquer lock anterior: trava a linha agora e confere de
+            # novo, porque outra requisição pode ter concluído a avaliação nesse intervalo.
+            simulacao = self.simulacao_repository.buscar_por_id_para_atualizacao(
+                id_simulacao, id_usuario=id_usuario
             )
-            feedback = self._interpretar_feedback(resultado_ia)
+            if simulacao is None or simulacao.id_usuario != id_usuario:
+                raise SimulacaoNaoEncontradaError
+            self._validar_avaliacao_possivel(simulacao, respostas)
 
-            pergunta_atualizada = {
-                **pergunta,
-                "resposta": resposta_normalizada,
-                "feedback": feedback,
-                "respondida_em": datetime.now(timezone.utc).isoformat(),
-            }
-            novas_perguntas = [*perguntas[:indice], pergunta_atualizada, *perguntas[indice + 1 :]]
+            perguntas = list(simulacao.perguntas or [])
+            vaga = self.vaga_repository.buscar_por_id(simulacao.id_vaga)
+            texto_vaga = self._montar_texto_vaga(vaga) if vaga else ""
+            itens = [
+                {
+                    "ordem": posicao,
+                    "tipo": pergunta["tipo"],
+                    "pergunta": pergunta["texto"],
+                    "resposta": respostas[pergunta["id_pergunta"]],
+                }
+                for posicao, pergunta in enumerate(perguntas, start=1)
+            ]
 
-            return self.simulacao_repository.salvar_perguntas(simulacao, novas_perguntas)
+            resultado_ia = self.ai_service_adapter.avaliar_respostas_entrevista(texto_vaga, itens)
+            avaliacao = interpretar_avaliacao_entrevista(resultado_ia, len(perguntas))
+            por_ordem = {item.ordem: item for item in avaliacao.avaliacoes}
+
+            agora = datetime.now(timezone.utc)
+            perguntas_avaliadas = []
+            for posicao, pergunta in enumerate(perguntas, start=1):
+                item = por_ordem[posicao]
+                perguntas_avaliadas.append(
+                    {
+                        **pergunta,
+                        "resposta": respostas[pergunta["id_pergunta"]],
+                        "feedback": {
+                            dimensao: {
+                                "nota": getattr(item, dimensao).nota,
+                                "comentario": getattr(item, dimensao).comentario.strip(),
+                            }
+                            for dimensao in ("clareza", "objetividade", "coerencia", "alinhamento")
+                        }
+                        | {"feedback_geral": item.feedback_geral.strip()},
+                        "respondida_em": agora.isoformat(),
+                    }
+                )
+
+            return self.simulacao_repository.salvar_avaliacao(
+                simulacao,
+                perguntas_avaliadas,
+                feedback_geral=avaliacao.feedback_geral.strip(),
+                nota_final=calcular_nota_final(perguntas_avaliadas),
+                avaliada_em=agora,
+            )
+
+    @staticmethod
+    def _validar_avaliacao_possivel(simulacao: SimulacaoEntrevista, respostas: dict[str, str]) -> None:
+        if simulacao.status == "avaliada":
+            raise SimulacaoJaAvaliadaError
+        ids_esperados = {p["id_pergunta"] for p in (simulacao.perguntas or [])}
+        if not ids_esperados or set(respostas) != ids_esperados:
+            raise RespostasInvalidasError(
+                "Responda todas as perguntas da simulação, sem faltar nem incluir perguntas de outra entrevista."
+            )
 
     def listar_simulacoes_usuario(
         self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0
@@ -169,42 +248,25 @@ class SimuladorService:
                     perguntas.append({"tipo": tipo, "texto": texto})
 
         # Garante a cobertura mínima exigida (RN de aceite: ao menos 1 comportamental, 1
-        # técnica e 1 situacional), mesmo que a IA devolva algo incompleto ou fora do formato.
+        # técnica e 1 situacional) e limita ao teto aceito pelo schema de avaliação (20), mesmo
+        # que a IA devolva algo incompleto ou em excesso.
+        if len(perguntas) > MAXIMO_PERGUNTAS_POR_SIMULACAO:
+            perguntas = perguntas[:MAXIMO_PERGUNTAS_POR_SIMULACAO]
         tipos_presentes = {p["tipo"] for p in perguntas}
+        faltantes = [tipo for tipo in TIPOS_OBRIGATORIOS if tipo not in tipos_presentes]
+        if faltantes and len(perguntas) + len(faltantes) > MAXIMO_PERGUNTAS_POR_SIMULACAO:
+            perguntas = perguntas[: MAXIMO_PERGUNTAS_POR_SIMULACAO - len(faltantes)]
+            tipos_presentes = {p["tipo"] for p in perguntas}
+            faltantes = [tipo for tipo in TIPOS_OBRIGATORIOS if tipo not in tipos_presentes]
         perguntas_reserva = {
             "comportamental": "Conte sobre uma situação em que você precisou lidar com um conflito em equipe.",
             "tecnica": "Descreva sua experiência com as principais ferramentas exigidas por esta vaga.",
             "situacional": "Como você agiria se recebesse uma tarefa com prazo apertado e prioridades conflitantes?",
         }
-        for tipo in TIPOS_OBRIGATORIOS:
-            if tipo not in tipos_presentes:
-                perguntas.append({"tipo": tipo, "texto": perguntas_reserva[tipo]})
+        for tipo in faltantes:
+            perguntas.append({"tipo": tipo, "texto": perguntas_reserva[tipo]})
 
         return perguntas
-
-    def _interpretar_feedback(self, resultado_ia: str) -> dict:
-        dados = self._extrair_json(resultado_ia)
-        if not isinstance(dados, dict):
-            dados = {}
-
-        def _dimensao(chave: str) -> dict:
-            bruto = dados.get(chave)
-            if isinstance(bruto, dict):
-                try:
-                    nota = float(bruto.get("nota"))
-                except (TypeError, ValueError):
-                    nota = None
-                comentario = str(bruto.get("comentario") or "").strip()
-                return {"nota": nota, "comentario": comentario}
-            return {"nota": None, "comentario": ""}
-
-        return {
-            "clareza": _dimensao("clareza"),
-            "objetividade": _dimensao("objetividade"),
-            "coerencia": _dimensao("coerencia"),
-            "alinhamento": _dimensao("alinhamento"),
-            "feedback_geral": str(dados.get("feedback_geral") or "").strip(),
-        }
 
     @staticmethod
     def _extrair_json(resultado_ia: str):
