@@ -66,7 +66,7 @@ def test_catalogo_http_exibe_preco_e_cotas_atualizados():
     assert planos["pro"]["preco_centavos"] == 1999
     assert planos["max"]["preco_centavos"] == 5499
     assert planos["ultimate"]["preco_centavos"] == 13999
-    assert planos["pro"]["limite_mensagens_chat"] == 10
+    assert planos["pro"]["limite_mensagens_chat"] == 100
     assert planos["pro"]["limite_entrevistas"] == 5
     assert "limite_respostas_entrevista" not in planos["pro"]
 
@@ -125,3 +125,15 @@ def test_ciclo_stripe_expirado_bloqueia_ia_ate_webhook_de_renovacao():
     with pytest.raises(CotaIATemporariamenteIndisponivelError):
         with service.reservar(uuid.uuid4(), "mensagem_chat"):
             pytest.fail("A chamada de IA não deveria iniciar.")
+
+
+@pytest.mark.parametrize("plano", PLANOS.values())
+def test_orcamento_de_creditos_comporta_todas_as_cotas_do_plano(plano):
+    demais = (
+        plano.limite_estruturacoes * PESO_CREDITOS_OPERACAO["estruturacao_curriculo"]
+        + plano.limite_mensagens_chat * PESO_CREDITOS_OPERACAO["mensagem_chat"]
+        + plano.limite_entrevistas * PESO_CREDITOS_OPERACAO["entrevista_inicio"]
+        + plano.limite_entrevistas * PESO_CREDITOS_OPERACAO["entrevista_avaliacao"]
+    )
+    assert plano.limite_analises * PESO_CREDITOS_OPERACAO["analise_vaga"] <= plano.creditos_analise
+    assert demais <= plano.creditos_demais_operacoes

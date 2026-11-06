@@ -8,6 +8,7 @@ const ITENS = [
   { chave: "vaga", rotulo: "Cadastrar vaga", icone: "ti-briefcase", rota: "/analises/vagas/nova" },
   { chave: "curriculo", rotulo: "Currículo", icone: "ti-file-text", rota: "/analises/upload" },
   { chave: "simulacao", rotulo: "Simular entrevista", icone: "ti-microphone", rota: "/analises/simulacao" },
+  { chave: "plano", rotulo: "Plano de desenvolvimento", icone: "ti-route", rota: "/plano-desenvolvimento" },
   { chave: "templates", rotulo: "Templates ATS", icone: "ti-layout-grid", rota: "/templates" },
   { chave: "chatbot", rotulo: "ChatBOT", icone: "ti-robot", rota: "/analises/chat" },
   { chave: "planos", rotulo: "Planos e uso", icone: "ti-credit-card", rota: "/planos" },

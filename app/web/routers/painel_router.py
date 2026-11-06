@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.core.service.plano_service import PlanoService
 from app.web.dependencies import get_usuario_atual
 from app.web.paginacao import PaginacaoMeta, ParametrosPaginacao, get_paginacao
-from app.web.schemas_painel import PainelHistoricoResponse
+from app.web.schemas_painel import PainelHistoricoResponse, PlanoDesenvolvimentoResponse
 
 router = APIRouter(prefix="/painel", tags=["Painel e Plano de Desenvolvimento"])
 
@@ -30,3 +30,12 @@ def obter_historico(
         lacunas_recorrentes=dados["lacunas_recorrentes"],
         paginacao=PaginacaoMeta(total=dados["total_historico"], limit=paginacao.limit, offset=paginacao.offset),
     )
+
+
+@router.get("/plano-desenvolvimento", response_model=PlanoDesenvolvimentoResponse)
+def obter_plano_desenvolvimento(
+    usuario=Depends(get_usuario_atual),
+    plano_service: PlanoService = Depends(get_plano_service),
+) -> PlanoDesenvolvimentoResponse:
+    """US-015: trilhas e certificações para os requisitos não atendidos nas vagas analisadas."""
+    return PlanoDesenvolvimentoResponse(**plano_service.obter_plano_desenvolvimento(usuario.id_usuario))

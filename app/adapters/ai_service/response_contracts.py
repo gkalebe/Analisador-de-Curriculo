@@ -69,6 +69,43 @@ class RequisitoAvaliado(BaseModel):
         return v
 
 
+class RecomendacaoCompetenciaIA(BaseModel):
+    """US-014: orientação da IA para evidenciar uma competência em lacuna. A cobertura (uma
+    recomendação por lacuna) é garantida depois, em core/service/recomendacoes_competencias.py."""
+
+    model_config = ConfigDict(extra="allow")
+
+    competencia: str
+    orientacoes: list[str] = Field(default_factory=list)
+    onde_evidenciar: str = ""
+
+
+class CertificacaoSugeridaIA(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    nome: str
+    emissor: str = ""
+    motivo: str = ""
+
+
+class ItemPlanoDesenvolvimentoIA(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    competencia: str
+    prioridade: str = ""
+    certificacoes: list[CertificacaoSugeridaIA] = Field(default_factory=list)
+    trilha: list[str] = Field(default_factory=list)
+
+
+class PlanoDesenvolvimentoIA(BaseModel):
+    """US-015: trilha/certificações por lacuna, completadas em core/service/plano_desenvolvimento.py."""
+
+    model_config = ConfigDict(extra="allow")
+
+    itens: list[ItemPlanoDesenvolvimentoIA] = Field(default_factory=list)
+    certificacoes_opcionais: list[CertificacaoSugeridaIA] = Field(default_factory=list)
+
+
 class ResultadoComparacaoCurriculoVaga(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -79,6 +116,8 @@ class ResultadoComparacaoCurriculoVaga(BaseModel):
     diagnostico_ats: DiagnosticoATS
     sugestoes_reescrita: list[SugestaoReescrita]
     requisitos_avaliados: list[RequisitoAvaliado] = Field(default_factory=list)
+    recomendacoes_competencias: list[RecomendacaoCompetenciaIA] = Field(default_factory=list)
+    plano_desenvolvimento: PlanoDesenvolvimentoIA = Field(default_factory=PlanoDesenvolvimentoIA)
     curriculo_estruturado: DadosCurriculoEstruturado
 
     @field_validator("pontuacao", mode="before")

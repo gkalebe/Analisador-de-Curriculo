@@ -367,3 +367,53 @@ def test_prompt_de_perguntas_da_entrevista_continua_pedindo_seis_perguntas_dois_
 
     assert "exatamente 2 perguntas do tipo comportamental" in prompt
     assert "2 do tipo técnica" in prompt and "2 do tipo situacional" in prompt
+
+
+def test_gemini_client_usa_modelo_reserva_quando_principal_segue_sobrecarregado(monkeypatch):
+    import google.api_core.exceptions
+    import google.generativeai as genai
+
+    from app.adapters.ai_service import ai_service_adapter
+
+    class RespostaFalsa:
+        text = "ok"
+
+    chamadas: list[str] = []
+
+    class ModeloFalso:
+        def __init__(self, nome):
+            self.nome = nome
+
+        def generate_content(self, prompt, **kwargs):
+            chamadas.append(self.nome)
+            if self.nome == "principal":
+                raise google.api_core.exceptions.ServiceUnavailable("alta demanda")
+            if self.nome == "inexistente":
+                raise google.api_core.exceptions.NotFound("modelo não existe")
+            return RespostaFalsa()
+
+    monkeypatch.setattr(genai, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(genai, "GenerativeModel", ModeloFalso)
+    monkeypatch.setattr(ai_service_adapter.time, "sleep", lambda segundos: None)
+
+    cliente = GeminiClient(
+        api_key="chave-qualquer",
+        model_name="principal",
+        modelos_reserva=["inexistente", "reserva"],
+    )
+
+    assert cliente.gerar_resposta("prompt") == "ok"
+    assert chamadas == ["principal"] * ai_service_adapter.MAX_TENTATIVAS_GEMINI + ["inexistente", "reserva"]
+
+
+def test_schema_gemini_exige_todos_os_campos_da_analise():
+    from app.adapters.ai_service.ai_service_adapter import _schema_compativel_com_gemini
+    from app.adapters.ai_service.response_contracts import ResultadoComparacaoCurriculoVaga
+
+    schema = _schema_compativel_com_gemini(ResultadoComparacaoCurriculoVaga)
+
+    assert {"requisitos_avaliados", "recomendacoes_competencias", "plano_desenvolvimento"} <= set(
+        schema["required"]
+    )
+    item_plano = schema["properties"]["plano_desenvolvimento"]["properties"]["itens"]["items"]
+    assert set(item_plano["required"]) == {"competencia", "prioridade", "certificacoes", "trilha"}

@@ -21,6 +21,9 @@ class PlanoCatalogo:
         return self.creditos_orcamento - self.creditos_analise
 
 
+# Cotas mensais por plano. Os limites por operação são o teto que o usuário enxerga; o
+# orçamento de créditos (70% reservado para análises) é uma trava de custo de IA e foi
+# dimensionado para comportar o uso máximo de todas as operações do plano.
 PLANOS: dict[str, PlanoCatalogo] = {
     "free": PlanoCatalogo(
         codigo="free",
@@ -28,13 +31,13 @@ PLANOS: dict[str, PlanoCatalogo] = {
         preco_centavos=0,
         moeda="BRL",
         intervalo="mensal",
-        limite_analises=2,
+        limite_analises=3,
         limite_estruturacoes=1,
-        limite_mensagens_chat=3,
+        limite_mensagens_chat=20,
         limite_entrevistas=0,
-        limite_curriculos=100,
-        creditos_orcamento=30,
-        creditos_analise=21,
+        limite_curriculos=3,
+        creditos_orcamento=140,
+        creditos_analise=98,
     ),
     "pro": PlanoCatalogo(
         codigo="pro",
@@ -42,13 +45,13 @@ PLANOS: dict[str, PlanoCatalogo] = {
         preco_centavos=1999,
         moeda="BRL",
         intervalo="mensal",
-        limite_analises=10,
-        limite_estruturacoes=2,
-        limite_mensagens_chat=10,
+        limite_analises=20,
+        limite_estruturacoes=4,
+        limite_mensagens_chat=100,
         limite_entrevistas=5,
-        limite_curriculos=100,
-        creditos_orcamento=150,
-        creditos_analise=105,
+        limite_curriculos=15,
+        creditos_orcamento=660,
+        creditos_analise=462,
     ),
     "max": PlanoCatalogo(
         codigo="max",
@@ -56,13 +59,13 @@ PLANOS: dict[str, PlanoCatalogo] = {
         preco_centavos=5499,
         moeda="BRL",
         intervalo="mensal",
-        limite_analises=28,
-        limite_estruturacoes=5,
-        limite_mensagens_chat=25,
+        limite_analises=60,
+        limite_estruturacoes=10,
+        limite_mensagens_chat=300,
         limite_entrevistas=15,
-        limite_curriculos=300,
-        creditos_orcamento=400,
-        creditos_analise=280,
+        limite_curriculos=50,
+        creditos_orcamento=1850,
+        creditos_analise=1295,
     ),
     "ultimate": PlanoCatalogo(
         codigo="ultimate",
@@ -70,13 +73,13 @@ PLANOS: dict[str, PlanoCatalogo] = {
         preco_centavos=13999,
         moeda="BRL",
         intervalo="mensal",
-        limite_analises=65,
-        limite_estruturacoes=10,
-        limite_mensagens_chat=60,
+        limite_analises=160,
+        limite_estruturacoes=25,
+        limite_mensagens_chat=800,
         limite_entrevistas=30,
-        limite_curriculos=300,
-        creditos_orcamento=1000,
-        creditos_analise=700,
+        limite_curriculos=150,
+        creditos_orcamento=4800,
+        creditos_analise=3360,
     ),
 }
 
