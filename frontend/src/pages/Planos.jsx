@@ -29,6 +29,19 @@ const METRICAS_PLANO = [
   { chave: "limite_curriculos", rotulo: "Currículos guardados" },
 ];
 const ORDEM_PLANOS = { free: 0, pro: 1, max: 2, ultimate: 3 };
+const PERFIL_PLANO = {
+  free: "Para conhecer a ferramenta",
+  pro: "Para quem está buscando emprego ativamente",
+  max: "Para transição de carreira e muitas candidaturas",
+  ultimate: "Para mentores, consultores e recrutadores",
+};
+const PLANO_DESTAQUE = "pro";
+
+function formatarCustoPorAnalise(plano) {
+  if (!plano.preco_centavos) return "Grátis";
+  if (!plano.limite_analises) return "—";
+  return `${formatarPreco(plano.preco_centavos / plano.limite_analises)}`;
+}
 
 function formatarPreco(centavos) {
   return new Intl.NumberFormat("pt-BR", {
@@ -238,7 +251,7 @@ export default function Planos() {
                     Compare os planos
                   </h2>
                   <p className="mt-1 text-sm text-gray-600">
-                    Limites mensais de cada plano. As cotas não acumulam.
+                    Limites mensais de cada plano. As cotas renovam a cada ciclo de cobrança e não acumulam.
                   </p>
                 </div>
                 <div className="overflow-x-auto">
@@ -249,12 +262,28 @@ export default function Planos() {
                           Recurso
                         </th>
                         {planos.map((plano) => (
-                          <th key={plano.codigo} scope="col" className="min-w-32 px-4 py-3 align-top">
-                            <span className="block font-brand text-base font-bold text-gray-900">{plano.nome}</span>
+                          <th
+                            key={plano.codigo}
+                            scope="col"
+                            className={`min-w-36 px-4 py-3 align-top ${plano.codigo === PLANO_DESTAQUE ? "bg-[#eaf5ef]" : ""}`}
+                          >
+                            <span className="flex flex-wrap items-center gap-2 font-brand text-base font-bold text-gray-900">
+                              {plano.nome}
+                              {plano.codigo === PLANO_DESTAQUE && (
+                                <span className="rounded-full bg-[#1e5e3f] px-2 py-0.5 font-sans text-[10px] font-semibold uppercase tracking-wide text-white">
+                                  Mais escolhido
+                                </span>
+                              )}
+                            </span>
                             <span className="mt-1 block whitespace-nowrap font-bold text-[#1e5e3f]">
                               {formatarPreco(plano.preco_centavos)}
                               <span className="font-normal text-gray-500"> / mês</span>
                             </span>
+                            {PERFIL_PLANO[plano.codigo] && (
+                              <span className="mt-1 block text-xs font-normal leading-4 text-gray-500">
+                                {PERFIL_PLANO[plano.codigo]}
+                              </span>
+                            )}
                           </th>
                         ))}
                       </tr>
@@ -266,14 +295,34 @@ export default function Planos() {
                             {metrica.rotulo}
                           </th>
                           {planos.map((plano) => (
-                            <td key={plano.codigo} className="px-4 py-3 text-gray-700">
-                              {metrica.chave === "limite_curriculos"
-                                ? `Até ${plano[metrica.chave]}`
-                                : plano[metrica.chave]}
+                            <td
+                              key={plano.codigo}
+                              className={`px-4 py-3 text-gray-700 ${plano.codigo === PLANO_DESTAQUE ? "bg-[#f3faf6]" : ""}`}
+                            >
+                              {!plano[metrica.chave] ? (
+                                <span className="text-gray-400">—</span>
+                              ) : metrica.chave === "limite_curriculos" ? (
+                                `Até ${plano[metrica.chave]}`
+                              ) : (
+                                plano[metrica.chave]
+                              )}
                             </td>
                           ))}
                         </tr>
                       ))}
+                      <tr className="border-t border-gray-100">
+                        <th scope="row" className="sticky left-0 z-10 bg-white px-4 py-3 font-medium text-gray-700">
+                          Custo por análise
+                        </th>
+                        {planos.map((plano) => (
+                          <td
+                            key={plano.codigo}
+                            className={`px-4 py-3 text-gray-500 ${plano.codigo === PLANO_DESTAQUE ? "bg-[#f3faf6]" : ""}`}
+                          >
+                            {formatarCustoPorAnalise(plano)}
+                          </td>
+                        ))}
+                      </tr>
                       <tr className="border-t border-gray-200">
                         <th scope="row" className="sticky left-0 z-10 bg-white px-4 py-4 font-semibold text-gray-700">
                           Assinatura
