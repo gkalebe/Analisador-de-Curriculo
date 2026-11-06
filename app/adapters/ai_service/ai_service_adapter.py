@@ -92,12 +92,25 @@ class AIServiceClient(ABC):
         return self.gerar_resposta_com_metadados(prompt_com_schema, temperatura, timeout_segundos)
 
 
+class _GeminiSobrecarregado(Exception):
+    """Uso interno: o modelo esgotou as tentativas por erro transitório (503/429/timeout)."""
+
+
 class GeminiClient(AIServiceClient):
     provider_name = "gemini"
 
-    def __init__(self, api_key: str, model_name: str = "gemini-3.8-flash"):
+    def __init__(
+        self,
+        api_key: str,
+        model_name: str = "gemini-3.8-flash",
+        modelos_reserva: tuple[str, ...] | list[str] = (),
+    ):
         self.api_key = api_key
         self._model_name = model_name
+        # Modelos tentados, em ordem, quando o principal segue sobrecarregado (503/429/timeout)
+        # mesmo após as novas tentativas. Evita derrubar a análise quando só o modelo mais novo
+        # está com alta demanda.
+        self.modelos_reserva = tuple(m for m in modelos_reserva if m and m != model_name)
 
     @property
     def model_name(self) -> str:
@@ -133,17 +146,47 @@ class GeminiClient(AIServiceClient):
             raise IAConfiguracaoAusenteError(
                 "Defina uma chave de API de IA no .env para usar a análise."
             )
-        import google.api_core.exceptions
         import google.generativeai as genai
-        import requests.exceptions
 
         genai.configure(api_key=self.api_key, transport="rest")
-        modelo = genai.GenerativeModel(self.model_name)
         configuracao = {"temperature": temperatura}
         if response_schema is not None:
             configuracao["response_mime_type"] = "application/json"
             configuracao["response_schema"] = _schema_compativel_com_gemini(response_schema)
 
+        ultimo_erro: Exception | None = None
+        modelos = (self.model_name, *self.modelos_reserva)
+        for indice, nome_modelo in enumerate(modelos):
+            try:
+                return self._tentar_modelo(
+                    genai, nome_modelo, prompt, configuracao, timeout_segundos
+                )
+            except _GeminiSobrecarregado as erro:
+                ultimo_erro = erro.__cause__
+                if indice + 1 < len(modelos):
+                    logger.warning(
+                        "Gemini: modelo %s sobrecarregado, tentando %s",
+                        nome_modelo,
+                        modelos[indice + 1],
+                    )
+
+        logger.error(
+            "Falha ao chamar a API do Gemini após %d tentativas, error_type=%s",
+            MAX_TENTATIVAS_GEMINI,
+            type(ultimo_erro).__name__ if ultimo_erro else "unknown",
+        )
+        raise IAIndisponivelError(
+            "O serviço de IA (Gemini) está sobrecarregado no momento. "
+            "Tente novamente em instantes."
+        ) from ultimo_erro
+
+    def _tentar_modelo(
+        self, genai, nome_modelo: str, prompt: str, configuracao: dict, timeout_segundos: int
+    ) -> AICompletion:
+        import google.api_core.exceptions
+        import requests.exceptions
+
+        modelo = genai.GenerativeModel(nome_modelo)
         ultimo_erro: Exception | None = None
         for tentativa in range(1, MAX_TENTATIVAS_GEMINI + 1):
             try:
@@ -168,13 +211,18 @@ class GeminiClient(AIServiceClient):
                 # Erros transitórios (sobrecarga momentânea ou timeout de leitura): vale nova tentativa.
                 ultimo_erro = erro
                 logger.warning(
-                    "Gemini indisponível (tentativa %d/%d), error_type=%s",
+                    "Gemini indisponível (modelo %s, tentativa %d/%d), error_type=%s",
+                    nome_modelo,
                     tentativa,
                     MAX_TENTATIVAS_GEMINI,
                     type(erro).__name__,
                 )
                 if tentativa < MAX_TENTATIVAS_GEMINI:
                     time.sleep(ESPERA_ENTRE_TENTATIVAS_SEGUNDOS * tentativa)
+            except google.api_core.exceptions.NotFound as erro:
+                # Modelo inexistente/descontinuado para esta chave: segue para o próximo da lista.
+                logger.error("Gemini: modelo %s não encontrado (404)", nome_modelo)
+                raise _GeminiSobrecarregado() from erro
             except (google.api_core.exceptions.GoogleAPICallError, requests.exceptions.RequestException) as erro:
                 # Demais erros (chave inválida, rede fora do ar etc.) não se beneficiam de retry: falha já.
                 logger.error("Falha ao chamar a API do Gemini, error_type=%s", type(erro).__name__)
@@ -183,15 +231,7 @@ class GeminiClient(AIServiceClient):
                     "Tente novamente em instantes."
                 ) from erro
 
-        logger.error(
-            "Falha ao chamar a API do Gemini após %d tentativas, error_type=%s",
-            MAX_TENTATIVAS_GEMINI,
-            type(ultimo_erro).__name__ if ultimo_erro else "unknown",
-        )
-        raise IAIndisponivelError(
-            f"O serviço de IA (Gemini) não respondeu em {timeout_segundos}s ou recusou a requisição. "
-            "Tente novamente em instantes."
-        ) from ultimo_erro
+        raise _GeminiSobrecarregado() from ultimo_erro
 
 
 class ClaudeClient(AIServiceClient):
@@ -371,6 +411,11 @@ def _schema_compativel_com_gemini(modelo: type["BaseModel"]) -> dict:
                     resultado[chave] = {k: resolver(v) for k, v in valor.items()}
                 else:
                     resultado[chave] = resolver(valor)
+            if isinstance(resultado.get("properties"), dict):
+                # Com structured output o Gemini costuma OMITIR campos opcionais (requisitos,
+                # recomendações, plano...). Para ele, todo campo é obrigatório; o contrato Pydantic
+                # continua tolerante para os demais provedores.
+                resultado["required"] = list(resultado["properties"])
             return resultado
         if isinstance(no, list):
             return [resolver(item) for item in no]
@@ -407,7 +452,11 @@ class AIServiceAdapter:
         else:
             settings = get_settings()
             if settings.gemini_api_key:
-                self.cliente = GeminiClient(settings.gemini_api_key, settings.gemini_model_name)
+                self.cliente = GeminiClient(
+                    settings.gemini_api_key,
+                    settings.gemini_model_name,
+                    getattr(settings, "gemini_modelos_reserva", ()),
+                )
             elif settings.groq_api_key:
                 self.cliente = GroqClient(settings.groq_api_key, settings.groq_model_name)
             elif settings.mistral_api_key:
@@ -415,7 +464,11 @@ class AIServiceAdapter:
             elif settings.anthropic_api_key:
                 self.cliente = ClaudeClient(settings.anthropic_api_key, settings.anthropic_model_name)
             else:
-                self.cliente = GeminiClient(settings.gemini_api_key, settings.gemini_model_name)
+                self.cliente = GeminiClient(
+                    settings.gemini_api_key,
+                    settings.gemini_model_name,
+                    getattr(settings, "gemini_modelos_reserva", ()),
+                )
 
     def _gerar_resposta(
         self, prompt: str, operacao: str, temperatura: float, timeout_segundos: int
@@ -606,7 +659,22 @@ class AIServiceAdapter:
             "os bullets de experiência mais fracos ou menos alinhados à vaga, uma sugestão por item. Se o "
             "currículo for curto e não houver 4 trechos a melhorar, gere menos — nunca invente problemas.\n"
             "13. \"o_que_reorganizar\" é orientação para o candidato ler (a ordem das seções no documento "
-            "final é fixa, no padrão ATS); seja breve. Mantenha \"motivo\" em 1 frase curta.\n\n"
+            "final é fixa, no padrão ATS); seja breve. Mantenha \"motivo\" em 1 frase curta.\n"
+            "14. \"recomendacoes_competencias\": para CADA requisito com status 'parcial' ou "
+            "'nao_evidenciado' e para CADA palavra-chave ausente, gere ao menos 1 orientação específica "
+            "de como evidenciar essa competência no currículo (onde colocar, que tipo de contexto e "
+            "resultado descrever, qual termo exato da vaga usar). As orientações NUNCA afirmam que o "
+            "candidato tem a competência e NUNCA sugerem incluir experiência, ferramenta, empresa, número "
+            "ou certificação que não esteja no currículo: quando não houver sustentação, escreva de forma "
+            "condicional (\"Se você já usou X em...\") ou oriente a desenvolver a competência antes de "
+            "citá-la.\n"
+            "15. \"plano_desenvolvimento\": para CADA competência em lacuna (as mesmas do item 14), monte "
+            "uma trilha prática de 2 a 4 passos para desenvolvê-la e defina a prioridade ('alta' para "
+            "requisito obrigatório não evidenciado, 'media' ou 'baixa' para os demais). Em \"certificacoes\" "
+            "cite apenas certificações REAIS e amplamente reconhecidas (emitidas pelo fabricante da "
+            "tecnologia ou por organização conhecida); se não tiver certeza de que existe, deixe a lista "
+            "vazia. Se não houver nenhuma lacuna, deixe \"itens\" vazio e sugira de 1 a 3 "
+            "\"certificacoes_opcionais\" que diferenciariam o candidato nessa vaga.\n\n"
             "Responda ESTRITAMENTE em JSON válido, sem nenhum texto fora do JSON e sem blocos markdown "
             "extras, seguindo este formato exato:\n"
             "{\n"
@@ -638,6 +706,24 @@ class AIServiceAdapter:
             '      "motivo": "<1 frase: por que melhora em ATS/recrutadores>"\n'
             "    }\n"
             "  ],\n"
+            '  "recomendacoes_competencias": [\n'
+            "    {\n"
+            '      "competencia": "<requisito ou termo em lacuna, com o mesmo texto usado acima>",\n'
+            '      "orientacoes": ["<orientação específica e verdadeira para evidenciar a competência>"],\n'
+            '      "onde_evidenciar": "<resumo | experiencia_profissional | habilidades | formacao | projetos>"\n'
+            "    }\n"
+            "  ],\n"
+            '  "plano_desenvolvimento": {\n'
+            '    "itens": [\n'
+            "      {\n"
+            '        "competencia": "<competência em lacuna, mesmo texto do item 14>",\n'
+            '        "prioridade": "<alta | media | baixa>",\n'
+            '        "certificacoes": [{"nome": "<certificação real>", "emissor": "<organização emissora>"}],\n'
+            '        "trilha": ["<passo 1>", "<passo 2>", "<passo 3>"]\n'
+            "      }\n"
+            "    ],\n"
+            '    "certificacoes_opcionais": [{"nome": "<certificação real>", "emissor": "<organização>", "motivo": "<1 frase>"}]\n'
+            "  },\n"
             f'  "curriculo_estruturado": {FORMATO_JSON_CURRICULO_ESTRUTURADO}\n'
             "}\n\n"
             f"Descrição da vaga:\n{texto_vaga}\n\n"

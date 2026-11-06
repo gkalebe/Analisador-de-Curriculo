@@ -9,6 +9,7 @@ from app.adapters.ai_service.ai_service_adapter import IARespostaInvalidaError
 from app.core.persistencia.models.analise import Analise
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
+from app.core.service.catalogo_planos import PLANOS
 from app.core.service.analisador_service import (
     AnalisadorService,
     AnaliseNaoEncontradaError,
@@ -216,13 +217,14 @@ def test_criar_curriculo_manual_recusa_quando_plano_atinge_limite():
             nome_arquivo=f"curriculo-{indice}.pdf",
             texto_extraido="",
         )
-        for indice in range(100)
+        for indice in range(PLANOS["pro"].limite_curriculos)
     ]
 
-    with pytest.raises(LimiteCurriculosPlanoError, match="até 100 currículos"):
+    limite = PLANOS["pro"].limite_curriculos
+    with pytest.raises(LimiteCurriculosPlanoError, match=f"até {limite} currículos"):
         service.criar_curriculo_manual(id_usuario, "Novo currículo", {})
 
-    assert len(service.curriculo_repository.curriculos) == 100
+    assert len(service.curriculo_repository.curriculos) == limite
 
 
 def test_salvar_nome_sem_alterar_dados_nao_cria_versao_revisada():
