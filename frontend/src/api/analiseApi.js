@@ -28,3 +28,7 @@ export function listarAnalises(email) {
 export function excluirAnalise(idAnalise, email) {
   return requisitar(`/analises/${idAnalise}`, { method: "DELETE" });
 }
+
+export function obterRecomendacoesCompetencias(idAnalise) {
+  return requisitar(`/analises/${idAnalise}/recomendacoes`);
+}
