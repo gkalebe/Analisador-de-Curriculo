@@ -335,3 +335,16 @@ def test_gemini_client_usa_modelo_reserva_quando_principal_segue_sobrecarregado(
 
     assert cliente.gerar_resposta("prompt") == "ok"
     assert chamadas == ["principal"] * ai_service_adapter.MAX_TENTATIVAS_GEMINI + ["inexistente", "reserva"]
+
+
+def test_schema_gemini_exige_todos_os_campos_da_analise():
+    from app.adapters.ai_service.ai_service_adapter import _schema_compativel_com_gemini
+    from app.adapters.ai_service.response_contracts import ResultadoComparacaoCurriculoVaga
+
+    schema = _schema_compativel_com_gemini(ResultadoComparacaoCurriculoVaga)
+
+    assert {"requisitos_avaliados", "recomendacoes_competencias", "plano_desenvolvimento"} <= set(
+        schema["required"]
+    )
+    item_plano = schema["properties"]["plano_desenvolvimento"]["properties"]["itens"]["items"]
+    assert set(item_plano["required"]) == {"competencia", "prioridade", "certificacoes", "trilha"}

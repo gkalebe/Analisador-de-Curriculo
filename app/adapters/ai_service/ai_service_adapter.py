@@ -411,6 +411,11 @@ def _schema_compativel_com_gemini(modelo: type["BaseModel"]) -> dict:
                     resultado[chave] = {k: resolver(v) for k, v in valor.items()}
                 else:
                     resultado[chave] = resolver(valor)
+            if isinstance(resultado.get("properties"), dict):
+                # Com structured output o Gemini costuma OMITIR campos opcionais (requisitos,
+                # recomendações, plano...). Para ele, todo campo é obrigatório; o contrato Pydantic
+                # continua tolerante para os demais provedores.
+                resultado["required"] = list(resultado["properties"])
             return resultado
         if isinstance(no, list):
             return [resolver(item) for item in no]
