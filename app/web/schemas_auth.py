@@ -33,6 +33,11 @@ class RedefinirSenhaRequest(BaseModel):
     token: str
     nova_senha: str = Field(min_length=8, max_length=128)
 
+    @field_validator("nova_senha")
+    @classmethod
+    def validar_nova_senha(cls, valor: str) -> str:
+        return validar_regras_senha(valor)
+
 
 class CadastrarUsuarioRequest(BaseModel):
     nome: str = Field(min_length=1, max_length=150)

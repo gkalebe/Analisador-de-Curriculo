@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.adapters.ai_service.ai_service_adapter import (
@@ -8,6 +8,7 @@ from app.adapters.ai_service.ai_service_adapter import (
     IAIndisponivelError,
 )
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.core.service.simulador_service import (
     PerguntaNaoEncontradaError,
     RespostaVaziaError,
@@ -33,7 +34,9 @@ def get_simulador_service(db: Session = Depends(get_db)) -> SimuladorService:
 
 
 @router.post("/iniciar", response_model=SimulacaoResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
 def iniciar_simulacao(
+    request: Request,
     payload: SimulacaoIniciarRequest,
     usuario=Depends(get_usuario_atual),
     simulador_service: SimuladorService = Depends(get_simulador_service),
@@ -99,7 +102,9 @@ def obter_simulacao(
 
 
 @router.post("/{id_simulacao}/perguntas/{id_pergunta}/resposta", response_model=SimulacaoResponse)
+@limiter.limit("20/hour")
 def responder_pergunta(
+    request: Request,
     id_simulacao: uuid.UUID,
     id_pergunta: uuid.UUID,
     payload: RespostaSimulacaoRequest,

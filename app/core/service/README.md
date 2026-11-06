@@ -10,10 +10,11 @@ Os construtores já estão montados na Sprint 0 (o "fio" entre service, reposito
 |---|---|---|---|---|
 | `auth_service.py` | US-001, US-002, US-003, US-017 | 1 | Kevin, Gabriel Kalebe, Allan | `usuario_repository` |
 | `analisador_service.py` | US-004 a US-007, US-019 | 1-2 | Gustavo Souto Pereira, Vitor Bittencourt dos Santos, Kevin, Gabriel Kalebe, Carlos | `curriculo_repository`, `vaga_repository`, `analise_repository`, `curriculo_parser`, `ai_service_adapter` |
-| `diagnostico_service.py` | US-008, US-009 | 2 | Gabriel Kalebe, Allan | `analise_repository`, `ai_service_adapter` |
 | `simulador_service.py` | US-010, US-011 | 3 | Kevin, Gabriel Kalebe | `vaga_repository`, `ai_service_adapter` |
 | `template_service.py` | US-012, US-013 | 3 | Allan, Carlos (implementado por Gabriel Kalebe, com autorização do time) | `curriculo_repository`, `analise_repository`, `ai_service_adapter`, `curriculo_exporter` |
 | `plano_service.py` | US-014, US-015, US-016 | 4 | Kevin, Gabriel Kalebe (US-016, concluído) | `analise_repository` |
+
+US-008 e US-009 nunca saíram do esqueleto (`diagnostico_service.py` só tinha o `__init__`, sem métodos) e foram removidas junto com `diagnostico_router.py`, que também não tinha nenhuma rota. O diagnóstico de ATS que a aplicação de fato expõe (`diagnostico_ats` na resposta de `POST /analises`) é produzido dentro de `analisador_service.py`.
 
 ## Convenção ao implementar uma US
 

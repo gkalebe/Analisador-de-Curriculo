@@ -8,6 +8,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     Response,
     UploadFile,
     status,
@@ -24,6 +25,7 @@ from app.adapters.curriculo_parser.curriculo_parser import (
     FormatoNaoSuportadoError,
 )
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.core.service.analisador_service import (
     AnalisadorService,
     AnaliseNaoEncontradaError,
@@ -161,7 +163,9 @@ async def upload_curriculo(
 
 
 @router.post("", response_model=AnaliseResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/hour")
 async def criar_analise(
+    request: Request,
     email: str | None = Form(None),
     id_vaga: uuid.UUID = Form(...),
     id_curriculo: uuid.UUID | None = Form(None),
@@ -553,7 +557,9 @@ def salvar_edicao_estruturada_curriculo(
 
 
 @router.post("/curriculos/{id_curriculo}/edicao/texto-livre", response_model=CurriculoEdicaoResponse)
+@limiter.limit("15/hour")
 def salvar_edicao_texto_livre_curriculo(
+    request: Request,
     id_curriculo: uuid.UUID,
     payload: CurriculoEdicaoTextoLivreRequest,
     usuario=Depends(get_usuario_atual),
