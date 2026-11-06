@@ -16,6 +16,7 @@ from app.core.service.simulador_service import (
     VagaNaoEncontradaError,
 )
 from app.web.dependencies import get_usuario_atual
+from app.web.paginacao import ParametrosPaginacao, get_paginacao, montar_meta
 from app.web.schemas_simulador import (
     RespostaSimulacaoRequest,
     SimulacaoIniciarRequest,
@@ -56,9 +57,12 @@ def iniciar_simulacao(
 def listar_simulacoes(
     usuario=Depends(get_usuario_atual),
     email: str | None = None,
+    paginacao: ParametrosPaginacao = Depends(get_paginacao),
     simulador_service: SimuladorService = Depends(get_simulador_service),
 ) -> SimulacaoListResponse:
-    simulacoes = simulador_service.listar_simulacoes_usuario(usuario.id_usuario)
+    simulacoes = simulador_service.listar_simulacoes_usuario(
+        usuario.id_usuario, limit=paginacao.limit, offset=paginacao.offset
+    )
     return SimulacaoListResponse(
         simulacoes=[
             SimulacaoItemResponse(
@@ -69,7 +73,10 @@ def listar_simulacoes(
                 total_respondidas=len([p for p in (s.perguntas or []) if p.get("resposta")]),
             )
             for s in simulacoes
-        ]
+        ],
+        paginacao=montar_meta(
+            len(simulacoes), paginacao, lambda: simulador_service.contar_simulacoes_usuario(usuario.id_usuario)
+        ),
     )
 
 

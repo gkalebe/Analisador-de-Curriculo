@@ -9,6 +9,7 @@ from app.adapters.ai_service.ai_service_adapter import IARespostaInvalidaError
 from app.core.persistencia.models.analise import Analise
 from app.core.persistencia.models.curriculo import Curriculo
 from app.core.persistencia.models.vaga import Vaga
+from app.core.service.catalogo_planos import PLANOS
 from app.core.service.analisador_service import (
     AnalisadorService,
     AnaliseNaoEncontradaError,
@@ -34,8 +35,12 @@ class VagaRepositorioFalso:
     def buscar_por_id(self, id_vaga: uuid.UUID) -> Vaga | None:
         return next((vaga for vaga in self.vagas if vaga.id_vaga == id_vaga), None)
 
-    def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Vaga]:
-        return [vaga for vaga in self.vagas if vaga.id_usuario == id_usuario]
+    def listar_por_usuario(self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0) -> list[Vaga]:
+        vagas = [vaga for vaga in self.vagas if vaga.id_usuario == id_usuario]
+        return vagas[offset:] if limit is None else vagas[offset : offset + limit]
+
+    def contar_por_usuario(self, id_usuario: uuid.UUID) -> int:
+        return len([vaga for vaga in self.vagas if vaga.id_usuario == id_usuario])
 
 
 class CurriculoRepositorioFalso:
@@ -95,8 +100,12 @@ class AnaliseRepositorioFalso:
         self.analises.append(analise)
         return analise
 
-    def listar_por_usuario(self, id_usuario: uuid.UUID) -> list[Analise]:
-        return [analise for analise in self.analises if analise.id_usuario == id_usuario]
+    def listar_por_usuario(self, id_usuario: uuid.UUID, limit: int | None = None, offset: int = 0) -> list[Analise]:
+        analises = [analise for analise in self.analises if analise.id_usuario == id_usuario]
+        return analises[offset:] if limit is None else analises[offset : offset + limit]
+
+    def contar_por_usuario(self, id_usuario: uuid.UUID) -> int:
+        return len([analise for analise in self.analises if analise.id_usuario == id_usuario])
 
     def buscar_por_id(self, id_analise: uuid.UUID) -> Analise | None:
         return next((a for a in self.analises if a.id_analise == id_analise), None)
@@ -208,13 +217,14 @@ def test_criar_curriculo_manual_recusa_quando_plano_atinge_limite():
             nome_arquivo=f"curriculo-{indice}.pdf",
             texto_extraido="",
         )
-        for indice in range(100)
+        for indice in range(PLANOS["pro"].limite_curriculos)
     ]
 
-    with pytest.raises(LimiteCurriculosPlanoError, match="até 100 currículos"):
+    limite = PLANOS["pro"].limite_curriculos
+    with pytest.raises(LimiteCurriculosPlanoError, match=f"até {limite} currículos"):
         service.criar_curriculo_manual(id_usuario, "Novo currículo", {})
 
-    assert len(service.curriculo_repository.curriculos) == 100
+    assert len(service.curriculo_repository.curriculos) == limite
 
 
 def test_salvar_nome_sem_alterar_dados_nao_cria_versao_revisada():

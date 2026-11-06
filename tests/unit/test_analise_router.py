@@ -88,10 +88,14 @@ class AnalisadorServiceFalso:
         self.analises_criadas.append(analise)
         return analise
 
-    def listar_analises_usuario(self, id_usuario):
+    def listar_analises_usuario(self, id_usuario, limit=None, offset=0):
         if self.deve_recusar_nao_implementado:
             raise NotImplementedError
-        return self.analises_para_listar
+        fim = None if limit is None else offset + limit
+        return self.analises_para_listar[offset:fim]
+
+    def contar_analises_usuario(self, id_usuario):
+        return len(self.analises_para_listar)
 
     def obter_arquivo_curriculo(self, id_usuario, id_curriculo):
         return self.arquivo_curriculo
@@ -358,6 +362,33 @@ def test_listar_analises_com_sucesso():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert len(response.json()["analises"]) == 1
+    assert response.json()["paginacao"] == {"total": 1, "limit": None, "offset": 0}
+
+
+def test_listar_analises_paginado_consulta_total_quando_pagina_esta_cheia():
+    usuario = _usuario()
+    service_falso = AnalisadorServiceFalso()
+    service_falso.analises_para_listar = [
+        SimpleNamespace(
+            id_analise=uuid.uuid4(),
+            id_curriculo=uuid.uuid4(),
+            id_vaga=uuid.uuid4(),
+            pontuacao=float(i),
+            observacoes="ok",
+            data_analise=datetime.now(timezone.utc),
+        )
+        for i in range(3)
+    ]
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: service_falso
+
+    response = client.get("/analises", params={"limit": 2})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    corpo = response.json()
+    assert [a["pontuacao"] for a in corpo["analises"]] == [0.0, 1.0]
+    assert corpo["paginacao"] == {"total": 3, "limit": 2, "offset": 0}
 
 
 def test_listar_analises_ainda_nao_implementada_retorna_501():
@@ -536,3 +567,75 @@ def test_excluir_curriculo_inexistente_retorna_404():
 
     app.dependency_overrides.clear()
     assert response.status_code == 404
+
+
+def test_obter_recomendacoes_competencias_retorna_lista_por_lacuna():
+    usuario = _usuario()
+    id_analise = uuid.uuid4()
+
+    class ServiceRecomendacoes:
+        def obter_recomendacoes_competencias(self, id_usuario, id_analise_recebido):
+            assert id_usuario == usuario.id_usuario
+            return {
+                "id_analise": id_analise_recebido,
+                "sem_lacunas": False,
+                "recomendacoes": [
+                    {
+                        "competencia": "Docker",
+                        "tipo": "obrigatorio",
+                        "status": "parcial",
+                        "orientacoes": ["Use o termo Docker."],
+                        "onde_evidenciar": "experiencia_profissional",
+                        "origem": "ia",
+                    }
+                ],
+            }
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: ServiceRecomendacoes()
+    response = client.get(f"/analises/{id_analise}/recomendacoes")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    corpo = response.json()
+    assert corpo["id_analise"] == str(id_analise)
+    assert corpo["recomendacoes"][0]["orientacoes"] == ["Use o termo Docker."]
+
+
+def test_obter_recomendacoes_de_analise_de_outro_usuario_retorna_404():
+    usuario = _usuario()
+
+    class ServiceSemAnalise:
+        def obter_recomendacoes_competencias(self, id_usuario, id_analise):
+            raise AnaliseNaoEncontradaError
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: ServiceSemAnalise()
+    response = client.get(f"/analises/{uuid.uuid4()}/recomendacoes")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_obter_plano_desenvolvimento_da_analise():
+    usuario = _usuario()
+    id_analise = uuid.uuid4()
+
+    class ServicePlano:
+        def obter_plano_desenvolvimento_analise(self, id_usuario, id_analise_recebido):
+            return {
+                "id_analise": id_analise_recebido,
+                "sem_lacunas": True,
+                "mensagem": "Sem lacunas.",
+                "itens": [],
+                "certificacoes_opcionais": [{"nome": "PCAP", "emissor": "Python Institute", "motivo": ""}],
+            }
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: ServicePlano()
+    response = client.get(f"/analises/{id_analise}/plano-desenvolvimento")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["sem_lacunas"] is True
+    assert response.json()["certificacoes_opcionais"][0]["nome"] == "PCAP"

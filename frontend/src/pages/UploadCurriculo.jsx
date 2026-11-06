@@ -361,7 +361,11 @@ export default function UploadCurriculo() {
                   id="input-arquivo"
                   accept=".pdf,.docx"
                   className="hidden"
-                  onChange={(e) => selecionarArquivo(e.target.files?.[0])}
+                  onChange={(e) => {
+                    selecionarArquivo(e.target.files?.[0]);
+                    // Limpa o input para que escolher o mesmo arquivo de novo (ex.: após um erro) dispare onChange.
+                    e.target.value = "";
+                  }}
                 />
                 {!arquivo && (
                   <>

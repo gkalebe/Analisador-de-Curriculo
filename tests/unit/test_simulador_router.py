@@ -241,5 +241,24 @@ def test_listar_simulacoes():
         assert len(dados) == 1
         assert dados[0]["total_perguntas"] == 2
         assert dados[0]["total_respondidas"] == 1
+        assert response.json()["paginacao"] == {"total": 1, "limit": None, "offset": 0}
+        servico.listar_simulacoes_usuario.assert_called_once_with(usuario.id_usuario, limit=None, offset=0)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_listar_simulacoes_paginado_usa_contagem_do_servico():
+    usuario = _usuario()
+    servico = MagicMock()
+    servico.listar_simulacoes_usuario.return_value = []
+    servico.contar_simulacoes_usuario.return_value = 7
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_simulador_service] = lambda: servico
+    try:
+        response = client.get("/simulador", params={"limit": 5, "offset": 10})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["paginacao"] == {"total": 7, "limit": 5, "offset": 10}
+        servico.listar_simulacoes_usuario.assert_called_once_with(usuario.id_usuario, limit=5, offset=10)
     finally:
         app.dependency_overrides.clear()

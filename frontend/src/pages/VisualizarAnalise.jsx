@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../components/Sidebar.jsx";
 import AnelProgresso, { classificarAderencia } from "../components/AnelProgresso.jsx";
+import RecomendacoesCompetencias from "../components/RecomendacoesCompetencias.jsx";
+import PlanoDesenvolvimentoAnalise from "../components/PlanoDesenvolvimentoAnalise.jsx";
 import { listarAnalises } from "../api/analiseApi.js";
 import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
@@ -271,6 +273,12 @@ export default function VisualizarAnalise() {
             </ul>
           </div>
         )}
+
+        {/* US-014: como evidenciar as competências em lacuna */}
+        <RecomendacoesCompetencias idAnalise={analise.id_analise} />
+
+        {/* US-015: trilhas e certificações para os requisitos não atendidos */}
+        <PlanoDesenvolvimentoAnalise idAnalise={analise.id_analise} email={emailInicial} />
 
         {/* Diagnóstico Crítico */}
         <div className="rounded-xl border-[0.5px] border-black bg-white p-6 space-y-5">

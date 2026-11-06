@@ -9,6 +9,7 @@ import { lerSessao } from "../models/usuario.js";
 import { ApiError } from "../api/client.js";
 import ImportarVagaButton from "../components/ImportarVagaButton.jsx";
 import FeedbackCarregamento from "../components/FeedbackCarregamento.jsx";
+import RecomendacoesCompetencias from "../components/RecomendacoesCompetencias.jsx";
 import { montarRotaGaleriaTemplates, prepararCurriculoParaTemplate } from "../models/templateAts.js";
 
 export default function NovaAnalise() {
@@ -404,6 +405,9 @@ export default function NovaAnalise() {
                 </div>
               )}
 
+              {/* US-014: como evidenciar as competências em lacuna */}
+              {resultado.id_analise && <RecomendacoesCompetencias idAnalise={resultado.id_analise} />}
+
               {/* Diagnóstico Estrutural ATS */}
               {dadosAts?.diagnostico_ats && (
                 <div className="space-y-4">
@@ -745,7 +749,11 @@ export default function NovaAnalise() {
                   id="input-arquivo"
                   accept=".pdf,.docx"
                   className="hidden"
-                  onChange={(e) => selecionarArquivo(e.target.files?.[0])}
+                  onChange={(e) => {
+                    selecionarArquivo(e.target.files?.[0]);
+                    // Limpa o input para que escolher o mesmo arquivo de novo (ex.: após um erro) dispare onChange.
+                    e.target.value = "";
+                  }}
                 />
                 {!arquivo && (
                   <>
