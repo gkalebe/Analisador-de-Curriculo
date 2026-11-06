@@ -26,6 +26,7 @@ from app.core.service.extracao_curriculo import (
     obter_dados_curriculo_com_cache,
 )
 from app.core.service.catalogo_planos import obter_plano
+from app.core.service.plano_desenvolvimento import montar_plano_desenvolvimento
 from app.core.service.reescrita_curriculo import aplicar_sugestoes_sem_ia
 from app.core.service.recomendacoes_competencias import montar_recomendacoes, resultado_analise_como_dict
 from app.core.service.uso_ia_service import UsoIAService
@@ -503,6 +504,12 @@ class AnalisadorService:
             "recomendacoes": recomendacoes,
         }
 
+    def obter_plano_desenvolvimento_analise(self, id_usuario: uuid.UUID, id_analise: uuid.UUID) -> dict:
+        """US-015 para uma análise específica (a visão consolidada fica no PlanoService)."""
+        analise = self._buscar_analise_do_usuario(id_usuario, id_analise)
+        plano = montar_plano_desenvolvimento(resultado_analise_como_dict(analise.observacoes))
+        return {"id_analise": analise.id_analise, **plano}
+
     def excluir_analise(self, id_usuario: uuid.UUID, id_analise: uuid.UUID) -> None:
         analise = self.analise_repository.buscar_por_id(id_analise)
         if analise is None or analise.id_usuario != id_usuario:
@@ -723,6 +730,8 @@ class AnalisadorService:
         resposta = dados.model_dump(exclude={"curriculo_estruturado"}, exclude_none=True)
         # US-014: grava as recomendações já com cobertura garantida (uma por lacuna).
         resposta["recomendacoes_competencias"] = montar_recomendacoes(resposta)
+        # US-015: plano com trilha para cada requisito não atendido (ou certificações opcionais).
+        resposta["plano_desenvolvimento"] = montar_plano_desenvolvimento(resposta)
         if any(k in resposta for k in ("palavras_chave", "diagnostico_ats", "sugestoes_reescrita", "resumo")):
             observacoes = json.dumps(resposta, ensure_ascii=False)
         else:

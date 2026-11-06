@@ -615,3 +615,27 @@ def test_obter_recomendacoes_de_analise_de_outro_usuario_retorna_404():
     app.dependency_overrides.clear()
 
     assert response.status_code == 404
+
+
+def test_obter_plano_desenvolvimento_da_analise():
+    usuario = _usuario()
+    id_analise = uuid.uuid4()
+
+    class ServicePlano:
+        def obter_plano_desenvolvimento_analise(self, id_usuario, id_analise_recebido):
+            return {
+                "id_analise": id_analise_recebido,
+                "sem_lacunas": True,
+                "mensagem": "Sem lacunas.",
+                "itens": [],
+                "certificacoes_opcionais": [{"nome": "PCAP", "emissor": "Python Institute", "motivo": ""}],
+            }
+
+    app.dependency_overrides[get_usuario_atual] = lambda: usuario
+    app.dependency_overrides[get_analisador_service] = lambda: ServicePlano()
+    response = client.get(f"/analises/{id_analise}/plano-desenvolvimento")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["sem_lacunas"] is True
+    assert response.json()["certificacoes_opcionais"][0]["nome"] == "PCAP"

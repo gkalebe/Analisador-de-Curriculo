@@ -39,3 +39,27 @@ class RecomendacoesCompetenciasResponse(BaseModel):
     id_analise: uuid.UUID
     sem_lacunas: bool
     recomendacoes: list[RecomendacaoCompetenciaResponse]
+
+
+class CertificacaoSugeridaResponse(BaseModel):
+    nome: str
+    emissor: str = ""
+    motivo: str = ""
+
+
+class ItemPlanoDesenvolvimentoResponse(BaseModel):
+    competencia: str
+    tipo: Literal["obrigatorio", "desejavel"]
+    status: Literal["parcial", "nao_evidenciado"]
+    prioridade: Literal["alta", "media", "baixa"]
+    certificacoes: list[CertificacaoSugeridaResponse]
+    trilha: list[str]
+    origem: Literal["ia", "padrao"]
+
+
+class PlanoDesenvolvimentoAnaliseResponse(BaseModel):
+    id_analise: uuid.UUID
+    sem_lacunas: bool
+    mensagem: str
+    itens: list[ItemPlanoDesenvolvimentoResponse]
+    certificacoes_opcionais: list[CertificacaoSugeridaResponse]

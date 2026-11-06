@@ -38,6 +38,7 @@ from app.web.paginacao import ParametrosPaginacao, get_paginacao, montar_meta
 from app.web.schemas_analise import (
     AnaliseListResponse,
     AnaliseResponse,
+    PlanoDesenvolvimentoAnaliseResponse,
     RecomendacoesCompetenciasResponse,
 )
 from app.web.schemas_curriculo import (
@@ -317,6 +318,23 @@ def obter_recomendacoes_competencias(
             detail="Análise não encontrada para este usuário.",
         ) from erro
     return RecomendacoesCompetenciasResponse(**dados)
+
+
+@router.get("/{id_analise}/plano-desenvolvimento", response_model=PlanoDesenvolvimentoAnaliseResponse)
+def obter_plano_desenvolvimento_analise(
+    id_analise: uuid.UUID,
+    usuario=Depends(get_usuario_atual),
+    analisador_service: AnalisadorService = Depends(get_analisador_service),
+) -> PlanoDesenvolvimentoAnaliseResponse:
+    """US-015: trilha/certificação para cada requisito não atendido desta análise."""
+    try:
+        dados = analisador_service.obter_plano_desenvolvimento_analise(usuario.id_usuario, id_analise)
+    except AnaliseNaoEncontradaError as erro:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Análise não encontrada para este usuário.",
+        ) from erro
+    return PlanoDesenvolvimentoAnaliseResponse(**dados)
 
 
 @router.delete("/{id_analise}", status_code=status.HTTP_204_NO_CONTENT)
