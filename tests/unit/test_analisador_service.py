@@ -1249,6 +1249,68 @@ def test_adicionar_e_remover_habilidade_curriculo():
     assert "Docker" in curriculo.dados_editados["habilidades_tecnicas"]
 
 
+def _servico_com_ia_de_estruturacao():
+    service = _criar_service_completo_com_fakes()
+    service.ai_service_adapter.extrair_dados_estruturados = lambda texto: json.dumps(
+        {"nome_completo": "Ana", "habilidades_tecnicas": ["Python"]}
+    )
+    return service
+
+
+def _chamadas_de_estruturacao_individuais(service, id_usuario, curriculo):
+    return [
+        lambda: service.aplicar_sugestao_individual(
+            id_usuario, curriculo.id_curriculo, "Python", "Python avançado", "habilidades"
+        ),
+        lambda: service.adicionar_habilidade_curriculo(id_usuario, curriculo.id_curriculo, "Docker"),
+        lambda: service.remover_habilidade_curriculo(id_usuario, curriculo.id_curriculo, "Python"),
+    ]
+
+
+@pytest.mark.parametrize("indice", [0, 1, 2])
+def test_edicoes_individuais_reservam_estruturacao_quando_o_cache_do_curriculo_falta(indice):
+    service = _servico_com_ia_de_estruturacao()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf", id_usuario=id_usuario, status_processamento="concluido", texto_extraido="texto bruto"
+    )
+    service.curriculo_repository.criar(curriculo)
+    service.curriculo_repository.salvar_dados_extraidos = lambda c, dados: setattr(c, "dados_extraidos", dados)
+
+    _chamadas_de_estruturacao_individuais(service, id_usuario, curriculo)[indice]()
+
+    service.uso_ia_service.reservar.assert_called_once_with(id_usuario, "estruturacao_curriculo")
+
+
+@pytest.mark.parametrize("indice", [0, 1, 2])
+def test_edicoes_individuais_nao_reservam_cota_quando_ha_dados_em_cache(indice):
+    service = _servico_com_ia_de_estruturacao()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(
+        nome_arquivo="c.pdf",
+        id_usuario=id_usuario,
+        status_processamento="concluido",
+        texto_extraido="texto bruto",
+        dados_extraidos={"habilidades_tecnicas": ["Python"]},
+    )
+    service.curriculo_repository.criar(curriculo)
+
+    _chamadas_de_estruturacao_individuais(service, id_usuario, curriculo)[indice]()
+
+    service.uso_ia_service.reservar.assert_not_called()
+
+
+def test_edicao_individual_sem_texto_extraido_nao_reserva_cota():
+    service = _servico_com_ia_de_estruturacao()
+    id_usuario = uuid.uuid4()
+    curriculo = Curriculo(nome_arquivo="c.pdf", id_usuario=id_usuario, status_processamento="concluido", texto_extraido="")
+    service.curriculo_repository.criar(curriculo)
+
+    service.adicionar_habilidade_curriculo(id_usuario, curriculo.id_curriculo, "Docker")
+
+    service.uso_ia_service.reservar.assert_not_called()
+
+
 def test_aplicar_sugestoes_preserva_habilidades_adicionadas():
     service = _criar_service_completo_com_fakes()
     id_usuario = uuid.uuid4()

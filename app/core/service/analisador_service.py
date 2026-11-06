@@ -640,6 +640,26 @@ class AnalisadorService:
             curriculo = self.curriculo_repository.salvar_edicao(curriculo, dados_aplicados)
         return curriculo, relatorio
 
+    def _estruturar_curriculo_com_reserva(self, id_usuario: uuid.UUID, curriculo: Curriculo) -> dict:
+        """Estrutura o currículo por IA (cache faltando) reservando 1 estruturação da cota — só
+        quando há texto para estruturar, igual aos demais pontos deste serviço."""
+        reserva = (
+            self.uso_ia_service.reservar(id_usuario, "estruturacao_curriculo")
+            if (curriculo.texto_extraido or "").strip()
+            else nullcontext()
+        )
+        with reserva as uso:
+            return obter_dados_curriculo_com_cache(
+                curriculo,
+                self.ai_service_adapter,
+                self.curriculo_repository,
+                ao_falhar_ia=(
+                    (lambda: self.uso_ia_service.liberar(uso))
+                    if uso is not None
+                    else None
+                ),
+            )
+
     def aplicar_sugestao_individual(
         self,
         id_usuario: uuid.UUID,
@@ -656,7 +676,7 @@ class AnalisadorService:
         texto_bruto = curriculo.texto_extraido or ""
         base = curriculo.dados_editados or curriculo.dados_extraidos or {}
         if not base and not curriculo.dados_extraidos:
-            base = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+            base = self._estruturar_curriculo_com_reserva(id_usuario, curriculo)
         dados_atuais = normalizar_dados_curriculo(base, texto_bruto)
 
         aplicou = aplicar_reescrita(dados_atuais, trecho_original, versao_otimizada, campo)
@@ -681,7 +701,7 @@ class AnalisadorService:
         texto_bruto = curriculo.texto_extraido or ""
         base = curriculo.dados_editados or curriculo.dados_extraidos or {}
         if not base and not curriculo.dados_extraidos:
-            base = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+            base = self._estruturar_curriculo_com_reserva(id_usuario, curriculo)
         dados_atuais = normalizar_dados_curriculo(base, texto_bruto)
 
         habilidades = list(dados_atuais.get("habilidades_tecnicas") or [])
@@ -705,7 +725,7 @@ class AnalisadorService:
         texto_bruto = curriculo.texto_extraido or ""
         base = curriculo.dados_editados or curriculo.dados_extraidos or {}
         if not base and not curriculo.dados_extraidos:
-            base = obter_dados_curriculo_com_cache(curriculo, self.ai_service_adapter, self.curriculo_repository)
+            base = self._estruturar_curriculo_com_reserva(id_usuario, curriculo)
         dados_atuais = normalizar_dados_curriculo(base, texto_bruto)
 
         habilidades = [h for h in (dados_atuais.get("habilidades_tecnicas") or []) if h.strip().lower() != habilidade_limpa]
