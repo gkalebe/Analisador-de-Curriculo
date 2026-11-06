@@ -27,6 +27,7 @@ from app.core.service.extracao_curriculo import (
 )
 from app.core.service.catalogo_planos import obter_plano
 from app.core.service.reescrita_curriculo import aplicar_sugestoes_sem_ia
+from app.core.service.recomendacoes_competencias import montar_recomendacoes, resultado_analise_como_dict
 from app.core.service.uso_ia_service import UsoIAService
 
 # Mesmos 4 campos estruturados usados na tela de edição (EditarCurriculo.jsx) — a IA já
@@ -485,6 +486,23 @@ class AnalisadorService:
     def contar_analises_usuario(self, id_usuario: uuid.UUID) -> int:
         return self.analise_repository.contar_por_usuario(id_usuario)
 
+    def _buscar_analise_do_usuario(self, id_usuario: uuid.UUID, id_analise: uuid.UUID) -> Analise:
+        analise = self.analise_repository.buscar_por_id(id_analise)
+        if analise is None or analise.id_usuario != id_usuario:
+            raise AnaliseNaoEncontradaError
+        return analise
+
+    def obter_recomendacoes_competencias(self, id_usuario: uuid.UUID, id_analise: uuid.UUID) -> dict:
+        """US-014. Recalcula a partir do resultado salvo, então também cobre análises antigas
+        (anteriores às recomendações), que recebem as orientações padrão."""
+        analise = self._buscar_analise_do_usuario(id_usuario, id_analise)
+        recomendacoes = montar_recomendacoes(resultado_analise_como_dict(analise.observacoes))
+        return {
+            "id_analise": analise.id_analise,
+            "sem_lacunas": not recomendacoes,
+            "recomendacoes": recomendacoes,
+        }
+
     def excluir_analise(self, id_usuario: uuid.UUID, id_analise: uuid.UUID) -> None:
         analise = self.analise_repository.buscar_por_id(id_analise)
         if analise is None or analise.id_usuario != id_usuario:
@@ -703,6 +721,8 @@ class AnalisadorService:
     def _interpretar_resultado_ia(self, resultado_ia: str) -> tuple[float | None, str]:
         dados = interpretar_resultado_comparacao(resultado_ia)
         resposta = dados.model_dump(exclude={"curriculo_estruturado"}, exclude_none=True)
+        # US-014: grava as recomendações já com cobertura garantida (uma por lacuna).
+        resposta["recomendacoes_competencias"] = montar_recomendacoes(resposta)
         if any(k in resposta for k in ("palavras_chave", "diagnostico_ats", "sugestoes_reescrita", "resumo")):
             observacoes = json.dumps(resposta, ensure_ascii=False)
         else:
